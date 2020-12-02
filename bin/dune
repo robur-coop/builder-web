@@ -1,0 +1,4 @@
+(executable
+ (public_name builder_web)
+ (name builder_web_app)
+ (libraries builder_web))

@@ -1,0 +1,23 @@
+opam-version: "2.0"
+maintainer: "Reynir Björnsson <reynir@reynir.dk>"
+authors: ["Reynir Björnsson <reynir@reynir.dk>"]
+homepage: "https://github.com/roburio/builder-web"
+dev-repo: "git+https://github.com/roburio/builder-web.git"
+bug-reports: "https://github.com/roburio/builder-web/issues"
+license: "ISC"
+
+build: [
+  ["dune" "subst"] {pinned}
+  ["dune" "build" "-p" name "-j" jobs]
+]
+
+depends: [
+  "builder"
+  "opium"
+]
+
+synopsis: "Web interface for builder"
+
+pin-depends: [
+  ["builder.dev" "git+https://git.data.coop/reynir/builder.git"]
+]
