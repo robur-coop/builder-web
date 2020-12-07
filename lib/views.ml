@@ -21,7 +21,11 @@ let check_icon result =
 let layout ~title:title_ body_ =
   html
     (head (title (txt title_))
-       [])
+       [style ~a:[a_mime_type "text/css"]
+          [
+            txt ".output-ts { white-space: nowrap; }";
+            txt ".output-code { overflow: visible; }"
+          ]])
     (body body_)
 
 let builder jobs =
@@ -71,10 +75,12 @@ let job_run
     [ h1 [txtf "Job build %s %a (%a)" name ptime_pp start Uuidm.pp uuid];
       p [txtf "Took %a." Ptime.Span.pp delta ];
       p [txtf "Status: %a." Builder.pp_execution_result result];
-      div (List.concat_map (fun (ts, line) ->
-          [
-            code [txtf "%d ms %s" (Duration.to_ms (Int64.of_int ts)) line];
-            br ();
-          ])
+      table (List.concat_map (fun (ts, line) ->
+          [tr [
+              td ~a:[a_class ["output-ts"]]
+                [txtf "%d ms" (Duration.to_ms (Int64.of_int ts))];
+              td ~a:[a_class ["output-code"]]
+                [code [txt line]];
+            ]])
           (List.rev out));
     ]
