@@ -26,4 +26,4 @@ val job_name : job -> string
 val read_full : t -> Fpath.t -> Fpath.t -> (job_run_info, [> `Msg of string ]) result
 
 val job : t -> Fpath.t -> (job, [> `Msg of string]) result
-val jobs : t -> (job list, [> `Msg of string ]) result
+val jobs : t -> (Fpath.t list, [> `Msg of string ]) result

@@ -21,7 +21,7 @@ let routes (t : Model.t) =
       Response.of_plain_text ~status:`Internal_server_error
         "Error getting jobs" |> Lwt.return
     | Ok jobs ->
-      List.sort (fun j1 j2 -> Fpath.compare j1.Model.path j2.Model.path) jobs
+      List.sort Fpath.compare jobs
       |> Views.builder |> Response.of_html |> Lwt.return
   in
 

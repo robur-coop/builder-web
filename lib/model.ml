@@ -81,9 +81,13 @@ let jobs t =
   Bos.OS.Dir.contents ~rel:true t.dir >>|
   List.filter (fun f -> not (Fpath.equal (Fpath.v "state") f)) >>|
   List.filter_map (fun f ->
-      match job t f with
-      | Ok job -> Some job
+      match Bos.OS.Dir.exists Fpath.(t.dir // f) with
+      | Ok true -> Some f
+      | Ok false ->
+        Log.warn (fun m -> m "dir %a doesn't exist" Fpath.pp
+                     Fpath.(t.dir // f));
+        None
       | Error (`Msg e) ->
-        Log.warn (fun m -> m "error reading job run dir %a: %s" Fpath.pp
+        Log.warn (fun m -> m "error reading job dir %a: %s" Fpath.pp
                      Fpath.(t.dir // f) e);
         None)

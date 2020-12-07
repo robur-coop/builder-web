@@ -37,8 +37,8 @@ let builder jobs =
       ];
       ul (List.map (fun job ->
           li [
-            a ~a:[a_href ("job/" ^ Model.job_name job ^ "/")]
-              [txt (Model.job_name job)];
+            a ~a:[a_href ("job/" ^ Fpath.to_string job ^ "/")]
+              [txt (Fpath.to_string job)];
           ])
           jobs);
     ]
