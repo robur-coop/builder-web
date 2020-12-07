@@ -23,25 +23,28 @@ let builder jobs =
           jobs);
     ]
 
-let job job =
-  let name = Model.job_name job in
+let job name runs =
   layout ~title:(Printf.sprintf "Job %s" name)
     [ h1 [txtf "Job %s" name];
       p [
         txtf "Currently %d job runs."
-          (List.length job.Model.runs)
+          (List.length runs)
       ];
-      ul (List.map (fun (run : Fpath.t) ->
+      ul (List.map (fun run ->
           li [
-            a ~a:[a_href Fpath.(to_string (v "run" // run) ^ "/")]
-              [txtf "%a" Fpath.pp run];
+            a ~a:[a_href Fpath.(to_string (v "run" / Uuidm.to_string run.Model.uuid) ^ "/")]
+              [txtf "%a" (Ptime.pp_human ()) run.Model.start];
           ])
-          job.Model.runs);
+          runs);
 
     ]
 
-let job_run { Model.job_info = { Builder.name; _ };
-              uuid; result; out; _ } =
+let job_run
+    { Model.meta = {
+          Model.job_info = { Builder.name; _ };
+          uuid; result; _ };
+      out; _ }
+  =
   layout ~title:(Printf.sprintf "Job run %s (%s)" name (Uuidm.to_string uuid))
     [ h1 [txtf "Job build %s (%a)" name Uuidm.pp uuid];
       p [txtf "Status: %a" Builder.pp_execution_result result];

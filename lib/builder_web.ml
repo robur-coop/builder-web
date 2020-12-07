@@ -4,9 +4,9 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Opium
 open Rresult.R.Infix
 
-type t = Model.t = {
-  dir : Fpath.t
-}
+type t = Model.t
+
+let init = Model.init
 
 let safe_seg path =
   if Fpath.is_seg path && not (Fpath.is_rel_seg path)
@@ -21,7 +21,8 @@ let routes (t : Model.t) =
       Response.of_plain_text ~status:`Internal_server_error
         "Error getting jobs" |> Lwt.return
     | Ok jobs ->
-      Views.builder jobs |> Response.of_html |> Lwt.return
+      List.sort (fun j1 j2 -> Fpath.compare j1.Model.path j2.Model.path) jobs
+      |> Views.builder |> Response.of_html |> Lwt.return
   in
 
   let job req =
@@ -29,7 +30,9 @@ let routes (t : Model.t) =
     match safe_seg job >>= fun job ->
       Model.job t job with
     | Ok job ->
-      Views.job job |> Response.of_html |> Lwt.return
+      let name = Model.job_name job
+      and runs = job.Model.runs in
+      Views.job name runs |> Response.of_html |> Lwt.return
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting job: %s" e);
       Response.of_plain_text ~status:`Internal_server_error

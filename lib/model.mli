@@ -1,22 +1,25 @@
-type t = {
-  dir : Fpath.t
+type t
+
+type job_run_meta = {
+  job_info : Builder.job;
+  uuid : Uuidm.t;
+  start : Ptime.t;
+  finish : Ptime.t;
+  result : Builder.execution_result;
+}
+
+type job_run_info = {
+  meta : job_run_meta;
+  out : (int * string) list;
+  data : (Fpath.t * string) list
 }
 
 type job = {
   path : Fpath.t;
-  runs : Fpath.t list;
+  runs : job_run_meta list;
 }
 
-
-type job_run_info = {
-  job_info : Builder.job;
-  uuid : Uuidm.t;
-  out : (int * string) list;
-  start : Ptime.t;
-  finish : Ptime.t;
-  result : Builder.execution_result;
-  data : (Fpath.t * string) list
-}
+val init : Fpath.t -> t
 
 val job_name : job -> string
 
