@@ -31,7 +31,10 @@ let routes (t : Model.t) =
       Model.job t job with
     | Ok job ->
       let name = Model.job_name job
-      and runs = job.Model.runs in
+      and runs = List.sort
+          (fun (b1 : Model.job_run_meta) (b2 : Model.job_run_meta) ->
+             Ptime.compare b1.start b2.start)
+          job.Model.runs in
       Views.job name runs |> Response.of_html |> Lwt.return
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting job: %s" e);
