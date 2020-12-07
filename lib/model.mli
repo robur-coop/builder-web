@@ -2,9 +2,11 @@ type t = {
   dir : Fpath.t
 }
 
-type job
+type job = {
+  path : Fpath.t;
+  runs : Fpath.t list;
+}
 
-type job_run
 
 type job_run_info = {
   job_info : Builder.job;
@@ -17,8 +19,8 @@ type job_run_info = {
 }
 
 val job_name : job -> string
-val job_run_uuid : job_run -> Uuidm.t
 
-val read_full : t -> job -> job_run -> (job_run_info, [> `Msg of string ]) result
+val read_full : t -> Fpath.t -> Fpath.t -> (job_run_info, [> `Msg of string ]) result
 
+val job : t -> Fpath.t -> (job, [> `Msg of string]) result
 val jobs : t -> (job list, [> `Msg of string ]) result

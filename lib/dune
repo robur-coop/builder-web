@@ -1,3 +1,3 @@
 (library
  (name builder_web)
- (libraries builder opium bos rresult))
+ (libraries builder opium bos rresult duration))

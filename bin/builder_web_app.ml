@@ -1,6 +1,6 @@
 open Opium
 
-let t = { Builder_web.Model.dir = Fpath.v "sample" }
+let t = { Builder_web.dir = Fpath.v "sample" }
 
 let app =
   App.empty

@@ -7,16 +7,12 @@ type t = {
   dir : Fpath.t;
 }
 
-type job_run = Fpath.t
-
 type job = {
-  name : Fpath.t;
-  runs : job_run list;
+  path : Fpath.t;
+  runs : Fpath.t list;
 }
 
-let job_name { name; _ } = Fpath.to_string name
-(* TODO: ensure invariant: jobs are always valid UUIDs *)
-let job_run_uuid f = Option.get (Uuidm.of_string (Fpath.to_string f))
+let job_name { path; _ } = Fpath.to_string path
 
 type job_run_info = {
   job_info : Builder.job;
@@ -28,24 +24,24 @@ type job_run_info = {
   data : (Fpath.t * string) list
 }
 
-let read_full t job run =
-  let f = Fpath.(t.dir // job.name // run / "full") in
+let read_full t path run =
+  let f = Fpath.(t.dir // path // run / "full") in
   Bos.OS.File.read f >>= fun s ->
   Builder.Asn.exec_of_cs (Cstruct.of_string s)
   >>| fun (job_info, uuid, out, start, finish, result, data) ->
   { job_info; uuid; out; start; finish; result; data }
 
-let job_runs t job =
+let job t job =
   Bos.OS.Dir.contents ~rel:true Fpath.(t.dir // job) >>= fun job_runs ->
-  Ok { name = job; runs = job_runs }
+  Ok { path = job; runs = job_runs }
 
 let jobs t =
   Bos.OS.Dir.contents ~rel:true t.dir >>|
   List.filter (fun f -> not (Fpath.equal (Fpath.v "state") f)) >>|
-  List.filter_map (fun job ->
-      match job_runs t job with
+  List.filter_map (fun f ->
+      match job t f with
       | Ok job -> Some job
       | Error (`Msg e) ->
-        Log.warn (fun f -> f "Error reading job run dir %a: %s" Fpath.pp
-                     Fpath.(t.dir // job) e);
+        Log.warn (fun m -> m "Error reading job run dir %a: %s" Fpath.pp
+                     Fpath.(t.dir // f) e);
         None)
