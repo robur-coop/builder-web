@@ -47,7 +47,7 @@ let job name runs =
   layout ~title:(Printf.sprintf "Job %s" name)
     [ h1 [txtf "Job %s" name];
       p [
-        txtf "Currently %d job runs."
+        txtf "Currently %d builds."
           (List.length runs)
       ];
       ul (List.map (fun run ->
@@ -66,15 +66,15 @@ let job name runs =
 let job_run
     { Model.meta = {
           Model.job_info = { Builder.name; _ };
-          start; finish; uuid; result };
-      out; _ }
+          start; finish; uuid = _; result };
+      out; data = _ }
   =
   let ptime_pp = Ptime.pp_human () in
   let delta = Ptime.diff finish start in
-  layout ~title:(Printf.sprintf "Job run %s (%s)" name (Uuidm.to_string uuid))
-    [ h1 [txtf "Job build %s %a (%a)" name ptime_pp start Uuidm.pp uuid];
-      p [txtf "Took %a." Ptime.Span.pp delta ];
-      p [txtf "Status: %a." Builder.pp_execution_result result];
+  layout ~title:(Fmt.strf "Job build %s %a" name ptime_pp start)
+    [ h1 [txtf "Job build %s %a" name ptime_pp start];
+      p [txtf "Build took %a." Ptime.Span.pp delta ];
+      p [txtf "Execution result: %a." Builder.pp_execution_result result];
       table (List.concat_map (fun (ts, line) ->
           [tr [
               td ~a:[a_class ["output-ts"]]
