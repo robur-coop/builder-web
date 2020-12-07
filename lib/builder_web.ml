@@ -43,8 +43,8 @@ let routes (t : Model.t) =
 
   [
     App.get "/" builder;
-    App.get "/job/:job" job;
-    App.get "/job/:job/run/:run" job_run;
+    App.get "/job/:job/" job;
+    App.get "/job/:job/run/:run/" job_run;
   ]
 
 let add_routes t (app : App.t) =

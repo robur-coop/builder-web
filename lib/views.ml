@@ -17,7 +17,7 @@ let builder jobs =
       ];
       ul (List.map (fun job ->
           li [
-            a ~a:[a_href ("job/" ^ Model.job_name job)]
+            a ~a:[a_href ("job/" ^ Model.job_name job ^ "/")]
               [txt (Model.job_name job)];
           ])
           jobs);
@@ -33,7 +33,7 @@ let job job =
       ];
       ul (List.map (fun (run : Fpath.t) ->
           li [
-            a ~a:[a_href Fpath.(to_string (job.path / "run" // run))]
+            a ~a:[a_href Fpath.(to_string (v "run" // run) ^ "/")]
               [txtf "%a" Fpath.pp run];
           ])
           job.Model.runs);
