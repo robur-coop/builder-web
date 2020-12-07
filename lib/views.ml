@@ -1,14 +1,21 @@
 open Tyxml.Html
 
 let txtf fmt = Fmt.kstrf txt fmt
+let a_titlef fmt = Fmt.kstrf a_title fmt
 
-let check_icon check =
-  if check
-  then
-    span ~a:[a_style "color: green;"]
+let check_icon result =
+  match result with
+  | Builder.Exited 0 ->
+    span ~a:[
+      a_style "color: green;";
+      a_titlef "%a" Builder.pp_execution_result result;
+    ]
       [txt "☑"]
-  else
-    span ~a:[a_style "color: red;"]
+  | _ ->
+    span ~a:[
+      a_style "color: red;";
+      a_titlef "%a" Builder.pp_execution_result result;
+    ]
       [txt "☒"]
 
 let layout ~title:title_ body_ =
@@ -44,8 +51,9 @@ let job name runs =
             a ~a:[a_href Fpath.(to_string (v "run" / Uuidm.to_string run.Model.uuid) ^ "/")]
               [
                 txtf "%a" (Ptime.pp_human ()) run.Model.start;
-                check_icon (match run.result with Builder.Exited 0 -> true | _ -> false);
               ];
+            txt " ";
+            check_icon run.result;
           ])
           runs);
 
