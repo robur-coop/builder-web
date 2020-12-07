@@ -45,15 +45,21 @@ let read_full t path run =
   Bos.OS.File.read f >>= fun s ->
   Builder.Asn.exec_of_cs (Cstruct.of_string s)
   >>| fun (job_info, uuid, out, start, finish, result, data) ->
-  { meta = { job_info; uuid; start; finish; result };
-    out; data }
+  let meta = { job_info; uuid; start; finish; result } in
+  t.cache <- RunMap.add (path, run) meta t.cache;
+  { meta; out; data }
 
 let read_full_meta t path run =
   match RunMap.find_opt (path, run) t.cache with
-  | Some meta -> Ok meta
+  | Some meta ->
+    Bos.OS.File.exists Fpath.(t.dir // path // run / "full") >>= fun exists ->
+    if exists
+    then Ok meta
+    else
+      (t.cache <- RunMap.remove (path, run) t.cache;
+       Error (`Msg "no such file"))
   | None ->
     read_full t path run >>| fun { meta; out = _; data = _ }  ->
-    t.cache <- RunMap.add (path, run) meta t.cache;
     meta
 
 let job t job =
