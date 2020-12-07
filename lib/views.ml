@@ -7,13 +7,13 @@ let check_icon result =
   match result with
   | Builder.Exited 0 ->
     span ~a:[
-      a_style "color: green;";
+      a_style "color: green; cursor: pointer;";
       a_titlef "%a" Builder.pp_execution_result result;
     ]
       [txt "☑"]
   | _ ->
     span ~a:[
-      a_style "color: red;";
+      a_style "color: red; cursor: pointer;";
       a_titlef "%a" Builder.pp_execution_result result;
     ]
       [txt "☒"]
