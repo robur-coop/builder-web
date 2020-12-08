@@ -2,7 +2,8 @@ let src = Logs.Src.create "builder-web" ~doc:"Builder_web"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 open Opium
-open Rresult.R.Infix
+open Lwt.Syntax
+open Lwt_result.Infix
 
 type t = Model.t
 
@@ -15,45 +16,48 @@ let safe_seg path =
 
 let routes (t : Model.t) =
   let builder _req =
-    match Model.jobs t with
+    let+ jobs = Model.jobs t in
+    match jobs with
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting jobs: %s" e);
       Response.of_plain_text ~status:`Internal_server_error
-        "Error getting jobs" |> Lwt.return
+        "Error getting jobs"
     | Ok jobs ->
       List.sort Fpath.compare jobs
-      |> Views.builder |> Response.of_html |> Lwt.return
+      |> Views.builder |> Response.of_html
   in
 
   let job req =
     let job = Router.param req "job" in
-    match safe_seg job >>= fun job ->
-      Model.job t job with
+    let+ job = Lwt_result.lift (safe_seg job) >>= fun job -> Model.job t job in
+    match job with
     | Ok job ->
       let name = Model.job_name job
       and runs = List.sort
           (fun (b1 : Model.job_run_meta) (b2 : Model.job_run_meta) ->
              Ptime.compare b1.start b2.start)
           job.Model.runs in
-      Views.job name runs |> Response.of_html |> Lwt.return
+      Views.job name runs |> Response.of_html
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting job: %s" e);
       Response.of_plain_text ~status:`Internal_server_error
-        "Error getting job" |> Lwt.return
+        "Error getting job"
   in
 
   let job_run req =
     let job = Router.param req "job"
     and run = Router.param req "run" in
-    match safe_seg job >>= fun job ->
-      safe_seg run >>= fun run ->
-      Model.read_full t job run with
+    let+ job_run =
+      Lwt_result.lift (safe_seg job) >>= fun job ->
+      Lwt_result.lift (safe_seg run) >>= fun run ->
+      Model.read_full t job run in
+    match job_run with
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting job run: %s" e);
       Response.of_plain_text ~status:`Internal_server_error
-        "Error getting job run" |> Lwt.return
+        "Error getting job run"
     | Ok job_run ->
-      Views.job_run job_run |> Response.of_html |> Lwt.return
+      Views.job_run job_run |> Response.of_html
   in
 
   [

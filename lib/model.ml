@@ -1,7 +1,8 @@
 let src = Logs.Src.create "builder-web.model" ~doc:"Builder_web model"
 module Log = (val Logs.src_log  src : Logs.LOG)
 
-open Rresult.R.Infix
+open Lwt.Syntax
+open Lwt_result.Infix
 
 module RunMap = Map.Make(struct
     type t = Fpath.t * Fpath.t
@@ -42,7 +43,9 @@ let job_name { path; _ } = Fpath.to_string path
 
 let read_full t path run =
   let f = Fpath.(t.dir // path // run / "full") in
-  Bos.OS.File.read f >>= fun s ->
+  let* ic = Lwt_io.open_file ~mode:Lwt_io.Input (Fpath.to_string f) in
+  let+ s = Lwt_io.read ic in
+  let open Rresult.R.Infix in
   Builder.Asn.exec_of_cs (Cstruct.of_string s)
   >>| fun (job_info, uuid, out, start, finish, result, data) ->
   let meta = { job_info; uuid; start; finish; result } in
@@ -52,22 +55,24 @@ let read_full t path run =
 let read_full_meta t path run =
   match RunMap.find_opt (path, run) t.cache with
   | Some meta ->
-    Bos.OS.File.exists Fpath.(t.dir // path // run / "full") >>= fun exists ->
+    Lwt_result.lift (Bos.OS.File.exists Fpath.(t.dir // path // run / "full")) >>= fun exists ->
     if exists
-    then Ok meta
+    then Lwt_result.return meta
     else
       (t.cache <- RunMap.remove (path, run) t.cache;
-       Error (`Msg "no such file"))
+       Lwt_result.fail (`Msg "no such file"))
   | None ->
-    read_full t path run >>| fun { meta; out = _; data = _ }  ->
+    read_full t path run >|= fun { meta; out = _; data = _ }  ->
     meta
 
 let job t job =
   let path = Fpath.(t.dir // job) in
-  Bos.OS.Dir.contents ~rel:true path >>= fun runs ->
-  let runs =
-    List.filter_map (fun run ->
-        match read_full_meta t job run with
+  let open Lwt_result.Infix in
+  Lwt_result.lift (Bos.OS.Dir.contents ~rel:true path) >>= fun runs ->
+  let+ runs =
+    Lwt_list.filter_map_s (fun run ->
+        let+ meta = read_full_meta t job run in
+        match meta with
         | Error (`Msg e) ->
           Log.warn (fun m -> m "error reading job run file %a: %s"
                        Fpath.pp Fpath.(path // run) e);
@@ -78,16 +83,19 @@ let job t job =
   Ok { path = job; runs }
 
 let jobs t =
-  Bos.OS.Dir.contents ~rel:true t.dir >>|
-  List.filter (fun f -> not (Fpath.equal (Fpath.v "state") f)) >>|
-  List.filter_map (fun f ->
-      match Bos.OS.Dir.exists Fpath.(t.dir // f) with
-      | Ok true -> Some f
-      | Ok false ->
-        Log.warn (fun m -> m "dir %a doesn't exist" Fpath.pp
-                     Fpath.(t.dir // f));
-        None
-      | Error (`Msg e) ->
-        Log.warn (fun m -> m "error reading job dir %a: %s" Fpath.pp
-                     Fpath.(t.dir // f) e);
-        None)
+  let r =
+    let open Rresult.R.Infix in
+    Bos.OS.Dir.contents ~rel:true t.dir >>|
+    List.filter (fun f -> not (Fpath.equal (Fpath.v "state") f)) >>|
+    List.filter_map (fun f ->
+        match Bos.OS.Dir.exists Fpath.(t.dir // f) with
+        | Ok true -> Some f
+        | Ok false ->
+          Log.warn (fun m -> m "dir %a doesn't exist" Fpath.pp
+                       Fpath.(t.dir // f));
+          None
+        | Error (`Msg e) ->
+          Log.warn (fun m -> m "error reading job dir %a: %s" Fpath.pp
+                       Fpath.(t.dir // f) e);
+          None)
+  in Lwt.return r
