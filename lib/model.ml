@@ -7,10 +7,7 @@ open Lwt_result.Infix
 module RunMap = Map.Make(struct
     type t = Fpath.t * Fpath.t
     let compare (j1,r1) (j2,r2) =
-      let jcmp = Fpath.compare j1 j2 in
-      if jcmp <> 0
-      then jcmp
-      else Fpath.compare r1 r2
+      Fpath.(compare (j1 // r1) (j2 // r2))
   end)
 
 type job_run_meta = {
