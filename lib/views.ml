@@ -23,7 +23,11 @@ let layout ~title:title_ body_ =
     (head (title (txt title_))
        [style ~a:[a_mime_type "text/css"]
           [
-            txt ".output-ts { white-space: nowrap; }";
+            txt ".output-ts {\
+                 white-space: nowrap;\
+                 cursor: pointer;\
+                 user-select: none;\
+                 }";
             txt ".output-code { overflow: visible; }"
           ]])
     (body body_)
@@ -75,12 +79,16 @@ let job_run
     [ h1 [txtf "Job build %s %a" name ptime_pp start];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      table (List.concat_map (fun (ts, line) ->
-          [tr [
-              td ~a:[a_class ["output-ts"]]
-                [txtf "%d ms" (Duration.to_ms (Int64.of_int ts))];
-              td ~a:[a_class ["output-code"]]
-                [code [txt line]];
-            ]])
-          (List.rev out));
+      table
+        (List.mapi (fun idx (ts, line) ->
+             tr [
+               td ~a:[
+                 a_class ["output-ts"];
+                 a_id ("L" ^ string_of_int idx);
+               ]
+                 [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))];
+               td ~a:[a_class ["output-code"]]
+                 [code [txt line]];
+             ])
+            (List.rev out));
     ]
