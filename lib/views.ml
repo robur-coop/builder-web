@@ -81,12 +81,14 @@ let job_run
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       table
         (List.mapi (fun idx (ts, line) ->
+             let ts_id = "L" ^ string_of_int idx in
              tr [
                td ~a:[
                  a_class ["output-ts"];
-                 a_id ("L" ^ string_of_int idx);
+                 a_id ts_id;
                ]
-                 [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))];
+                 [a ~a:[a_href ("#"^ts_id); a_class ["output-ts-anchor"]]
+                    [code [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))]]];
                td ~a:[a_class ["output-code"]]
                  [code [txt line]];
              ])
