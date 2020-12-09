@@ -23,12 +23,24 @@ let layout ~title:title_ body_ =
     (head (title (txt title_))
        [style ~a:[a_mime_type "text/css"]
           [
+            txt "body {\
+                 margin: 40px auto;\
+                 line-height: 1.6;\
+                 color: #444;\
+                 padding: 0 10px;\
+                 }";
+            txt "h1,h2,h3{line-height:1.2}";
             txt ".output-ts {\
                  white-space: nowrap;\
                  cursor: pointer;\
                  user-select: none;\
                  }";
-            txt ".output-code { overflow: visible; }"
+            txt ".output-ts a {text-decoration: none;}";
+            txt ".output-ts a:hover {text-decoration: underline;}";
+            txt ".output-code {\
+                 overflow: visible;\
+                 white-space: pre;\
+                 }";
           ]])
     (body body_)
 
