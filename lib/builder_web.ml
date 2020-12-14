@@ -50,14 +50,14 @@ let routes (t : Model.t) =
     let+ job_run =
       Lwt_result.lift (safe_seg job) >>= fun job ->
       Lwt_result.lift (safe_seg run) >>= fun run ->
-      Model.read_full t job run in
+      Model.read_full_with_digests t job run in
     match job_run with
     | Error (`Msg e) ->
       Log.warn (fun m -> m "Error getting job run: %s" e);
       Response.of_plain_text ~status:`Internal_server_error
         "Error getting job run"
-    | Ok job_run ->
-      Views.job_run job_run |> Response.of_html
+    | Ok (job_run, digests) ->
+      Views.job_run job_run digests |> Response.of_html
   in
 
   [

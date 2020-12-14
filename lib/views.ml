@@ -84,6 +84,7 @@ let job_run
           Model.job_info = { Builder.name; _ };
           start; finish; uuid = _; result };
       out; data = _ }
+    digests
   =
   let ptime_pp = Ptime.pp_human () in
   let delta = Ptime.diff finish start in
@@ -91,6 +92,18 @@ let job_run
     [ h1 [txtf "Job build %s %a" name ptime_pp start];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
+      h3 [txt "Digests of build artifacts"];
+      dl (List.concat_map
+            (fun (path, { Model.sha256; sha512 }) -> [
+                 dt [code [txtf "%a" Fpath.pp path];
+                     txt "(SHA256)"];
+                 dd [code [txtf "%s" (Base64.encode_string sha256)]];
+                 dt [code [txtf "%a" Fpath.pp path];
+                     txt "(SHA512)"];
+                 dd [code [txtf "%s" (Base64.encode_string sha512)]];
+               ])
+            digests);
+      h3 [txt "Build log"];
       table
         (List.mapi (fun idx (ts, line) ->
              let ts_id = "L" ^ string_of_int idx in

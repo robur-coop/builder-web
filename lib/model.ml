@@ -24,12 +24,18 @@ type job_run_info = {
   data : (Fpath.t * string) list
 }
 
-type t = {
-  dir : Fpath.t;
-  mutable cache : job_run_meta RunMap.t
+type digest = {
+  sha256 : string;
+  sha512 : string;
 }
 
-let init dir = { dir; cache = RunMap.empty; }
+type t = {
+  dir : Fpath.t;
+  mutable meta_cache : job_run_meta RunMap.t;
+  mutable digest_cache : (Fpath.t * digest) list RunMap.t
+}
+
+let init dir = { dir; meta_cache = RunMap.empty; digest_cache = RunMap.empty; }
 
 type job = {
   path : Fpath.t;
@@ -46,17 +52,34 @@ let read_full t path run =
   Builder.Asn.exec_of_cs (Cstruct.of_string s)
   >>| fun (job_info, uuid, out, start, finish, result, data) ->
   let meta = { job_info; uuid; start; finish; result } in
-  t.cache <- RunMap.add (path, run) meta t.cache;
+  t.meta_cache <- RunMap.add (path, run) meta t.meta_cache;
   { meta; out; data }
 
+let digest (path, data) =
+  let module H = Mirage_crypto.Hash in
+  let data = Cstruct.of_string data in
+  (path, {
+      sha256 = H.SHA256.digest data |> Cstruct.to_string;
+      sha512 = H.SHA512.digest data |> Cstruct.to_string;
+    })
+
+let read_full_with_digests t path run =
+  read_full t path run >|= fun ({ data; _ } as full) ->
+  match RunMap.find_opt (path, run) t.digest_cache with
+  | Some digests -> full, digests
+  | None ->
+    let digests = List.map digest data in
+    t.digest_cache <- RunMap.add (path, run) digests t.digest_cache;
+    full, digests
+
 let read_full_meta t path run =
-  match RunMap.find_opt (path, run) t.cache with
+  match RunMap.find_opt (path, run) t.meta_cache with
   | Some meta ->
     Lwt_result.lift (Bos.OS.File.exists Fpath.(t.dir // path // run / "full")) >>= fun exists ->
     if exists
     then Lwt_result.return meta
     else
-      (t.cache <- RunMap.remove (path, run) t.cache;
+      (t.meta_cache <- RunMap.remove (path, run) t.meta_cache;
        Lwt_result.fail (`Msg "no such file"))
   | None ->
     read_full t path run >|= fun { meta; out = _; data = _ }  ->
