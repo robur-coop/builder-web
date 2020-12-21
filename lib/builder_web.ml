@@ -60,10 +60,40 @@ let routes (t : Model.t) =
       Views.job_run job_run digests |> Response.of_html
   in
 
+  let job_run_file req =
+    let job = Router.param req "job"
+    and run = Router.param req "run"
+    and file = Router.splat req |> String.concat "/" in
+    let+ job_run =
+      Lwt_result.lift (safe_seg job) >>= fun job ->
+      Lwt_result.lift (safe_seg run) >>= fun run ->
+      Model.read_full_with_digests t job run in
+    match job_run with
+    | Error (`Msg e) ->
+      Log.warn (fun m -> m "Error getting job run: %s" e);
+      Response.of_plain_text ~status:`Internal_server_error
+        "Error getting job run"
+    | Ok (job_run, digests) ->
+      match List.find_opt (fun (p, _) -> Fpath.(equal (v file) p)) job_run.data with
+      | None ->
+        Log.debug (fun m -> m "Trying to get non-existent build artifact %s"
+                      file);
+        Response.of_plain_text ~status:`Not_found
+          ("build artifact not found: " ^ file)
+      | Some (path, data) ->
+        (* Should never fail if caching is not broken, or 'full' file untampered *)
+        let digest = snd (List.find (fun (p, _) -> Fpath.equal path p) digests) in
+        let body = Body.of_string data in
+        Response.make ~body ()
+        |> Response.add_header ("Content-type", Magic_mime.lookup file)
+        |> Response.set_etag (Base64.encode_string digest.sha256)
+  in
+
   [
     App.get "/" builder;
     App.get "/job/:job/" job;
     App.get "/job/:job/run/:run/" job_run;
+    App.get "/job/:job/run/:run/f/**" job_run_file;
   ]
 
 let add_routes t (app : App.t) =
