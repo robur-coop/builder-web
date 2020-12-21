@@ -41,8 +41,43 @@ let layout ~title:title_ body_ =
                  overflow: visible;\
                  white-space: pre;\
                  }";
+            txt ".toggleable {\
+                 display: none;\
+                 }";
+            txt ".toggleable-descr {\
+                 cursor: pointer;\
+                 text-decoration: underline;\
+                 user-select: none;\
+                 }";
+            txt ":checked + .toggleable {\
+                 display: block;\
+                 }";
           ]])
     (body body_)
+
+let toggleable ?(hidden=true) id description content =
+  let checked = if hidden then [] else [a_checked ()] in
+  div [
+    label
+      ~a:[
+        a_label_for id;
+        a_class ["toggleable-descr"];
+      ]
+      [txt description];
+    input
+      ~a:(checked @ [
+          a_input_type `Checkbox;
+          a_id id;
+          a_style "display: none;";
+        ]) ();
+    div
+      ~a:[
+        a_class ["toggleable"]
+      ]
+      content;
+  ]
+
+
 
 let builder jobs =
   layout ~title:"Builder Web"
@@ -81,7 +116,7 @@ let job name runs =
 
 let job_run
     { Model.meta = {
-          Model.job_info = { Builder.name; _ };
+          Model.job_info = { Builder.name; script; _ };
           start; finish; uuid = _; result };
       out; data = _ }
     digests
@@ -95,27 +130,37 @@ let job_run
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
             (fun (path, { Model.sha256; sha512 }) -> [
-                 dt [code [txtf "%a" Fpath.pp path];
+                 dt [a
+                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp path]
+                       [code [txtf "%a" Fpath.pp path]];
                      txt "(SHA256)"];
                  dd [code [txtf "%s" (Base64.encode_string sha256)]];
-                 dt [code [txtf "%a" Fpath.pp path];
+                 dt [a
+                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp path]
+                       [code [txtf "%a" Fpath.pp path]];
                      txt "(SHA512)"];
                  dd [code [txtf "%s" (Base64.encode_string sha512)]];
                ])
             digests);
+      h3 [txt "Job script"];
+      toggleable "job-script" "Show/hide"
+        [ pre [txt script] ];
       h3 [txt "Build log"];
-      table
-        (List.mapi (fun idx (ts, line) ->
-             let ts_id = "L" ^ string_of_int idx in
-             tr [
-               td ~a:[
-                 a_class ["output-ts"];
-                 a_id ts_id;
-               ]
-                 [a ~a:[a_href ("#"^ts_id); a_class ["output-ts-anchor"]]
-                    [code [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))]]];
-               td ~a:[a_class ["output-code"]]
-                 [code [txt line]];
-             ])
-            (List.rev out));
+      toggleable ~hidden:false "build-log" "Show/hide build log"
+        [
+          table
+            (List.mapi (fun idx (ts, line) ->
+                 let ts_id = "L" ^ string_of_int idx in
+                 tr [
+                   td ~a:[
+                     a_class ["output-ts"];
+                     a_id ts_id;
+                   ]
+                     [a ~a:[a_href ("#"^ts_id); a_class ["output-ts-anchor"]]
+                        [code [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))]]];
+                   td ~a:[a_class ["output-code"]]
+                     [code [txt line]];
+                 ])
+                (List.rev out));
+        ];
     ]
