@@ -64,6 +64,9 @@ let routes (t : Model.t) =
     let job = Router.param req "job"
     and run = Router.param req "run"
     and file = Router.splat req |> String.concat "/" in
+    (* XXX: We don't check safety of [file]. This should be fine however since
+     * we don't use [file] for the filesystem but is instead used as a key for
+     * lookup in the data table of the 'full' file. *)
     match safe_seg job, safe_seg run, Fpath.of_string file with
     | Error (`Msg e), _, _ | _, Error (`Msg e), _ | _, _, Error (`Msg e) ->
       Log.debug (fun m -> m "bad path: %s" e);
