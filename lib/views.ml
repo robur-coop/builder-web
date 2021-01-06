@@ -129,17 +129,14 @@ let job_run
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
-            (fun (path, { Model.sha256; sha512 }) -> [
+            (fun (path, { Model.sha256 }) ->
+               let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
+               [
                  dt [a
                        ~a:[Fmt.kstr a_href "f/%a" Fpath.pp path]
                        [code [txtf "%a" Fpath.pp path]];
                      txt "(SHA256)"];
-                 dd [code [txtf "%s" (Base64.encode_string sha256)]];
-                 dt [a
-                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp path]
-                       [code [txtf "%a" Fpath.pp path]];
-                     txt "(SHA512)"];
-                 dd [code [txtf "%s" (Base64.encode_string sha512)]];
+                 dd [code [txt sha256_hex]];
                ])
             digests);
       h3 [txt "Job script"];

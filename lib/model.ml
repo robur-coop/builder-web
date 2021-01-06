@@ -25,8 +25,7 @@ type job_run_info = {
 }
 
 type digest = {
-  sha256 : string;
-  sha512 : string;
+  sha256 : Cstruct.t;
 }
 
 type t = {
@@ -59,8 +58,7 @@ let digest (path, data) =
   let module H = Mirage_crypto.Hash in
   let data = Cstruct.of_string data in
   (path, {
-      sha256 = H.SHA256.digest data |> Cstruct.to_string;
-      sha512 = H.SHA512.digest data |> Cstruct.to_string;
+      sha256 = H.SHA256.digest data;
     })
 
 let read_full_with_digests t path run =

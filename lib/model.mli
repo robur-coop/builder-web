@@ -9,8 +9,7 @@ type job_run_meta = {
 }
 
 type digest = {
-  sha256 : string;
-  sha512 : string;
+  sha256 : Cstruct.t;
 }
 
 type job_run_info = {

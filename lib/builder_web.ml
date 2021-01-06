@@ -92,7 +92,7 @@ let routes (t : Model.t) =
           let body = Body.of_string data in
           Response.make ~body ()
           |> Response.add_header ("Content-type", Magic_mime.lookup file)
-          |> Response.set_etag (Base64.encode_string digest.sha256)
+          |> Response.set_etag (Base64.encode_string (Cstruct.to_string digest.sha256))
   in
 
   [
