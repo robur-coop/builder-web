@@ -14,6 +14,19 @@ let safe_seg path =
   then Ok (Fpath.v path)
   else Rresult.R.error_msgf "unsafe path %S" path
 
+(* mime lookup with orb knowledge *)
+let mime_lookup path =
+  match path with
+  | "build-environment" | "opam-switch" | "system-packages" ->
+    "text/plain"
+  | path ->
+    let path' = Fpath.v path in
+    if Fpath.has_ext "build-hashes" path'
+    then "text/plain"
+    else if Fpath.is_prefix Fpath.(v "bin/") path'
+    then "application/octet-stream"
+    else Magic_mime.lookup path
+
 let routes (t : Model.t) =
   let builder _req =
     let+ jobs = Model.jobs t in
@@ -91,7 +104,7 @@ let routes (t : Model.t) =
           let digest = snd (List.find (fun (p, _) -> Fpath.equal path p) digests) in
           let body = Body.of_string data in
           Response.make ~body ()
-          |> Response.add_header ("Content-type", Magic_mime.lookup file)
+          |> Response.add_header ("Content-type", mime_lookup file)
           |> Response.set_etag (Base64.encode_string (Cstruct.to_string digest.sha256))
   in
 
