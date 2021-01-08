@@ -1,36 +1,18 @@
-type t
+type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t ]
 
-type job_run_meta = {
-  job_info : Builder.job;
-  uuid : Uuidm.t;
-  start : Ptime.t;
-  finish : Ptime.t;
-  result : Builder.execution_result;
-}
+val pp_error : Format.formatter -> error -> unit
 
-type digest = {
-  sha256 : Cstruct.t;
-}
+val build_artifact : Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
+  (string * Cstruct.t, [> error ]) result Lwt.t
 
-type job_run_info = {
-  meta : job_run_meta;
-  out : (int * string) list;
-  data : (Fpath.t * string) list
-}
+val build_artifacts : Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.file list, [> error ]) result Lwt.t
 
-type job = {
-  path : Fpath.t;
-  runs : job_run_meta list;
-}
+val build : Uuidm.t -> Caqti_lwt.connection ->
+  (Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
-val init : Fpath.t -> t
+val job : string -> Caqti_lwt.connection ->
+  ((Builder_db.id * Builder_db.Build.Meta.t) list, [> error ]) result Lwt.t
 
-val job_name : job -> string
-
-val read_full : t -> Fpath.t -> Fpath.t -> (job_run_info, [> `Msg of string ]) result Lwt.t
-
-val read_full_with_digests : t -> Fpath.t -> Fpath.t ->
-  (job_run_info * (Fpath.t * digest) list, [> `Msg of string ]) result Lwt.t
-
-val job : t -> Fpath.t -> (job, [> `Msg of string]) result Lwt.t
-val jobs : t -> (Fpath.t list, [> `Msg of string ]) result Lwt.t
+val jobs : Caqti_lwt.connection ->
+  (string list, [> error ]) result Lwt.t

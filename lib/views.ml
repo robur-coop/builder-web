@@ -88,38 +88,36 @@ let builder jobs =
       ];
       ul (List.map (fun job ->
           li [
-            a ~a:[a_href ("job/" ^ Fpath.to_string job ^ "/")]
-              [txt (Fpath.to_string job)];
+            a ~a:[a_href ("job/" ^ job ^ "/")]
+              [txt job];
           ])
           jobs);
     ]
 
-let job name runs =
+let job name builds =
   layout ~title:(Printf.sprintf "Job %s" name)
     [ h1 [txtf "Job %s" name];
       p [
         txtf "Currently %d builds."
-          (List.length runs)
+          (List.length builds)
       ];
-      ul (List.map (fun run ->
+      ul (List.map (fun build ->
           li [
-            a ~a:[a_href Fpath.(to_string (v "run" / Uuidm.to_string run.Model.uuid) ^ "/")]
+            a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid) ^ "/")]
               [
-                txtf "%a" (Ptime.pp_human ()) run.Model.start;
+                txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.Meta.start;
               ];
             txt " ";
-            check_icon run.result;
+            check_icon build.result;
           ])
-          runs);
+          builds);
 
     ]
 
-let job_run
-    { Model.meta = {
-          Model.job_info = { Builder.name; script; _ };
-          start; finish; uuid = _; result };
-      out; data = _ }
-    digests
+let job_build
+  name
+  { Builder_db.Build.uuid = _; start; finish; result; console; script; job_id = _ }
+  artifacts
   =
   let ptime_pp = Ptime.pp_human () in
   let delta = Ptime.diff finish start in
@@ -129,16 +127,16 @@ let job_run
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
-            (fun (path, { Model.sha256 }) ->
+            (fun { Builder_db.filepath; localpath=_; sha256; } ->
                let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
                [
                  dt [a
-                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp path]
-                       [code [txtf "%a" Fpath.pp path]];
+                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
+                       [code [txtf "%a" Fpath.pp filepath]];
                      txt "(SHA256)"];
                  dd [code [txt sha256_hex]];
                ])
-            digests);
+            artifacts);
       h3 [txt "Job script"];
       toggleable "job-script" "Show/hide"
         [ pre [txt script] ];
@@ -158,6 +156,6 @@ let job_run
                    td ~a:[a_class ["output-code"]]
                      [code [txt line]];
                  ])
-                (List.rev out));
+                (List.rev console));
         ];
     ]

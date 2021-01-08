@@ -1,4 +1,11 @@
 (executable
  (public_name builder_web)
  (name builder_web_app)
+ (modules builder_web_app)
  (libraries builder_web))
+
+(executable
+ (public_name builder-db)
+ (name builder_db)
+ (modules builder_db)
+ (libraries builder_db caqti.blocking uri bos fmt logs logs.cli logs.fmt cmdliner))

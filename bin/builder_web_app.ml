@@ -1,6 +1,6 @@
 open Opium
 
-let t = Builder_web.init (Fpath.v "sample")
+let t = Result.get_ok (Builder_web.init "builder.sqlite3")
 
 let app =
   App.empty

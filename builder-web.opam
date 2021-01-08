@@ -16,6 +16,9 @@ depends: [
   "opium"
   "bos"
   "hex"
+  "caqti"
+  "caqti-lwt"
+  "caqti-driver-sqlite3"
 ]
 
 synopsis: "Web interface for builder"
