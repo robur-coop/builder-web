@@ -117,11 +117,39 @@ let routes t =
         |> Response.set_etag (Base64.encode_string (Cstruct.to_string digest))
   in
 
+  let refresh _req =
+    let status = Lwt_unix.system "builder-db add" in
+    let stream =
+      let i = ref 0 in
+      Lwt_stream.from (fun () ->
+          i := !i + 1;
+          match !i with
+          | 1 ->
+            Lwt.return_some "Refresh job started.\n"
+          | 2 ->
+            let* status = status in
+            (match status with
+             | Unix.WEXITED 0 ->
+               Lwt.return_some "Refresh job was successful!"
+             | Unix.WEXITED n ->
+               Lwt.return_some (Printf.sprintf "Refresh job failed : %d" n)
+             | Unix.WSIGNALED _ | Unix.WSTOPPED _ ->
+               Lwt.return_some ("Refresh job signalled"))
+          | _ ->
+            Lwt.return_none)
+    in
+    let body = Body.of_stream stream in
+    Response.make ~body ()
+    |> Response.set_content_type "text/plain"
+    |> Lwt.return
+  in
+
   [
     App.get "/" builder;
     App.get "/job/:job/" job;
     App.get "/job/:job/build/:build/" job_build;
     App.get "/job/:job/build/:build/f/**" job_build_file;
+    App.get "/refresh" refresh;
   ]
 
 let add_routes t (app : App.t) =
