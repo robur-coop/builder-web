@@ -19,6 +19,7 @@ depends: [
   "caqti"
   "caqti-lwt"
   "caqti-driver-sqlite3"
+  "pbkdf"
 ]
 
 synopsis: "Web interface for builder"
