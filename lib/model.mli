@@ -16,3 +16,13 @@ val job : string -> Caqti_lwt.connection ->
 
 val jobs : Caqti_lwt.connection ->
   (string list, [> error ]) result Lwt.t
+
+val user : string -> Caqti_lwt.connection ->
+  (Builder_web_auth.user_info option, [> error ]) result Lwt.t
+
+
+val add_build :
+  (Builder.job * Uuidm.t * (int * string) list * Ptime.t * Ptime.t *
+   Builder.execution_result * (Fpath.t * string) list) ->
+  Caqti_lwt.connection ->
+  (unit, [> error ]) result Lwt.t

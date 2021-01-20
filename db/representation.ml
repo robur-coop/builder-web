@@ -72,3 +72,14 @@ let console =
   let encode console = Ok (Asn.console_to_cs console) in
   let decode data = Asn.console_of_cs data in
   Caqti_type.custom ~encode ~decode cstruct
+
+let user_info =
+  let rep = Caqti_type.(tup4 string cstruct cstruct int) in
+  let encode { Builder_web_auth.username; password_hash;
+               password_salt; password_iter } =
+    Ok (username, password_hash, password_salt, password_iter)
+  in
+  let decode (username, password_hash, password_salt, password_iter) =
+    Ok { Builder_web_auth.username; password_hash; password_salt; password_iter }
+  in
+  Caqti_type.custom ~encode ~decode rep

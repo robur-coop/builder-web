@@ -1,5 +1,11 @@
 open Rresult.R.Infix
 
+let or_die exit_code = function
+  | Ok r -> r
+  | Error e ->
+    Format.eprintf "Database error: %a" Caqti_error.pp e;
+    exit exit_code
+
 let save_data outputdir (filepath, data) =
   let localpath = Fpath.(outputdir // filepath) in
   (* FIXME: return an error?! *)
@@ -117,11 +123,49 @@ let do_migrate dbpath =
     Builder_db.migrate
 
 let migrate () dbpath =
-  match do_migrate dbpath with
-  | Ok () -> ()
-  | Error e ->
-    Format.eprintf "Database error: %a" Caqti_error.pp e;
-    exit 1
+  or_die 1 (do_migrate dbpath)
+
+let user_mod action dbpath username =
+  let r =
+    Caqti_blocking.connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    print_string "Password: ";
+    flush stdout;
+    (* FIXME: getpass *)
+    let password = read_line () in
+    let user_info = Builder_web_auth.hash ~username ~password in
+    match action with
+    | `Add ->
+      Db.exec Builder_db.User.add user_info
+    | `Update ->
+      Db.exec Builder_db.User.update_user user_info
+  in
+  or_die 1 r
+
+let user_add () dbpath username = user_mod `Add dbpath username
+
+let user_update () dbpath username = user_mod `Update dbpath username
+
+let user_list () dbpath =
+  let r =
+    Caqti_blocking.connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION) ->
+    Db.iter_s Builder_db.User.get_all
+      (fun username -> Ok (print_endline username))
+      ()
+  in
+  or_die 1 r
+
+let user_remove () dbpath username =
+  let r =
+    Caqti_blocking.connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.exec Builder_db.User.remove_user username
+  in
+  or_die 1 r
 
 let help man_format cmds = function
   | None -> `Help (man_format, None)
@@ -141,6 +185,12 @@ let dbpath_new =
   Cmdliner.Arg.(value &
                 opt string "builder.sqlite3" &
                 info ~doc ["dbpath"])
+
+let username =
+  let doc = "username" in
+  Cmdliner.Arg.(required &
+                pos 0 (some string) None &
+                info ~doc ~docv:"USERNAME" [])
 
 let datadir =
   let doc = Cmdliner.Arg.info ~doc:"builder data dir" ["datadir"] in
@@ -175,6 +225,26 @@ let add_cmd =
   (Cmdliner.Term.(pure add $ setup_log $ dbpath $ datadir),
    Cmdliner.Term.info ~doc ~man "add")
 
+let user_add_cmd =
+  let doc = "add a user" in
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ username),
+   Cmdliner.Term.info ~doc "user-add")
+
+let user_update_cmd =
+  let doc = "update a user password" in
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ username),
+   Cmdliner.Term.info ~doc "user-update")
+
+let user_remove_cmd =
+  let doc = "remove a user" in
+  (Cmdliner.Term.(pure user_remove $ setup_log $ dbpath $ username),
+   Cmdliner.Term.info ~doc "user-remove")
+
+let user_list_cmd =
+  let doc = "list all users" in
+  (Cmdliner.Term.(pure user_list $ setup_log $ dbpath),
+   Cmdliner.Term.info ~doc "user-list")
+
 let help_cmd =
   let topic =
     let doc = "Command to get help on" in
@@ -190,7 +260,9 @@ let default_cmd =
   Cmdliner.Term.info ~doc "builder-db"
 
 let () =
+  Mirage_crypto_rng_unix.initialize ();
   Cmdliner.Term.eval_choice
     default_cmd
-    [help_cmd; add_cmd; migrate_cmd]
+    [help_cmd; add_cmd; migrate_cmd;
+     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd]
   |> Cmdliner.Term.exit

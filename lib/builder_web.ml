@@ -15,6 +15,8 @@ type 'a t = {
   pool : (Caqti_lwt.connection, [> db_error ] as 'a) Caqti_lwt.Pool.t
 }
 
+let realm = "builder-web"
+
 let init ?(pool_size = 10) dbpath =
   Caqti_lwt.connect_pool
     ~max_size:pool_size
@@ -38,6 +40,29 @@ let mime_lookup path =
     else if Fpath.is_prefix Fpath.(v "bin/") path
     then "application/octet-stream"
     else Magic_mime.lookup (Fpath.to_string path)
+
+let authorized t handler = fun req ->
+  let unauthorized =
+    Response.of_plain_text "Forbidden!\n" ~status:`Unauthorized
+    |> Response.add_header ("WWW-Authenticate", Auth.string_of_challenge (Basic realm))
+  in
+  match Request.authorization req with
+  | None | Some (Other _) ->
+    Lwt.return unauthorized
+  | Some (Basic (username, password)) ->
+    let* user_info = Caqti_lwt.Pool.use (Model.user username) t.pool in
+    match user_info with
+    | Ok (Some user_info) ->
+      if Builder_web_auth.verify_password password user_info
+      then handler req
+      else Lwt.return unauthorized
+    | Ok None ->
+      ignore (Builder_web_auth.hash ~username ~password);
+      Lwt.return unauthorized
+    | Error e ->
+      Log.warn (fun m -> m "Error getting user: %a" pp_error e);
+      Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
+      |> Lwt.return
 
 let routes t =
   let builder _req =
@@ -144,12 +169,30 @@ let routes t =
     |> Lwt.return
   in
 
+  let upload req =
+    let* body = Request.to_plain_text req in
+    match Builder.Asn.exec_of_cs (Cstruct.of_string body) with
+    | Error (`Msg e) ->
+      Log.warn (fun m -> m "Received bad builder ASN.1");
+      Log.debug (fun m -> m "Parse error: %s" e);
+      Lwt.return (Response.of_plain_text "Bad request\n" ~status:`Bad_request)
+    | Ok exec ->
+      let* r = Caqti_lwt.Pool.use (Model.add_build exec) t.pool in
+      match r with
+      | Ok () ->
+        Lwt.return (Response.of_plain_text "Success!")
+      | Error e ->
+        Log.warn (fun m -> m "Error saving build: %a" pp_error e);
+        Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
+  in
+
   [
     App.get "/" builder;
     App.get "/job/:job/" job;
     App.get "/job/:job/build/:build/" job_build;
     App.get "/job/:job/build/:build/f/**" job_build_file;
     App.get "/refresh" refresh;
+    App.post "/upload" (authorized t upload);
   ]
 
 let add_routes t (app : App.t) =

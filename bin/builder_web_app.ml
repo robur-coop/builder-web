@@ -8,4 +8,5 @@ let app =
   |> Builder_web.add_routes t
 
 let () =
+  Mirage_crypto_rng_unix.initialize ();
   App.run_command app

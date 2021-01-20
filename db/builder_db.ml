@@ -327,14 +327,77 @@ module Build = struct
 
 end
 
+module User = struct
+  let migrate =
+    Caqti_request.exec
+      Caqti_type.unit
+      {| CREATE TABLE user (
+           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+           username VARCHAR(255) NOT NULL UNIQUE,
+           password_hash BLOB NOT NULL,
+           password_salt BLOB NOT NULL,
+           password_iter INTEGER NOT NULL
+         )
+      |}
+
+  let rollback =
+    Caqti_request.exec
+      Caqti_type.unit
+      "DROP TABLE IF EXISTS user"
+
+  let get_user =
+    Caqti_request.find_opt
+      Caqti_type.string
+      (Caqti_type.tup2 id user_info)
+      {| SELECT id, username, password_hash, password_salt, password_iter
+         FROM user
+         WHERE username = ?
+      |}
+
+  let get_all =
+    Caqti_request.collect
+      Caqti_type.unit
+      Caqti_type.string
+      "SELECT username FROM user"
+
+  let add =
+    Caqti_request.exec
+      user_info
+      {| INSERT INTO user (username, password_hash, password_salt, password_iter)
+         VALUES (?, ?, ?, ?)
+      |}
+
+  let remove =
+    Caqti_request.exec
+      id
+      "DELETE FROM user WHERE id = ?"
+
+  let remove_user =
+    Caqti_request.exec
+      Caqti_type.string
+      "DELETE FROM user WHERE username = ?"
+
+  let update_user =
+    Caqti_request.exec
+      user_info
+      {| UPDATE user
+         SET password_hash = ?2,
+             password_salt = ?3,
+             password_iter = ?4
+         WHERE username = ?1
+      |}
+end
+
 let migrate = [
   Job.migrate;
   Build.migrate;
   Build_artifact.migrate;
   Build_file.migrate;
+  User.migrate;
 ]
 
 let rollback = [
+  User.rollback;
   Build_file.migrate;
   Build_artifact.rollback;
   Build.rollback;
