@@ -58,9 +58,16 @@ let user username (module Db : CONN) =
 
 let save file data =
   let open Lwt.Infix in
-  Lwt_io.open_file ~mode:Lwt_io.Output (Fpath.to_string file) >>= fun oc ->
-  Lwt_io.write oc data >>= fun () ->
-  Lwt_io.close oc
+  Lwt.catch
+    (fun () ->
+       Lwt_io.open_file ~mode:Lwt_io.Output (Fpath.to_string file) >>= fun oc ->
+       Lwt_io.write oc data >>= fun () ->
+       Lwt_io.close oc
+       |> Lwt_result.ok)
+    (function
+      | Unix.Unix_error (e, _, _) ->
+          Lwt_result.fail (`Msg (Unix.error_message e))
+      | e -> Lwt.fail e)
 
 let save_exec build_dir exec =
   let cs = Builder.Asn.exec_to_cs exec in
@@ -69,9 +76,18 @@ let save_exec build_dir exec =
 let save_file dir (filepath, data) =
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let localpath = Fpath.append dir filepath in
-  Lwt.bind
-    (save localpath data)
-    (fun () -> Lwt.return { Builder_db.filepath; localpath; sha256 })
+  Lwt_result.lift (Bos.OS.Dir.create (Fpath.parent localpath)) >>= fun _ ->
+  save localpath data >|= fun () ->
+  { Builder_db.filepath; localpath; sha256 }
+
+let save_files dir files =
+  List.fold_left
+    (fun r file ->
+       r >>= fun acc ->
+       save_file dir file >>= fun file ->
+       Lwt_result.return (file :: acc))
+    (Lwt_result.return [])
+    files
 
 let save_all basedir ((job, uuid, _, _, _, _, artifacts) as exec) =
   let build_dir = Fpath.(basedir / job.Builder.name / Uuidm.to_string uuid) in
@@ -83,17 +99,10 @@ let save_all basedir ((job, uuid, _, _, _, _, artifacts) as exec) =
       else Lwt_result.return ()) >>= fun () ->
   Lwt.return (Bos.OS.Dir.create input_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Dir.create output_dir) >>= fun _ ->
-  Lwt.catch
-    (fun () ->
-       let open Lwt.Infix in
-       save_exec build_dir exec >>= fun () ->
-       Lwt_list.map_s (save_file input_dir) job.Builder.files >>= fun input_files ->
-       Lwt_list.map_s (save_file output_dir) artifacts >>= fun artifacts ->
-       Lwt_result.return (artifacts, input_files))
-    (function
-      | Unix.Unix_error (e, _, _) ->
-          Lwt_result.fail (`Msg (Unix.error_message e))
-      | e -> Lwt.fail e)
+  save_exec build_dir exec >>= fun () ->
+  save_files output_dir artifacts >>= fun artifacts ->
+  save_files input_dir job.Builder.files >>= fun input_files ->
+  Lwt_result.return (artifacts, input_files)
 
 let add_build
     basedir

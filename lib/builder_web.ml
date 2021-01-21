@@ -187,7 +187,7 @@ let routes t =
       let* r = Caqti_lwt.Pool.use (Model.add_build t.datadir exec) t.pool in
       match r with
       | Ok () ->
-        Lwt.return (Response.of_plain_text "Success!")
+        Lwt.return (Response.of_plain_text "Success!\n")
       | Error e ->
         Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
         Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
