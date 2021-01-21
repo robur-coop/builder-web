@@ -125,7 +125,7 @@ let do_migrate dbpath =
 let migrate () dbpath =
   or_die 1 (do_migrate dbpath)
 
-let user_mod action dbpath username =
+let user_mod action dbpath password_iter username =
   let r =
     Caqti_blocking.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
@@ -134,7 +134,7 @@ let user_mod action dbpath username =
     flush stdout;
     (* FIXME: getpass *)
     let password = read_line () in
-    let user_info = Builder_web_auth.hash ~username ~password in
+    let user_info = Builder_web_auth.hash ?password_iter ~username ~password () in
     match action with
     | `Add ->
       Db.exec Builder_db.User.add user_info
@@ -192,6 +192,12 @@ let username =
                 pos 0 (some string) None &
                 info ~doc ~docv:"USERNAME" [])
 
+let password_iter =
+  let doc = "password hash count" in
+  Cmdliner.Arg.(value &
+                opt (some int) None &
+                info ~doc ["hash-count"])
+
 let datadir =
   let doc = Cmdliner.Arg.info ~doc:"builder data dir" ["datadir"] in
   Cmdliner.Arg.(value &
@@ -227,12 +233,12 @@ let add_cmd =
 
 let user_add_cmd =
   let doc = "add a user" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ username),
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ password_iter $ username),
    Cmdliner.Term.info ~doc "user-add")
 
 let user_update_cmd =
   let doc = "update a user password" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ username),
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ password_iter $ username),
    Cmdliner.Term.info ~doc "user-update")
 
 let user_remove_cmd =

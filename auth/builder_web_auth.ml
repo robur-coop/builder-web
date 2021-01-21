@@ -40,9 +40,8 @@ let user_info_of_sexp =
 let h count salt password =
   Pbkdf.pbkdf2 ~prf ~count ~dk_len ~salt ~password:(Cstruct.of_string password)
 
-let hash ~username ~password =
+let hash ?(password_iter=default_count) ~username ~password () =
   let salt = Mirage_crypto_rng.generate 16 in
-  let password_iter = default_count in
   let password_hash = h password_iter salt password in
   { username; password_hash; password_salt = salt; password_iter }
 

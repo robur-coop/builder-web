@@ -57,7 +57,8 @@ let authorized t handler = fun req ->
       then handler req
       else Lwt.return unauthorized
     | Ok None ->
-      ignore (Builder_web_auth.hash ~username ~password);
+      let _ : Builder_web_auth.user_info =
+        Builder_web_auth.hash ~username ~password () in
       Lwt.return unauthorized
     | Error e ->
       Log.warn (fun m -> m "Error getting user: %a" pp_error e);
