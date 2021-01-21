@@ -12,17 +12,20 @@ let pp_error ppf = function
   | #Model.error as e -> Model.pp_error ppf e
 
 type 'a t = {
-  pool : (Caqti_lwt.connection, [> db_error ] as 'a) Caqti_lwt.Pool.t
+  pool : (Caqti_lwt.connection, [> db_error ] as 'a) Caqti_lwt.Pool.t;
+  datadir : Fpath.t;
 }
 
 let realm = "builder-web"
 
-let init ?(pool_size = 10) dbpath =
+let init ?(pool_size = 10) dbpath datadir =
   Caqti_lwt.connect_pool
     ~max_size:pool_size
     (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-  |> Result.map (fun pool ->
-      { pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t); })
+  |> Result.map (fun pool -> {
+        pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t);
+        datadir;
+      })
 
 let pp_exec ppf (job, uuid, _, _, _, _, _) =
   Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
@@ -181,7 +184,7 @@ let routes t =
       Log.debug (fun m -> m "Parse error: %s" e);
       Lwt.return (Response.of_plain_text "Bad request\n" ~status:`Bad_request)
     | Ok exec ->
-      let* r = Caqti_lwt.Pool.use (Model.add_build exec) t.pool in
+      let* r = Caqti_lwt.Pool.use (Model.add_build t.datadir exec) t.pool in
       match r with
       | Ok () ->
         Lwt.return (Response.of_plain_text "Success!")

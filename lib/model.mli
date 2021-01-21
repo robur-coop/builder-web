@@ -1,4 +1,4 @@
-type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t ]
+type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t | `Msg of string ]
 
 val pp_error : Format.formatter -> error -> unit
 
@@ -22,6 +22,7 @@ val user : string -> Caqti_lwt.connection ->
 
 
 val add_build :
+  Fpath.t ->
   (Builder.job * Uuidm.t * (int * string) list * Ptime.t * Ptime.t *
    Builder.execution_result * (Fpath.t * string) list) ->
   Caqti_lwt.connection ->
