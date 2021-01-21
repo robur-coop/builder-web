@@ -260,8 +260,8 @@ module Build = struct
       Caqti_type.int64
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                  result_kind, result_code, result_msg,
-                  console, script, job
+                result_kind, result_code, result_msg,
+                console, script, job
            FROM build
            WHERE id = ?
         |}

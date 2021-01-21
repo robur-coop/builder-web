@@ -24,6 +24,9 @@ let init ?(pool_size = 10) dbpath =
   |> Result.map (fun pool ->
       { pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t); })
 
+let pp_exec ppf (job, uuid, _, _, _, _, _) =
+  Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
+
 let safe_seg path =
   if Fpath.is_seg path && not (Fpath.is_rel_seg path)
   then Ok (Fpath.v path)
@@ -183,7 +186,7 @@ let routes t =
       | Ok () ->
         Lwt.return (Response.of_plain_text "Success!")
       | Error e ->
-        Log.warn (fun m -> m "Error saving build: %a" pp_error e);
+        Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
         Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
   in
 
