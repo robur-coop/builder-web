@@ -21,6 +21,7 @@ depends: [
   "caqti-driver-sqlite3"
   "pbkdf"
   "mirage-crypto-rng"
+  "sexplib"
 ]
 
 synopsis: "Web interface for builder"
