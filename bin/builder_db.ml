@@ -238,7 +238,7 @@ let user_add_cmd =
 
 let user_update_cmd =
   let doc = "update a user password" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ password_iter $ username),
+  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ password_iter $ username),
    Cmdliner.Term.info ~doc "user-update")
 
 let user_remove_cmd =
