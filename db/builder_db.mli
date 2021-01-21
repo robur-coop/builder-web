@@ -76,7 +76,6 @@ sig
     script : string;
     job_id : id;
   }
-  val t : t Caqti_type.t
   module Meta :
   sig
     type t = {
@@ -86,7 +85,6 @@ sig
       result : Builder.execution_result;
       job_id : id;
     }
-    val t : t Caqti_type.t
   end
 
   val migrate :
