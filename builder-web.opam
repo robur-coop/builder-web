@@ -20,6 +20,7 @@ depends: [
   "caqti-lwt"
   "caqti-driver-sqlite3"
   "pbkdf"
+  "mirage-crypto-rng"
 ]
 
 synopsis: "Web interface for builder"
