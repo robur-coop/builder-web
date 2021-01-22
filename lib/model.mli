@@ -11,6 +11,9 @@ val build_artifacts : Builder_db.id -> Caqti_lwt.connection ->
 val build : Uuidm.t -> Caqti_lwt.connection ->
   (Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
+val build_exists : Uuidm.t -> Caqti_lwt.connection ->
+  (bool, [> error ]) result Lwt.t
+
 val job : string -> Caqti_lwt.connection ->
   ((Builder_db.id * Builder_db.Build.Meta.t) list, [> error ]) result Lwt.t
 
