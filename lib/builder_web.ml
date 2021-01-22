@@ -156,14 +156,26 @@ let routes t =
       Log.warn (fun m -> m "Received bad builder ASN.1");
       Log.debug (fun m -> m "Parse error: %s" e);
       Lwt.return (Response.of_plain_text "Bad request\n" ~status:`Bad_request)
-    | Ok exec ->
-      let* r = Caqti_lwt.Pool.use (Model.add_build t.datadir exec) t.pool in
+    | Ok ((_, uuid, _, _, _, _, _) as exec) ->
+      Log.info (fun m -> m "Received build %a" pp_exec exec);
+      let* r = Caqti_lwt.Pool.use (Model.build_exists uuid) t.pool in
       match r with
-      | Ok () ->
-        Lwt.return (Response.of_plain_text "Success!\n")
       | Error e ->
         Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
         Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
+      | Ok true ->
+        Log.warn (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
+        Lwt.return (Response.of_plain_text
+                      (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
+                      ~status:`Conflict)
+      | Ok false ->
+        let* r = Caqti_lwt.Pool.use (Model.add_build t.datadir exec) t.pool in
+        match r with
+        | Ok () ->
+          Lwt.return (Response.of_plain_text "Success!\n")
+        | Error e ->
+          Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
+          Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
   in
 
   [

@@ -45,6 +45,10 @@ let build uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >>=
   not_found
 
+let build_exists uuid (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
+  Option.is_some
+
 let job job (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_all_meta_by_name job
 
