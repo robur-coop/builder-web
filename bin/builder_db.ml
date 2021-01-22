@@ -6,111 +6,6 @@ let or_die exit_code = function
     Format.eprintf "Database error: %a" Caqti_error.pp e;
     exit exit_code
 
-let save_data outputdir (filepath, data) =
-  let localpath = Fpath.(outputdir // filepath) in
-  (* FIXME: return an error?! *)
-  let () =
-    match Bos.OS.File.exists localpath with
-    | Ok false ->
-      Logs.warn (fun m -> m "artifact file %a does not exist in %a"
-                    Fpath.pp filepath Fpath.pp outputdir)
-    | Error (`Msg e) ->
-      Logs.warn (fun m -> m "artifact file error %a: %s"
-                    Fpath.pp localpath e)
-    | Ok true -> ()
-  in
-  (filepath, localpath, data)
-
-let get_by_uuid uuid (module Db : Caqti_blocking.CONNECTION) =
-  Uuidm.of_string uuid |> Option.to_result ~none:"bad uuid" >>= fun uuid ->
-  Db.find_opt Builder_db.Build.get_by_uuid uuid
-  |> Result.map_error (fun e ->
-      Fmt.strf "Error getting build %a: %a" Uuidm.pp uuid Caqti_error.pp e)
-
-let db_add_build (job, uuid, console, start, finish, result, artifacts)
-    (input_files : (Fpath.t * Fpath.t * string) list)
-    (module Db : Caqti_blocking.CONNECTION) =
-  let open Builder_db in
-  let job_name = job.Builder.name in
-  Db.exec Job.try_add job_name >>= fun () ->
-  Db.find Job.get_id_by_name job_name >>= fun job_id ->
-  Db.exec Build.add { Build.uuid; start; finish; result; console;
-                  script = job.Builder.script; job_id } >>= fun () ->
-  Db.find last_insert_rowid () >>= fun id ->
-  List.fold_left
-    (fun r (filepath, localpath, data) ->
-       r >>= fun () ->
-       let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-       Db.exec Build_artifact.add ({ filepath; localpath; sha256 }, id))
-    (Ok ())
-    artifacts >>= fun () ->
-  List.fold_left
-    (fun r (filepath, localpath, data) ->
-       r >>= fun () ->
-       let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-       Db.exec Build_file.add ({ filepath; localpath; sha256 }, id))
-    (Ok ())
-    input_files
-
-let add_build conn builddir =
-  let f = Fpath.(builddir / "full") in
-  let outputdir = Fpath.(builddir / "output") in
-  let inputdir = Fpath.(builddir / "input") in
-  let uuid = Fpath.basename builddir in
-  match get_by_uuid uuid conn with
-  | Error e -> Logs.warn (fun m -> m "%s" e)
-  | Ok (Some _) -> Logs.debug (fun m -> m "Skipping %a, already in database" Fpath.pp builddir)
-  | Ok None ->
-    Logs.debug (fun m -> m "Adding build %a" Fpath.pp builddir);
-    match Bos.OS.File.read f with
-    | Error (`Msg e) ->
-      Logs.warn (fun m -> m "Error getting build %a: %s"
-                    Fpath.pp builddir e)
-    | Ok contents ->
-      match Builder.Asn.exec_of_cs (Cstruct.of_string contents) with
-      | Error (`Msg e) ->
-        Logs.warn (fun m -> m "Error parsing build file %a: %s"
-                      Fpath.pp f e)
-      | Ok (job, uuid, console, start, finish, result, data) ->
-        let data = List.map (save_data outputdir) data in
-        let input_files = List.map (save_data inputdir) job.Builder.files in
-        match db_add_build (job, uuid, console, start, finish, result, data) input_files conn with
-        | Error e ->
-          Logs.err (fun m -> m "Error inserting build %a: %a"
-                       Fpath.pp builddir Caqti_error.pp e)
-        | Ok () -> ()
-
-let add_job conn jobdir =
-  Logs.debug (fun m -> m "Adding job %a" Fpath.pp jobdir);
-  match Bos.OS.Dir.contents jobdir with
-  | Error (`Msg e) ->
-    Logs.warn (fun m ->
-        m "Error getting job %s: %s\n" (Fpath.basename jobdir) e)
-  | Ok builds ->
-    List.iter (add_build conn) builds
-
-let add_jobs conn datadir =
-  Bos.OS.Dir.contents datadir >>|
-  List.filter (fun f -> not Fpath.(equal (v "state") f)) >>|
-  List.iter (add_job conn)
-
-let add () dbpath datadir =
-  let datadir = Fpath.v datadir in
-  Logs.debug (fun m -> m "Data dir: %a" Fpath.pp datadir);
-  let conn =
-    match Caqti_blocking.connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ()) with
-    | Error e ->
-      Logs.err (fun m -> m "Error connecting to database: %a" Caqti_error.pp e);
-      exit 1
-    | Ok conn ->
-      conn
-  in
-  match add_jobs conn datadir with
-  | Ok () -> ()
-  | Error (`Msg e) ->
-    Logs.err (fun m -> m "Error getting jobs: %s\n" e);
-    exit 2
-
 let do_migrate dbpath =
   Caqti_blocking.connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
   >>= fun (module Db : Caqti_blocking.CONNECTION) ->
@@ -198,11 +93,6 @@ let password_iter =
                 opt (some int) None &
                 info ~doc ["hash-count"])
 
-let datadir =
-  let doc = Cmdliner.Arg.info ~doc:"builder data dir" ["datadir"] in
-  Cmdliner.Arg.(value &
-                opt dir "/var/db/builder/" doc)
-
 let setup_log =
   let setup_log level =
     Logs.set_level level;
@@ -215,21 +105,6 @@ let migrate_cmd =
   let doc = "create database and add tables" in
   Cmdliner.Term.(pure migrate $ setup_log $ dbpath_new),
   Cmdliner.Term.info ~doc "migrate"
-
-let add_cmd =
-  let doc = "populates database with builder data" in
-  let man =
-    [ `S "DESCRIPTION";
-      `P "Scrape builder data directory information and insert into builder-web database.";
-      `P "It assumes the `full' files are stored in a directory hierarchy of the following shape:";
-      `Pre "/path/to/datadir/JOB-NAME/BUILD-UUID/full";
-      `P "Before parsing, The UUID in the filesystem is looked up in the database \
-          to see if already exists.\
-          It is assumed the UUIDs correspond.";
-    ]
-  in
-  (Cmdliner.Term.(pure add $ setup_log $ dbpath $ datadir),
-   Cmdliner.Term.info ~doc ~man "add")
 
 let user_add_cmd =
   let doc = "add a user" in
@@ -269,6 +144,6 @@ let () =
   Mirage_crypto_rng_unix.initialize ();
   Cmdliner.Term.eval_choice
     default_cmd
-    [help_cmd; add_cmd; migrate_cmd;
+    [help_cmd; migrate_cmd;
      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd]
   |> Cmdliner.Term.exit
