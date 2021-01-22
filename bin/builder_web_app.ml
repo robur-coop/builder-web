@@ -9,5 +9,5 @@ let app t =
 let () =
   let () = Mirage_crypto_rng_unix.initialize () in
   let datadir = Fpath.v "/var/db/builder-web/" in
-  let t = Result.get_ok (Builder_web.init "builder.sqlite3" datadir) in
+  let t = Result.get_ok (Builder_web.init "/var/db/builder-web/builder.sqlite3" datadir) in
   App.run_command (app t)

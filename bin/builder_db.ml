@@ -177,13 +177,13 @@ let help man_format cmds = function
 let dbpath =
   let doc = "sqlite3 database path" in
   Cmdliner.Arg.(value &
-                opt non_dir_file "builder.sqlite3" &
+                opt non_dir_file "/var/db/builder-web/builder.sqlite3" &
                 info ~doc ["dbpath"])
 
 let dbpath_new =
   let doc = "sqlite3 database path" in
   Cmdliner.Arg.(value &
-                opt string "builder.sqlite3" &
+                opt string "/var/db/builder-web/builder.sqlite3" &
                 info ~doc ["dbpath"])
 
 let username =
