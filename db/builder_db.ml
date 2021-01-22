@@ -286,7 +286,7 @@ module Build = struct
                   script, job
            FROM build
            WHERE job = ?
-           ORDER BY start_d ASC, start_ps ASC
+           ORDER BY start_d DESC, start_ps DESC
         |}
 
   let get_all_meta =
@@ -298,7 +298,7 @@ module Build = struct
                   result_kind, result_code, result_msg, job
            FROM build
            WHERE job = ?
-           ORDER BY start_d ASC, start_ps ASC
+           ORDER BY start_d DESC, start_ps DESC
         |}
 
   let get_all_meta_by_name =
@@ -311,7 +311,7 @@ module Build = struct
                   build.result_kind, build.result_code, build.result_msg, build.job
            FROM build, job
            WHERE job.name = ? AND build.job = job.id
-           ORDER BY start_d ASC, start_ps ASC
+           ORDER BY start_d DESC, start_ps DESC
         |}
 
 
