@@ -7,6 +7,22 @@ type file = {
 }
 val file : file Caqti_type.t
 
+val application_id : int32
+
+val current_version : int64
+
+val get_application_id :
+  (unit, int32, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+
+val set_application_id :
+  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+
+val get_version :
+  (unit, int64, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+
+val set_current_version :
+  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+
 val last_insert_rowid :
   (unit, id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
 
@@ -35,8 +51,12 @@ module Build_artifact : sig
   val rollback :
     (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 
+  val get_by_build :
+    (id * Fpath.t, id * file,
+     [< `Many | `One | `Zero > `One ]) Caqti_request.t
+
   val get_by_build_uuid :
-    (Uuidm.t * Fpath.t, Fpath.t * Cstruct.t,
+    (Uuidm.t * Fpath.t, id * file,
      [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_all_by_build :
@@ -74,6 +94,7 @@ sig
     result : Builder.execution_result;
     console : (int * string) list;
     script : string;
+    main_binary : Fpath.t option;
     job_id : id;
   }
   module Meta :
@@ -83,6 +104,7 @@ sig
       start : Ptime.t;
       finish : Ptime.t;
       result : Builder.execution_result;
+      main_binary : Fpath.t option;
       job_id : id;
     }
   end

@@ -116,7 +116,7 @@ let job name builds =
 
 let job_build
   name
-  { Builder_db.Build.uuid = _; start; finish; result; console; script; job_id = _ }
+  { Builder_db.Build.uuid = _; start; finish; result; console; script; main_binary = _; job_id = _ }
   artifacts
   =
   let ptime_pp = Ptime.pp_human () in
