@@ -366,7 +366,7 @@ module Build = struct
            (uuid, start_d, start_ps, finish_d, finish_ps,
            result_kind, result_code, result_msg, console, script, main_binary, job)
            VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
 end
