@@ -130,7 +130,7 @@ let add_build
                  (Fpath.v "bin/")
                  file.Builder_db.filepath)
             artifacts with
-    | [ main_binary ] -> Some main_binary.localpath
+    | [ main_binary ] -> Some main_binary.filepath
     | [] ->
       Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
       None
