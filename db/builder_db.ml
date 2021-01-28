@@ -8,18 +8,11 @@ let current_version = 1L
 
 type id = Rep.id
 
-type file = {
+type file = Rep.file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
 }
-
-let file =
-  let encode { filepath; localpath; sha256 } =
-    Ok (filepath, localpath, sha256) in
-  let decode (filepath, localpath, sha256) =
-    Ok { filepath; localpath; sha256 } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(tup3 fpath fpath cstruct)
 
 let last_insert_rowid =
   Caqti_request.find
@@ -349,13 +342,18 @@ module Build = struct
   let get_all_meta_by_name =
     Caqti_request.collect
       Caqti_type.string
-      (Caqti_type.tup2
-         id Meta.t)
+      (Caqti_type.tup3
+         id
+         Meta.t
+         file_opt)
       {| SELECT build.id, build.uuid,
-                  build.start_d, build.start_ps, build.finish_d, build.finish_ps,
-                  build.result_kind, build.result_code, build.result_msg,
-                  build.main_binary, build.job
+                build.start_d, build.start_ps, build.finish_d, build.finish_ps,
+                build.result_kind, build.result_code, build.result_msg,
+                build.main_binary, build.job,
+                build_artifact.filepath, build_artifact.localpath, build_artifact.sha256
            FROM build, job
+           LEFT JOIN build_artifact ON
+             build_artifact.build = build.id AND build.main_binary = build_artifact.filepath
            WHERE job.name = ? AND build.job = job.id
            ORDER BY start_d DESC, start_ps DESC
         |}

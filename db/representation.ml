@@ -23,6 +23,12 @@ end
 type id = int64
 let id = Caqti_type.int64
 
+type file = {
+  filepath : Fpath.t;
+  localpath : Fpath.t;
+  sha256 : Cstruct.t;
+}
+
 let uuid =
   let encode uuid = Ok (Uuidm.to_bytes uuid) in
   let decode s =
@@ -49,6 +55,32 @@ let cstruct =
   let encode t = Ok (Cstruct.to_string t) in
   let decode s = Ok (Cstruct.of_string s) in
   Caqti_type.custom ~encode ~decode Caqti_type.octets
+
+let file =
+  let encode { filepath; localpath; sha256 } =
+    Ok (filepath, localpath, sha256) in
+  let decode (filepath, localpath, sha256) =
+    Ok { filepath; localpath; sha256 } in
+  Caqti_type.custom ~encode ~decode Caqti_type.(tup3 fpath fpath cstruct)
+
+let file_opt =
+  let rep = Caqti_type.(tup3 (option fpath) (option fpath) (option cstruct)) in
+  let encode = function
+    | Some { filepath; localpath; sha256 } ->
+      Ok (Some filepath, Some localpath, Some sha256)
+    | None ->
+      Ok (None, None, None)
+  in
+  let decode = function
+    | (Some filepath, Some localpath, Some sha256) ->
+      Ok (Some { filepath; localpath; sha256 })
+    | (None, None, None) ->
+      Ok None
+    | _ ->
+      (* This should not happen if the database is well-formed *)
+      Error "Some but not all fields NULL"
+  in
+  Caqti_type.custom ~encode ~decode rep
 
 let execution_result =
   let encode = function

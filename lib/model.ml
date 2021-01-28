@@ -49,7 +49,7 @@ let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
 
-let main_binary id { Builder_db.Build.main_binary; _ } (module Db : CONN) =
+let main_binary id main_binary (module Db : CONN) =
   match main_binary with
   | None -> Lwt_result.return None
   | Some main_binary ->
@@ -57,7 +57,8 @@ let main_binary id { Builder_db.Build.main_binary; _ } (module Db : CONN) =
     Some file
 
 let job job (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_all_meta_by_name job
+  Db.collect_list Builder_db.Build.get_all_meta_by_name job >|=
+  List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all () >|=

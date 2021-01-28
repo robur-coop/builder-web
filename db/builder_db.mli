@@ -5,7 +5,6 @@ type file = {
   localpath : Fpath.t;
   sha256 : Cstruct.t;
 }
-val file : file Caqti_type.t
 
 val application_id : int32
 
@@ -124,7 +123,7 @@ sig
   val get_all_meta :
     (id, id * Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_meta_by_name :
-    (string, id * Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
+    (string, id * Meta.t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
   val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end
 
