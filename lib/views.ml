@@ -101,22 +101,35 @@ let job name builds =
         txtf "Currently %d builds."
           (List.length builds)
       ];
-      ul (List.map (fun build ->
-          li [
-            a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid) ^ "/")]
+      ul (List.map (fun (build, main_binary) ->
+          li ([
+              a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid / ""))]
+                [
+                  txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.Meta.start;
+                ];
+              txt " ";
+              check_icon build.result;
+              br ();
+            ] @ match main_binary with
+            | Some main_binary ->
               [
-                txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.Meta.start;
-              ];
-            txt " ";
-            check_icon build.result;
-          ])
+                a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid
+                                               / "f" // main_binary.Builder_db.filepath))]
+                  [txtf "%s" (Fpath.basename main_binary.Builder_db.filepath)];
+                txt " ";
+                code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct main_binary.Builder_db.sha256)];
+              ]
+            | None ->
+              [
+                txtf "Build failed";
+              ]))
           builds);
 
     ]
 
 let job_build
   name
-  { Builder_db.Build.uuid = _; start; finish; result; console; script; job_id = _ }
+  { Builder_db.Build.uuid = _; start; finish; result; console; script; main_binary = _; job_id = _ }
   artifacts
   =
   let ptime_pp = Ptime.pp_human () in

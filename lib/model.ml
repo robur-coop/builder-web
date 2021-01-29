@@ -32,8 +32,8 @@ let read_file filepath =
 let build_artifact build filepath (module Db : CONN) =
   Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
   >>= function
-  | Some (localpath, sha256) ->
-    read_file localpath >|= fun data -> data, sha256
+  | Some (_id, file) ->
+    read_file file.Builder_db.localpath >|= fun data -> data, file.Builder_db.sha256
   | None ->
     Lwt.return_error `Not_found
 
@@ -49,8 +49,16 @@ let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
 
+let main_binary id main_binary (module Db : CONN) =
+  match main_binary with
+  | None -> Lwt_result.return None
+  | Some main_binary ->
+    Db.find Builder_db.Build_artifact.get_by_build (id, main_binary) >|= fun (_id, file) ->
+    Some file
+
 let job job (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_all_meta_by_name job
+  Db.collect_list Builder_db.Build.get_all_meta_by_name job >|=
+  List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all () >|=
@@ -115,10 +123,28 @@ let add_build
   let open Builder_db in
   let job_name = job.Builder.name in
   save_all basedir exec >>= fun (artifacts, input_files) ->
+  let main_binary =
+    match List.find_all
+            (fun file ->
+               Fpath.is_prefix
+                 (Fpath.v "bin/")
+                 file.Builder_db.filepath)
+            artifacts with
+    | [ main_binary ] -> Some main_binary.filepath
+    | [] ->
+      Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
+      None
+    | binaries ->
+      Log.debug (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
+                    Fmt.(list ~sep:(any ",") Fpath.pp)
+                    (List.map (fun f -> f.filepath) binaries));
+      None
+  in
   Db.exec Job.try_add job_name >>= fun () ->
   Db.find Job.get_id_by_name job_name >>= fun job_id ->
   Db.exec Build.add { Build.uuid; start; finish; result;
-                      console; script = job.Builder.script; job_id } >>= fun () ->
+                      console; script = job.Builder.script;
+                      main_binary; job_id } >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
   List.fold_left
     (fun r file ->

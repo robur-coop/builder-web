@@ -1,26 +1,47 @@
 module Rep = Representation
 open Rep
 
+let application_id = 1234839235l
+
+(* Please update this when making changes! *)
+let current_version = 1L
+
 type id = Rep.id
 
-type file = {
+type file = Rep.file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
 }
-
-let file =
-  let encode { filepath; localpath; sha256 } =
-    Ok (filepath, localpath, sha256) in
-  let decode (filepath, localpath, sha256) =
-    Ok { filepath; localpath; sha256 } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(tup3 fpath fpath cstruct)
 
 let last_insert_rowid =
   Caqti_request.find
     Caqti_type.unit
     id
     "SELECT last_insert_rowid()"
+
+
+let get_application_id =
+  Caqti_request.find
+    Caqti_type.unit
+    Caqti_type.int32
+    "PRAGMA application_id"
+
+let get_version =
+  Caqti_request.find
+    Caqti_type.unit
+    Caqti_type.int64
+    "PRAGMA user_version"
+
+let set_application_id =
+  Caqti_request.exec
+    Caqti_type.unit
+    (Printf.sprintf "PRAGMA application_id = %ld" application_id)
+
+let set_current_version =
+  Caqti_request.exec
+    Caqti_type.unit
+    (Printf.sprintf "PRAGMA user_version = %Ld" current_version)
 
 module Job = struct
   let migrate =
@@ -87,11 +108,21 @@ module Build_artifact = struct
       Caqti_type.unit
       "DROP TABLE IF EXISTS build_artifact"
 
+  let get_by_build =
+    Caqti_request.find
+      (Caqti_type.tup2 id fpath)
+      (Caqti_type.tup2 id file)
+      {| SELECT id, filepath, localpath, sha256
+         FROM build_artifact
+         WHERE build = ? AND filepath = ?
+      |}
+
   let get_by_build_uuid =
     Caqti_request.find_opt
       (Caqti_type.tup2 uuid fpath)
-      (Caqti_type.tup2 fpath cstruct)
-      {| SELECT build_artifact.localpath, build_artifact.sha256
+      (Caqti_type.tup2 id file)
+      {| SELECT build_artifact.id, build_artifact.filepath,
+           build_artifact.localpath, build_artifact.sha256
          FROM build_artifact
          INNER JOIN build ON build.id = build_artifact.build
          WHERE build.uuid = ? AND build_artifact.filepath = ?
@@ -176,6 +207,7 @@ module Build = struct
     result : Builder.execution_result;
     console : (int * string) list;
     script : string;
+    main_binary : Fpath.t option;
     job_id : id;
   }
 
@@ -190,14 +222,16 @@ module Build = struct
                        (tup2
                           execution_result
                           console)
-                       string)
+                       (tup2
+                          string
+                          (option Rep.fpath)))
                     id)
     in
-    let encode { uuid; start; finish; result; console; script; job_id } =
-      Ok ((uuid, (start, finish), (result, console), script), job_id)
+    let encode { uuid; start; finish; result; console; script; main_binary; job_id } =
+      Ok ((uuid, (start, finish), (result, console), (script, main_binary)), job_id)
     in
-    let decode ((uuid, (start, finish), (result, console), script), job_id) =
-      Ok { uuid; start; finish; result; console; script; job_id }
+    let decode ((uuid, (start, finish), (result, console), (script, main_binary)), job_id) =
+      Ok { uuid; start; finish; result; console; script; main_binary; job_id }
     in
     Caqti_type.custom ~encode ~decode rep
 
@@ -207,6 +241,7 @@ module Build = struct
       start : Ptime.t;
       finish : Ptime.t;
       result : Builder.execution_result;
+      main_binary : Fpath.t option;
       job_id : id;
     }
 
@@ -215,16 +250,18 @@ module Build = struct
         Caqti_type.(tup2
                      (tup4
                        uuid
-                       Rep.ptime
-                       Rep.ptime
-                       execution_result)
+                       (tup2
+                          Rep.ptime
+                          Rep.ptime)
+                       execution_result
+                       (option Rep.fpath))
                      id)
       in
-      let encode { uuid; start; finish; result; job_id } =
-        Ok ((uuid, start, finish, result), job_id)
+      let encode { uuid; start; finish; result; main_binary; job_id } =
+        Ok ((uuid, (start, finish), result, main_binary), job_id)
       in
-      let decode ((uuid, start, finish, result), job_id) =
-        Ok { uuid; start; finish; result; job_id }
+      let decode ((uuid, (start, finish), result, main_binary), job_id) =
+        Ok { uuid; start; finish; result; main_binary; job_id }
       in
       Caqti_type.custom ~encode ~decode rep
   end
@@ -244,6 +281,7 @@ module Build = struct
            result_msg TEXT,
            console BLOB NOT NULL,
            script TEXT NOT NULL,
+           main_binary TEXT,
            job INTEGER NOT NULL,
 
            FOREIGN KEY(job) REFERENCES job(id)
@@ -261,7 +299,7 @@ module Build = struct
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
                 result_kind, result_code, result_msg,
-                console, script, job
+                console, script, main_binary, job
            FROM build
            WHERE id = ?
         |}
@@ -272,7 +310,7 @@ module Build = struct
       (Caqti_type.tup2 id t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg,
-                  console, script, job
+                  console, script, main_binary, job
            FROM build
            WHERE uuid = ?
         |}
@@ -283,7 +321,7 @@ module Build = struct
       (Caqti_type.tup2 id t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg, console,
-                  script, job
+                  script, main_binary, job
            FROM build
            WHERE job = ?
            ORDER BY start_d DESC, start_ps DESC
@@ -295,7 +333,7 @@ module Build = struct
       (Caqti_type.tup2
          id Meta.t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
-                  result_kind, result_code, result_msg, job
+                  result_kind, result_code, result_msg, main_binary, job
            FROM build
            WHERE job = ?
            ORDER BY start_d DESC, start_ps DESC
@@ -304,12 +342,18 @@ module Build = struct
   let get_all_meta_by_name =
     Caqti_request.collect
       Caqti_type.string
-      (Caqti_type.tup2
-         id Meta.t)
+      (Caqti_type.tup3
+         id
+         Meta.t
+         file_opt)
       {| SELECT build.id, build.uuid,
-                  build.start_d, build.start_ps, build.finish_d, build.finish_ps,
-                  build.result_kind, build.result_code, build.result_msg, build.job
+                build.start_d, build.start_ps, build.finish_d, build.finish_ps,
+                build.result_kind, build.result_code, build.result_msg,
+                build.main_binary, build.job,
+                build_artifact.filepath, build_artifact.localpath, build_artifact.sha256
            FROM build, job
+           LEFT JOIN build_artifact ON
+             build_artifact.build = build.id AND build.main_binary = build_artifact.filepath
            WHERE job.name = ? AND build.job = job.id
            ORDER BY start_d DESC, start_ps DESC
         |}
@@ -320,9 +364,9 @@ module Build = struct
       t
       {| INSERT INTO build
            (uuid, start_d, start_ps, finish_d, finish_ps,
-           result_kind, result_code, result_msg, console, script, job)
+           result_kind, result_code, result_msg, console, script, main_binary, job)
            VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
 end
@@ -394,6 +438,8 @@ let migrate = [
   Build_artifact.migrate;
   Build_file.migrate;
   User.migrate;
+  set_current_version;
+  set_application_id;
 ]
 
 let rollback = [
@@ -402,4 +448,8 @@ let rollback = [
   Build_artifact.rollback;
   Build.rollback;
   Job.rollback;
+  Caqti_request.exec Caqti_type.unit
+    "PRAGMA user_version = 0";
+  Caqti_request.exec Caqti_type.unit
+    "PRAGMA application_id = 0";
 ]

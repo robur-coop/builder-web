@@ -86,14 +86,16 @@ let routes t =
 
   let job req =
     let job_name = Router.param req "job" in
-    let+ job = Caqti_lwt.Pool.use (Model.job job_name) t.pool in
+    let+ job =
+      Caqti_lwt.Pool.use (Model.job job_name) t.pool
+    in
     match job with
     | Error e ->
       Log.warn (fun m -> m "Error getting job: %a" pp_error e);
       Response.of_plain_text ~status:`Internal_server_error
         "Error getting job"
     | Ok builds ->
-      Views.job job_name (List.map snd builds) |> Response.of_html
+      Views.job job_name builds |> Response.of_html
   in
 
   let job_build req =
