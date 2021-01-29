@@ -124,6 +124,9 @@ sig
     (id, id * Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_meta_by_name :
     (string, id * Meta.t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_latest :
+    (id, id * Meta.t * file option, [< `Many | `One | `Zero > `One `Zero ])
+      Caqti_request.t
   val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end
 

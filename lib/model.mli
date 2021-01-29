@@ -11,6 +11,9 @@ val build_artifacts : Builder_db.id -> Caqti_lwt.connection ->
 val build : Uuidm.t -> Caqti_lwt.connection ->
   (Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
+val build_meta : Builder_db.id -> Caqti_lwt.connection ->
+  ((Builder_db.Build.Meta.t * Builder_db.file option) option, [> error ]) result Lwt.t
+
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
   (bool, [> error ]) result Lwt.t
 
@@ -21,7 +24,7 @@ val job : string -> Caqti_lwt.connection ->
   ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
 val jobs : Caqti_lwt.connection ->
-  (string list, [> error ]) result Lwt.t
+  ((Builder_db.id * string) list, [> error ]) result Lwt.t
 
 val user : string -> Caqti_lwt.connection ->
   (Builder_web_auth.user_info option, [> error ]) result Lwt.t

@@ -45,6 +45,10 @@ let build uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >>=
   not_found
 
+let build_meta job (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest job >|=
+  Option.map (fun (_id, meta, file) -> (meta, file))
+
 let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
@@ -61,8 +65,7 @@ let job job (module Db : CONN) =
   List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
 
 let jobs (module Db : CONN) =
-  Db.collect_list Builder_db.Job.get_all () >|=
-  List.map snd
+  Db.collect_list Builder_db.Job.get_all ()
 
 let user username (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username >|=

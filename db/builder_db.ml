@@ -358,6 +358,25 @@ module Build = struct
            ORDER BY start_d DESC, start_ps DESC
         |}
 
+  let get_latest =
+    Caqti_request.find_opt
+      id
+      Caqti_type.(tup3
+                   id
+                   Meta.t
+                   file_opt)
+      {| SELECT b.id,
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_kind, b.result_code, b.result_msg,
+           b.main_binary, b.job,
+           a.filepath, a.localpath, a.sha256
+         FROM build b
+         LEFT JOIN build_artifact a ON
+           a.build = b.id AND b.main_binary = a.filepath
+         WHERE b.job = ?
+         ORDER BY start_d DESC, start_ps DESC
+         LIMIT 1
+      |}
 
   let add =
     Caqti_request.exec

@@ -73,15 +73,34 @@ let authorized t handler = fun req ->
 
 let routes t =
   let builder _req =
-    let+ jobs = Caqti_lwt.Pool.use Model.jobs t.pool in
+    let* jobs = Caqti_lwt.Pool.use Model.jobs t.pool in
     match jobs with
     | Error e ->
       Log.warn (fun m -> m "Error getting jobs: %a" pp_error e);
       Response.of_plain_text ~status:`Internal_server_error
         "Error getting jobs"
+      |> Lwt.return
     | Ok jobs ->
-      List.sort String.compare jobs
-      |> Views.builder |> Response.of_html
+      let+ jobs =
+        List.fold_right
+          (fun (job_id, job_name) r ->
+             r >>= fun acc ->
+             Caqti_lwt.Pool.use (Model.build_meta job_id) t.pool >>= function
+             | Some (latest_build, latest_artifact) ->
+               Lwt_result.return ((job_name, latest_build, latest_artifact) :: acc)
+             | None ->
+               Log.warn (fun m -> m "Job without builds: %s" job_name);
+               Lwt_result.return acc)
+          jobs
+          (Lwt_result.return [])
+      in
+      match jobs with
+      | Error e ->
+        Log.warn (fun m -> m "Error getting jobs: %a" pp_error e);
+        Response.of_plain_text ~status:`Internal_server_error
+          "Error getting jobs"
+      | Ok jobs ->
+        Views.builder jobs |> Response.of_html
   in
 
   let job req =

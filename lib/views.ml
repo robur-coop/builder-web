@@ -86,12 +86,34 @@ let builder jobs =
         txtf "We have currently %d jobs."
           (List.length jobs);
       ];
-      ul (List.map (fun job ->
-          li [
-            a ~a:[a_href ("job/" ^ job ^ "/")]
-              [txt job];
-          ])
-          jobs);
+      ul (List.map (fun (job_name, latest_build, latest_artifact) ->
+          li ([
+              a ~a:[a_href ("job/" ^ job_name ^ "/")]
+                [txt job_name];
+              txt " ";
+              check_icon latest_build.Builder_db.Build.Meta.result;
+              br ();
+              a ~a:[a_href (Fmt.strf "job/%s/build/%a/" job_name Uuidm.pp
+                              latest_build.Builder_db.Build.Meta.uuid)]
+                [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.Meta.start];
+              txt " ";
+            ] @ match latest_artifact with
+            | Some main_binary ->
+              [
+                a ~a:[a_href (Fmt.strf
+                                "job/%s/build/%a/f/%a"
+                                job_name
+                                Uuidm.pp latest_build.Builder_db.Build.Meta.uuid
+                                Fpath.pp main_binary.Builder_db.filepath)]
+                  [txtf "%s" (Fpath.basename main_binary.Builder_db.filepath)];
+                txt " ";
+                code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct main_binary.Builder_db.sha256)];
+              ]
+            | None ->
+              [
+                txtf "Build failed";
+              ]))
+        jobs);
     ]
 
 let job name builds =
