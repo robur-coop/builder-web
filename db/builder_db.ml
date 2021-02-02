@@ -474,6 +474,8 @@ let migrate = [
   Build_artifact.migrate;
   Build_file.migrate;
   User.migrate;
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX job_build_idx ON build(job)";
   set_current_version;
   set_application_id;
 ]
@@ -484,6 +486,8 @@ let rollback = [
   Build_artifact.rollback;
   Build.rollback;
   Job.rollback;
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX IF EXISTS job_build_idx";
   Caqti_request.exec Caqti_type.unit
     "PRAGMA user_version = 0";
   Caqti_request.exec Caqti_type.unit

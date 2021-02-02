@@ -65,6 +65,16 @@ let r20210126 =
   Cmdliner.Term.(const do_database_action $ const M20210126.rollback $ setup_log $ dbpath),
   Cmdliner.Term.info ~doc "rollback-2021-01-26"
 
+let m20210202 =
+  let doc = "Adds an index 'job_build_idx' on 'build' (2021-02-02)" in
+  Cmdliner.Term.(const do_database_action $ const M20210202.migrate $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "migrate-2021-02-02"
+
+let r20210202 =
+  let doc = "Rollback index 'job_build_idx' on 'build' (2021-02-02)" in
+  Cmdliner.Term.(const do_database_action $ const M20210202.rollback $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "rollback-2021-02-02"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -82,6 +92,8 @@ let default_cmd =
 let () =
   Cmdliner.Term.eval_choice
     default_cmd
-    [help_cmd;
-     m20210126; r20210126]
+    [ help_cmd;
+      m20210126; r20210126;
+      m20210202; r20210202;
+    ]
   |> Cmdliner.Term.exit
