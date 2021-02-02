@@ -49,6 +49,9 @@ let build_meta job (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_latest job >|=
   Option.map (fun (_id, meta, file) -> (meta, file))
 
+let build_hash hash (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_by_hash hash
+
 let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some

@@ -128,6 +128,8 @@ sig
     (id, id * Meta.t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get_by_hash :
+    (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
 end
 
 module User : sig

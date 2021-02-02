@@ -388,6 +388,23 @@ module Build = struct
            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
+  let get_by_hash =
+    Caqti_request.find_opt
+      Rep.cstruct
+      (Caqti_type.tup2
+         Caqti_type.string
+         t)
+      {| SELECT job.name,
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_kind, b.result_code, b.result_msg,
+           b.console, b.script, b.main_binary, b.job
+         FROM build_artifact a
+         INNER JOIN build b ON b.id = a.build
+         INNER JOIN job ON job.id = b.job
+         WHERE a.sha256 = ?
+         ORDER BY b.start_d DESC, b.start_ps DESC
+         LIMIT 1
+      |}
 end
 
 module User = struct

@@ -199,12 +199,37 @@ let routes t =
           Lwt.return (Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error)
   in
 
+  let hash req =
+    let hash_s = Router.param req "hash" in
+    let hash = try Some (Hex.to_cstruct (`Hex hash_s))
+      with Invalid_argument _ -> None
+    in
+    match hash with
+    | None ->
+      Log.debug (fun m -> m "Invalid hash hex %S" hash_s);
+      Response.of_plain_text "Bad request\n" ~status:`Bad_request
+      |> Lwt.return
+    | Some hash ->
+      let+ build = Caqti_lwt.Pool.use (Model.build_hash hash) t.pool in
+      match build with
+      | Error e ->
+        Log.warn (fun m -> m "Database error: %a" pp_error e);
+        Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
+      | Ok None ->
+        Log.debug (fun m -> m "Hash not found: %S" hash_s);
+        Response.of_plain_text "Artifact not found\n" ~status:`Not_found
+      | Ok (Some (job_name, build)) ->
+        Response.redirect_to (Fmt.strf "/job/%s/build/%a/" job_name
+                                Uuidm.pp build.Builder_db.Build.uuid)
+  in
+
   [
     App.get "/" builder;
     App.get "/job/:job/" job;
     App.get "/job/:job/build/:build/" job_build;
     App.get "/job/:job/build/:build/f/**" job_build_file;
     App.post "/upload" (authorized t upload);
+    App.get "/hash/:hash" hash;
   ]
 
 let add_routes t (app : App.t) =

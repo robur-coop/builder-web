@@ -14,6 +14,9 @@ val build : Uuidm.t -> Caqti_lwt.connection ->
 val build_meta : Builder_db.id -> Caqti_lwt.connection ->
   ((Builder_db.Build.Meta.t * Builder_db.file option) option, [> error ]) result Lwt.t
 
+val build_hash : Cstruct.t -> Caqti_lwt.connection ->
+  ((string * Builder_db.Build.t) option, [> error ]) result Lwt.t
+
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
   (bool, [> error ]) result Lwt.t
 
