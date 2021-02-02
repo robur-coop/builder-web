@@ -82,6 +82,22 @@ let toggleable ?(hidden=true) id description content =
 let builder jobs =
   layout ~title:"Builder Web"
     [ h1 [txt "Builder web"];
+      form ~a:[a_action "/hash"; a_method `Get]
+        [
+          label [
+            txt "Search artifact by SHA256";
+            br ();
+            input ~a:[
+              a_input_type `Search;
+              a_id "sha256";
+              a_name "sha256";
+            ] ();
+          ];
+          input ~a:[
+            a_input_type `Submit;
+            a_value "Search";
+          ] ();
+        ];
       p [
         txtf "We have currently %d jobs."
           (List.length jobs);

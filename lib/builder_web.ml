@@ -200,27 +200,28 @@ let routes t =
   in
 
   let hash req =
-    let hash_s = Router.param req "hash" in
-    let hash = try Some (Hex.to_cstruct (`Hex hash_s))
-      with Invalid_argument _ -> None
-    in
-    match hash with
+    let hash_hex = Request.query "sha256" req in
+    match Option.map (fun h -> Hex.to_cstruct (`Hex h)) hash_hex with
     | None ->
-      Log.debug (fun m -> m "Invalid hash hex %S" hash_s);
+      Log.debug (fun m -> m "sha256 query parameter not provided");
       Response.of_plain_text "Bad request\n" ~status:`Bad_request
       |> Lwt.return
     | Some hash ->
       let+ build = Caqti_lwt.Pool.use (Model.build_hash hash) t.pool in
-      match build with
-      | Error e ->
-        Log.warn (fun m -> m "Database error: %a" pp_error e);
-        Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
-      | Ok None ->
-        Log.debug (fun m -> m "Hash not found: %S" hash_s);
-        Response.of_plain_text "Artifact not found\n" ~status:`Not_found
-      | Ok (Some (job_name, build)) ->
-        Response.redirect_to (Fmt.strf "/job/%s/build/%a/" job_name
-                                Uuidm.pp build.Builder_db.Build.uuid)
+      (match build with
+       | Error e ->
+         Log.warn (fun m -> m "Database error: %a" pp_error e);
+         Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
+       | Ok None ->
+         Log.debug (fun m -> m "Hash not found: %S" (Request.query_exn "sha256" req));
+         Response.of_plain_text "Artifact not found\n" ~status:`Not_found
+       | Ok (Some (job_name, build)) ->
+         Response.redirect_to (Fmt.strf "/job/%s/build/%a/" job_name
+                                 Uuidm.pp build.Builder_db.Build.uuid))
+    | exception Invalid_argument _ ->
+      Log.debug (fun m -> m "Invalid hash hex %S" (Request.query_exn "sha256" req));
+      Response.of_plain_text "Bad request\n" ~status:`Bad_request
+      |> Lwt.return
   in
 
   [
@@ -229,7 +230,7 @@ let routes t =
     App.get "/job/:job/build/:build/" job_build;
     App.get "/job/:job/build/:build/f/**" job_build_file;
     App.post "/upload" (authorized t upload);
-    App.get "/hash/:hash" hash;
+    App.get "/hash" hash;
   ]
 
 let add_routes t (app : App.t) =
