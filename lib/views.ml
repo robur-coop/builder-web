@@ -211,3 +211,58 @@ let job_build
                 (List.rev console));
         ];
     ]
+
+let packages packages =
+  OpamPackage.Set.elements packages
+  |> List.concat_map (fun p -> [
+        txtf "%a" Opamdiff.pp_opampackage p;
+        br ();
+      ])
+
+let package_diffs diffs =
+  List.concat_map (fun pd -> [
+        txtf "%a" Opamdiff.pp_version_diff pd;
+        br ();
+      ])
+    diffs
+
+let compare_opam build_left build_right (same, version_diff, left, right) =
+  layout ~title:(Fmt.strf "Comparing opam switches between builds %a and %a"
+                   Uuidm.pp build_left Uuidm.pp build_right)
+    [
+      h1 [txt "Comparing opam switches"];
+      h2 [
+        txtf "Builds %a and %a"
+          Uuidm.pp build_left Uuidm.pp build_right
+      ];
+      ul [
+        li [
+          a ~a:[a_href "packages-removed"]
+            [txtf "%d packages removed" (OpamPackage.Set.cardinal left)]
+        ];
+        li [
+          a ~a:[a_href "packages-installed"]
+            [txtf "%d new packages installed" (OpamPackage.Set.cardinal right)]
+        ];
+        li [
+          a ~a:[a_href "packages-diff"]
+            [txtf "%d packages with version changes" (List.length version_diff)]
+        ];
+        li [
+          a ~a:[a_href "packages-unchanged"]
+            [txtf "%d packages unchanged" (OpamPackage.Set.cardinal same)]
+        ];
+      ];
+      h3 ~a:[a_id "packages-removed"]
+        [txt "Packages removed"];
+      code (packages left);
+      h3 ~a:[a_id "packages-installed"]
+        [txt "New packages installed"];
+      code (packages right);
+      h3 ~a:[a_id "packages-diff"]
+        [txt "Packages with version changes"];
+      code (package_diffs version_diff);
+      h3 ~a:[a_id "packages-unchanged"]
+        [txt "Unchanged packages"];
+      code (packages same);
+    ]

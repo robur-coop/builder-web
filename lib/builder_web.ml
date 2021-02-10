@@ -255,6 +255,33 @@ let routes t =
       |> Lwt.return
   in
 
+  let compare_opam req =
+    let build_left = Router.param req "build_left" in
+    let build_right = Router.param req "build_right" in
+    match Uuidm.of_string build_left, Uuidm.of_string build_right with
+    | None, _ | _, None ->
+      Response.of_plain_text "Bad request" ~status:`Bad_request
+      |> Lwt.return
+    | Some build_left, Some build_right ->
+      let+ switch_left =
+        Caqti_lwt.Pool.use (Model.build_artifact build_left (Fpath.v "opam-switch"))
+          t.pool
+      and+ switch_right =
+        Caqti_lwt.Pool.use (Model.build_artifact build_right (Fpath.v "opam-switch"))
+          t.pool
+      in
+      match switch_left, switch_right with
+      | Error e, _ | _, Error e ->
+         Log.warn (fun m -> m "Database error: %a" pp_error e);
+         Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
+      | Ok (switch_left, _sha256_left), Ok (switch_right, _sha256_right) ->
+        let switch_left = OpamFile.SwitchExport.read_from_string switch_left
+        and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
+        Opamdiff.compare (Opamdiff.packages switch_left) (Opamdiff.packages switch_right)
+        |> Views.compare_opam build_left build_right
+        |> Response.of_html
+  in
+
   [
     App.get "/" builder;
     App.get "/job/:job/" job;
@@ -262,6 +289,7 @@ let routes t =
     App.get "/job/:job/build/:build/f/**" job_build_file;
     App.post "/upload" (authorized t upload);
     App.get "/hash" hash;
+    App.get "/compare/:build_left/:build_right/opam-switch" compare_opam;
   ]
 
 let add_routes t (app : App.t) =

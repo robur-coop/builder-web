@@ -1,0 +1,3 @@
+(library
+ (name opamdiff)
+ (libraries opam-core opam-format))
