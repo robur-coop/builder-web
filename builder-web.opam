@@ -25,6 +25,8 @@ depends: [
   "sexplib"
   "scrypt-kdf"
   "alcotest" {with-test}
+  "opam-core"
+  "opam-format"
 ]
 
 synopsis: "Web interface for builder"
