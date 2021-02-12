@@ -277,7 +277,7 @@ let routes t =
       | Ok (switch_left, _sha256_left), Ok (switch_right, _sha256_right) ->
         let switch_left = OpamFile.SwitchExport.read_from_string switch_left
         and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-        Opamdiff.compare (Opamdiff.packages switch_left) (Opamdiff.packages switch_right)
+        Opamdiff.compare switch_left switch_right
         |> Views.compare_opam build_left build_right
         |> Response.of_html
   in

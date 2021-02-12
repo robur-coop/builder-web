@@ -226,7 +226,7 @@ let package_diffs diffs =
       ])
     diffs
 
-let compare_opam build_left build_right (same, version_diff, left, right) =
+let compare_opam build_left build_right (same, opam_diff, version_diff, left, right) =
   layout ~title:(Fmt.strf "Comparing opam switches between builds %a and %a"
                    Uuidm.pp build_left Uuidm.pp build_right)
     [
@@ -245,8 +245,12 @@ let compare_opam build_left build_right (same, version_diff, left, right) =
             [txtf "%d new packages installed" (OpamPackage.Set.cardinal right)]
         ];
         li [
-          a ~a:[a_href "#packages-diff"]
+          a ~a:[a_href "#packages-version-diff"]
             [txtf "%d packages with version changes" (List.length version_diff)]
+        ];
+        li [
+          a ~a:[a_href "#packages-opam-diff"]
+            [txtf "%d packages with changes in their opam file" (OpamPackage.Set.cardinal opam_diff)]
         ];
         li [
           a ~a:[a_href "#packages-unchanged"]
@@ -259,9 +263,12 @@ let compare_opam build_left build_right (same, version_diff, left, right) =
       h3 ~a:[a_id "packages-installed"]
         [txt "New packages installed"];
       code (packages right);
-      h3 ~a:[a_id "packages-diff"]
+      h3 ~a:[a_id "packages-version-diff"]
         [txt "Packages with version changes"];
       code (package_diffs version_diff);
+      h3 ~a:[a_id "packages-opam-diff"]
+        [txt "Packages with changes in their opam file"];
+      code (packages opam_diff);
       h3 ~a:[a_id "packages-unchanged"]
         [txt "Unchanged packages"];
       code (packages same);

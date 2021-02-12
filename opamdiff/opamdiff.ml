@@ -24,6 +24,7 @@ let pp_version_diff ppf { name; version_left; version_right } =
     (OpamPackage.Version.to_string version_right)
 
 let compare left right =
+  let packages_left = packages left and packages_right = packages right in
   let module Set = OpamPackage.Set in
   let equal_name p1 p2 = OpamPackage.Name.equal p1.OpamPackage.name p2.OpamPackage.name in
   let diff l r =
@@ -31,10 +32,17 @@ let compare left right =
         not (Set.exists (equal_name p1) r))
       l
   in
-  let same = Set.inter left right
+  let same_version = Set.inter packages_left packages_right in
+  let (same, opam_diff) =
+    Set.partition
+      (fun p ->
+         let find = OpamPackage.Name.Map.find p.name in
+         let opam_left = find left.overlays and opam_right = find right.overlays in
+         OpamFile.OPAM.effectively_equal opam_left opam_right)
+      same_version
   and version_diff =
     List.filter_map (fun p1 ->
-        match Set.find_opt (equal_name p1) right with
+        match Set.find_opt (equal_name p1) packages_right with
         | Some p2 ->
           if OpamPackage.Version.equal p1.version p2.version
           then None
@@ -44,8 +52,8 @@ let compare left right =
                    version_right = p2.OpamPackage.version }
         | None ->
           None)
-      (Set.elements left)
-  and left = diff left right
-  and right = diff right left
+      (Set.elements packages_left)
+  and left = diff packages_left packages_right
+  and right = diff packages_right packages_left
   in
-  (same, version_diff, left, right)
+  (same, opam_diff, version_diff, left, right)
