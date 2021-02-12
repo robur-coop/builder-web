@@ -237,19 +237,19 @@ let compare_opam build_left build_right (same, version_diff, left, right) =
       ];
       ul [
         li [
-          a ~a:[a_href "packages-removed"]
+          a ~a:[a_href "#packages-removed"]
             [txtf "%d packages removed" (OpamPackage.Set.cardinal left)]
         ];
         li [
-          a ~a:[a_href "packages-installed"]
+          a ~a:[a_href "#packages-installed"]
             [txtf "%d new packages installed" (OpamPackage.Set.cardinal right)]
         ];
         li [
-          a ~a:[a_href "packages-diff"]
+          a ~a:[a_href "#packages-diff"]
             [txtf "%d packages with version changes" (List.length version_diff)]
         ];
         li [
-          a ~a:[a_href "packages-unchanged"]
+          a ~a:[a_href "#packages-unchanged"]
             [txtf "%d packages unchanged" (OpamPackage.Set.cardinal same)]
         ];
       ];
