@@ -1,5 +1,7 @@
 open Tyxml.Html
 
+let pp_ptime = Ptime.pp_human ()
+
 let txtf fmt = Fmt.kstrf txt fmt
 let a_titlef fmt = Fmt.kstrf a_title fmt
 
@@ -169,10 +171,9 @@ let job_build
   { Builder_db.Build.uuid = _; start; finish; result; console; script; main_binary = _; job_id = _ }
   artifacts
   =
-  let ptime_pp = Ptime.pp_human () in
   let delta = Ptime.diff finish start in
-  layout ~title:(Fmt.strf "Job build %s %a" name ptime_pp start)
-    [ h1 [txtf "Job build %s %a" name ptime_pp start];
+  layout ~title:(Fmt.strf "Job build %s %a" name pp_ptime start)
+    [ h1 [txtf "Job build %s %a" name pp_ptime start];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Digests of build artifacts"];
@@ -239,13 +240,13 @@ let compare_opam job_left job_right
                (Fmt.strf "/job/%s/build/%a/"
                   job_left
                   Uuidm.pp build_left.uuid)]
-          [txtf "%a" Uuidm.pp build_left.uuid];
+          [txtf "%a" pp_ptime build_left.start];
         txt " and ";
         a ~a:[a_href
                (Fmt.strf "/job/%s/build/%a/"
                   job_right
                   Uuidm.pp build_right.uuid)]
-          [txtf "%a" Uuidm.pp build_right.uuid];
+          [txtf "%a" pp_ptime build_right.start];
       ];
       ul [
         li [
