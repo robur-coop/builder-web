@@ -72,6 +72,9 @@ let job job (module Db : CONN) =
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()
 
+let job_name id (module Db : CONN) =
+  Db.find Builder_db.Job.get id
+
 let user username (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username >|=
   Option.map snd

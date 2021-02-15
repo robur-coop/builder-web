@@ -226,14 +226,26 @@ let package_diffs diffs =
       ])
     diffs
 
-let compare_opam build_left build_right (same, opam_diff, version_diff, left, right) =
+let compare_opam job_left job_right
+    (build_left : Builder_db.Build.t) (build_right : Builder_db.Build.t)
+    (same, opam_diff, version_diff, left, right) =
   layout ~title:(Fmt.strf "Comparing opam switches between builds %a and %a"
-                   Uuidm.pp build_left Uuidm.pp build_right)
+                   Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     [
       h1 [txt "Comparing opam switches"];
       h2 [
-        txtf "Builds %a and %a"
-          Uuidm.pp build_left Uuidm.pp build_right
+        txt "Builds ";
+        a ~a:[a_href
+               (Fmt.strf "/job/%s/build/%a/"
+                  job_left
+                  Uuidm.pp build_left.uuid)]
+          [txtf "%a" Uuidm.pp build_left.uuid];
+        txt " and ";
+        a ~a:[a_href
+               (Fmt.strf "/job/%s/build/%a/"
+                  job_right
+                  Uuidm.pp build_right.uuid)]
+          [txtf "%a" Uuidm.pp build_right.uuid];
       ];
       ul [
         li [

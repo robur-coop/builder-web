@@ -263,22 +263,27 @@ let routes t =
       Response.of_plain_text "Bad request" ~status:`Bad_request
       |> Lwt.return
     | Some build_left, Some build_right ->
-      let+ switch_left =
+      let+ r =
         Caqti_lwt.Pool.use (Model.build_artifact build_left (Fpath.v "opam-switch"))
-          t.pool
-      and+ switch_right =
+          t.pool >>= fun switch_left ->
         Caqti_lwt.Pool.use (Model.build_artifact build_right (Fpath.v "opam-switch"))
-          t.pool
+          t.pool >>= fun switch_right ->
+        Caqti_lwt.Pool.use (Model.build build_left) t.pool >>= fun (_id, build_left) ->
+        Caqti_lwt.Pool.use (Model.build build_right) t.pool >>= fun (_id, build_right) ->
+        Caqti_lwt.Pool.use (Model.job_name build_left.job_id) t.pool >>= fun job_left ->
+        Caqti_lwt.Pool.use (Model.job_name build_right.job_id) t.pool >>= fun job_right ->
+        Lwt_result.return (job_left, job_right, build_left, build_right, switch_left, switch_right)
       in
-      match switch_left, switch_right with
-      | Error e, _ | _, Error e ->
-         Log.warn (fun m -> m "Database error: %a" pp_error e);
-         Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
-      | Ok (switch_left, _sha256_left), Ok (switch_right, _sha256_right) ->
+      match r with
+      | Error e ->
+        Log.warn (fun m -> m "Database error: %a" pp_error e);
+        Response.of_plain_text "Internal server error\n" ~status:`Internal_server_error
+      | Ok (job_left, job_right, build_left, build_right,
+            (switch_left, _sha256_left), (switch_right, _sha256_right)) ->
         let switch_left = OpamFile.SwitchExport.read_from_string switch_left
         and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
         Opamdiff.compare switch_left switch_right
-        |> Views.compare_opam build_left build_right
+        |> Views.compare_opam job_left job_right build_left build_right
         |> Response.of_html
   in
 
