@@ -10,6 +10,10 @@ type db_error = [ Caqti_error.connect | Model.error ]
 let pp_error ppf = function
   | #Caqti_error.connect as e -> Caqti_error.pp ppf e
   | #Model.error as e -> Model.pp_error ppf e
+  | `Wrong_version (application_id, version) ->
+    if application_id = Builder_db.application_id
+    then Format.fprintf ppf "Wrong database version: %Ld" version
+    else Format.fprintf ppf "Wrong database application id: %ld" application_id
 
 type 'a t = {
   pool : (Caqti_lwt.connection, [> db_error ] as 'a) Caqti_lwt.Pool.t;
@@ -19,13 +23,27 @@ type 'a t = {
 let realm = "builder-web"
 
 let init ?(pool_size = 10) dbpath datadir =
-  Caqti_lwt.connect_pool
-    ~max_size:pool_size
-    (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-  |> Result.map (fun pool -> {
-        pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t);
-        datadir;
-      })
+  match Caqti_lwt.connect_pool
+          ~max_size:pool_size
+          (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+  with
+  | Error e ->
+    Error e
+  | Ok pool ->
+    Lwt_main.run (Caqti_lwt.Pool.use (fun (module Db : Caqti_lwt.CONNECTION) ->
+        Db.find Builder_db.get_application_id () >>= fun application_id ->
+        Db.find Builder_db.get_version () >>= fun version ->
+        Lwt_result.return (application_id, version))
+      pool)
+    |> (function
+        | Error e -> Error (e :> [> db_error | `Wrong_version of int32 * int64 ])
+        | Ok (application_id, version) ->
+          if application_id = Builder_db.application_id && version = Builder_db.current_version
+          then Ok {
+              pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t);
+              datadir;
+            }
+          else Error (`Wrong_version (application_id, version)))
 
 let pp_exec ppf (job, uuid, _, _, _, _, _) =
   Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
