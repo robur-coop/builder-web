@@ -30,7 +30,7 @@ val jobs : Caqti_lwt.connection ->
   ((Builder_db.id * string) list, [> error ]) result Lwt.t
 
 val user : string -> Caqti_lwt.connection ->
-  (Builder_web_auth.user_info option, [> error ]) result Lwt.t
+  (Builder_web_auth.scrypt Builder_web_auth.user_info option, [> error ]) result Lwt.t
 
 
 val add_build :

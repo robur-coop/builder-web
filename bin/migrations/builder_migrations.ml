@@ -75,6 +75,16 @@ let r20210202 =
   Cmdliner.Term.(const do_database_action $ const M20210202.rollback $ setup_log $ dbpath),
   Cmdliner.Term.info ~doc "rollback-2021-02-02"
 
+let m20210216 =
+  let doc = "Changes 'user' for scrypt hashed passwords (NB: Destructive!!) (2021-02-16)" in
+  Cmdliner.Term.(const do_database_action $ const M20210216.migrate $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "migrate-2021-02-16"
+
+let r20210216 =
+  let doc = "Rollback scrypt hashed passwords (NB: Destructive!!) (2021-02-16)" in
+  Cmdliner.Term.(const do_database_action $ const M20210216.rollback $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "rollback-2021-02-16"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -95,5 +105,6 @@ let () =
     [ help_cmd;
       m20210126; r20210126;
       m20210202; r20210202;
+      m20210216; r20210216;
     ]
   |> Cmdliner.Term.exit

@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 1L
+let current_version = 2L
 
 type id = Rep.id
 
@@ -416,7 +416,9 @@ module User = struct
            username VARCHAR(255) NOT NULL UNIQUE,
            password_hash BLOB NOT NULL,
            password_salt BLOB NOT NULL,
-           password_iter INTEGER NOT NULL
+           scrypt_n INTEGER NOT NULL,
+           scrypt_r INTEGER NOT NULL,
+           scrypt_p INTEGER NOT NULL
          )
       |}
 
@@ -429,7 +431,8 @@ module User = struct
     Caqti_request.find_opt
       Caqti_type.string
       (Caqti_type.tup2 id user_info)
-      {| SELECT id, username, password_hash, password_salt, password_iter
+      {| SELECT id, username, password_hash, password_salt,
+           scrypt_n, scrypt_r, scrypt_p
          FROM user
          WHERE username = ?
       |}
@@ -443,8 +446,9 @@ module User = struct
   let add =
     Caqti_request.exec
       user_info
-      {| INSERT INTO user (username, password_hash, password_salt, password_iter)
-         VALUES (?, ?, ?, ?)
+      {| INSERT INTO user (username, password_hash, password_salt,
+           scrypt_n, scrypt_r, scrypt_p)
+         VALUES (?, ?, ?, ?, ?, ?)
       |}
 
   let remove =
@@ -463,7 +467,9 @@ module User = struct
       {| UPDATE user
          SET password_hash = ?2,
              password_salt = ?3,
-             password_iter = ?4
+             scrypt_n = ?4,
+             scrypt_r = ?5,
+             scrypt_p = ?6
          WHERE username = ?1
       |}
 end

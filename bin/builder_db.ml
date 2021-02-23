@@ -20,7 +20,8 @@ let do_migrate dbpath =
 let migrate () dbpath =
   or_die 1 (do_migrate dbpath)
 
-let user_mod action dbpath password_iter username =
+let user_mod action dbpath scrypt_n scrypt_r scrypt_p username =
+  let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
   let r =
     Caqti_blocking.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
@@ -29,7 +30,7 @@ let user_mod action dbpath password_iter username =
     flush stdout;
     (* FIXME: getpass *)
     let password = read_line () in
-    let user_info = Builder_web_auth.hash ?password_iter ~username ~password () in
+    let user_info = Builder_web_auth.hash ~scrypt_params ~username ~password () in
     match action with
     | `Add ->
       Db.exec Builder_db.User.add user_info
@@ -38,9 +39,9 @@ let user_mod action dbpath password_iter username =
   in
   or_die 1 r
 
-let user_add () dbpath username = user_mod `Add dbpath username
+let user_add () dbpath = user_mod `Add dbpath
 
-let user_update () dbpath username = user_mod `Update dbpath username
+let user_update () dbpath = user_mod `Update dbpath
 
 let user_list () dbpath =
   let r =
@@ -93,6 +94,24 @@ let password_iter =
                 opt (some int) None &
                 info ~doc ["hash-count"])
 
+let scrypt_n =
+  let doc = "scrypt n parameter" in
+  Cmdliner.Arg.(value &
+                opt (some int) None &
+                info ~doc ["scrypt-n"])
+
+let scrypt_r =
+  let doc = "scrypt r parameter" in
+  Cmdliner.Arg.(value &
+                opt (some int) None &
+                info ~doc ["scrypt-r"])
+
+let scrypt_p =
+  let doc = "scrypt p parameter" in
+  Cmdliner.Arg.(value &
+                opt (some int) None &
+                info ~doc ["scrypt-p"])
+
 let setup_log =
   let setup_log level =
     Logs.set_level level;
@@ -108,12 +127,12 @@ let migrate_cmd =
 
 let user_add_cmd =
   let doc = "add a user" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ password_iter $ username),
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username),
    Cmdliner.Term.info ~doc "user-add")
 
 let user_update_cmd =
   let doc = "update a user password" in
-  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ password_iter $ username),
+  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username),
    Cmdliner.Term.info ~doc "user-update")
 
 let user_remove_cmd =

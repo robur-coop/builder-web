@@ -22,6 +22,7 @@ depends: [
   "pbkdf"
   "mirage-crypto-rng"
   "sexplib"
+  "scrypt-kdf"
 ]
 
 synopsis: "Web interface for builder"

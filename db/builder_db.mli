@@ -138,19 +138,19 @@ module User : sig
   val rollback :
     (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_user :
-    (string, id * Builder_web_auth.user_info,
+    (string, id * Builder_web_auth.scrypt Builder_web_auth.user_info,
      [< `Many | `One | `Zero > `One `Zero ])
     Caqti_request.t
   val get_all :
     (unit, string, [ `Many | `One | `Zero ]) Caqti_request.t
   val add :
-    (Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
+    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
     Caqti_request.t
   val remove : (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove_user :
     (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val update_user :
-    (Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
+    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
     Caqti_request.t
 end
 

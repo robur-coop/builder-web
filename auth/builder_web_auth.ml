@@ -1,51 +1,50 @@
-let prf : Mirage_crypto.Hash.hash = `SHA256
-let default_count = 160_000
-let dk_len = 32l
-
-type user_info = {
-  username : string;
-  password_hash : Cstruct.t;
-  password_salt : Cstruct.t;
-  password_iter : int;
+type pbkdf2_sha256_params = {
+  pbkdf2_sha256_iter : int;
 }
 
-module SMap = Map.Make(String)
+type scrypt_params = {
+  scrypt_n : int;
+  scrypt_r : int;
+  scrypt_p : int;
+}
 
-type t = user_info SMap.t
+let scrypt_params ?(scrypt_n = 16384) ?(scrypt_r = 8) ?(scrypt_p = 1) () =
+  { scrypt_n; scrypt_r; scrypt_p }
 
-let user_info_to_sexp { username; password_hash; password_salt; password_iter } =
-  Sexplib.Sexp.(List [
-      Atom "user_info";
-      Atom username;
-      Atom (Cstruct.to_string password_hash);
-      Atom (Cstruct.to_string password_salt);
-      Sexplib.Conv.sexp_of_int password_iter;
-    ])
+type pbkdf2_sha256 =
+  [ `Pbkdf2_sha256 of Cstruct.t * Cstruct.t * pbkdf2_sha256_params ]
 
-let user_info_of_sexp =
-  let open Sexplib.Sexp in
-  function
-  | List [ Atom "user_info";
-           Atom username;
-           Atom password_hash;
-           Atom password_salt;
-           (Atom _ ) as password_iter; ] ->
-    { username;
-      password_hash = Cstruct.of_string password_hash;
-      password_salt = Cstruct.of_string password_salt;
-      password_iter = Sexplib.Conv.int_of_sexp password_iter; }
-  | sexp ->
-    Sexplib.Conv.of_sexp_error "Auth_store.user_info_of_sexp: bad sexp" sexp
+type scrypt = [ `Scrypt of Cstruct.t * Cstruct.t * scrypt_params ]
 
-let h count salt password =
-  Pbkdf.pbkdf2 ~prf ~count ~dk_len ~salt ~password:(Cstruct.of_string password)
+type password_hash = [ pbkdf2_sha256 | scrypt ]
 
-let hash ?(password_iter=default_count) ~username ~password () =
+type 'a user_info = {
+  username : string;
+  password_hash : [< password_hash ] as 'a;
+}
+
+let pbkdf2_sha256 ~params:{ pbkdf2_sha256_iter = count } ~salt ~password =
+  Pbkdf.pbkdf2 ~prf:`SHA256 ~count ~dk_len:32l ~salt ~password:(Cstruct.of_string password)
+
+let scrypt ~params:{ scrypt_n = n; scrypt_r = r; scrypt_p = p } ~salt ~password =
+  Scrypt_kdf.scrypt_kdf ~n ~r ~p ~dk_len:32l ~salt ~password:(Cstruct.of_string password)
+
+let hash ?(scrypt_params=scrypt_params ())
+    ~username ~password () =
   let salt = Mirage_crypto_rng.generate 16 in
-  let password_hash = h password_iter salt password in
-  { username; password_hash; password_salt = salt; password_iter }
+  let password_hash = scrypt ~params:scrypt_params ~salt ~password in
+  {
+    username;
+    password_hash = `Scrypt (password_hash, salt, scrypt_params)
+  }
 
 let verify_password password user_info =
-  Cstruct.equal
-    (h user_info.password_iter user_info.password_salt password)
-    user_info.password_hash
+  match user_info.password_hash with
+  | `Pbkdf2_sha256 (password_hash, salt, params) ->
+    Cstruct.equal
+      (pbkdf2_sha256 ~params ~salt ~password)
+      password_hash
+  | `Scrypt (password_hash, salt, params) ->
+    Cstruct.equal
+      (scrypt ~params ~salt ~password)
+      password_hash
