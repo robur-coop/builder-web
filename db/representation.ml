@@ -27,6 +27,7 @@ type file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
+  size : int64;
 }
 
 let uuid =
@@ -57,24 +58,24 @@ let cstruct =
   Caqti_type.custom ~encode ~decode Caqti_type.octets
 
 let file =
-  let encode { filepath; localpath; sha256 } =
-    Ok (filepath, localpath, sha256) in
-  let decode (filepath, localpath, sha256) =
-    Ok { filepath; localpath; sha256 } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(tup3 fpath fpath cstruct)
+  let encode { filepath; localpath; sha256; size } =
+    Ok (filepath, localpath, sha256, size) in
+  let decode (filepath, localpath, sha256, size) =
+    Ok { filepath; localpath; sha256; size } in
+  Caqti_type.custom ~encode ~decode Caqti_type.(tup4 fpath fpath cstruct int64)
 
 let file_opt =
-  let rep = Caqti_type.(tup3 (option fpath) (option fpath) (option cstruct)) in
+  let rep = Caqti_type.(tup4 (option fpath) (option fpath) (option cstruct) (option int64)) in
   let encode = function
-    | Some { filepath; localpath; sha256 } ->
-      Ok (Some filepath, Some localpath, Some sha256)
+    | Some { filepath; localpath; sha256; size } ->
+      Ok (Some filepath, Some localpath, Some sha256, Some size)
     | None ->
-      Ok (None, None, None)
+      Ok (None, None, None, None)
   in
   let decode = function
-    | (Some filepath, Some localpath, Some sha256) ->
-      Ok (Some { filepath; localpath; sha256 })
-    | (None, None, None) ->
+    | (Some filepath, Some localpath, Some sha256, Some size) ->
+      Ok (Some { filepath; localpath; sha256; size })
+    | (None, None, None, None) ->
       Ok None
     | _ ->
       (* This should not happen if the database is well-formed *)

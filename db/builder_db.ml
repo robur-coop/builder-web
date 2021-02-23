@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 2L
+let current_version = 3L
 
 type id = Rep.id
 
@@ -12,6 +12,7 @@ type file = Rep.file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
+  size : int64;
 }
 
 let last_insert_rowid =
@@ -96,6 +97,7 @@ module Build_artifact = struct
              filepath TEXT NOT NULL, -- the path as in the build
              localpath TEXT NOT NULL, -- local path to the file on disk
              sha256 BLOB NOT NULL,
+             size INTEGER NOT NULL,
              build INTEGER NOT NULL,
 
              FOREIGN KEY(build) REFERENCES build(id),
@@ -112,7 +114,7 @@ module Build_artifact = struct
     Caqti_request.find
       (Caqti_type.tup2 id fpath)
       (Caqti_type.tup2 id file)
-      {| SELECT id, filepath, localpath, sha256
+      {| SELECT id, filepath, localpath, sha256, size
          FROM build_artifact
          WHERE build = ? AND filepath = ?
       |}
@@ -122,7 +124,7 @@ module Build_artifact = struct
       (Caqti_type.tup2 uuid fpath)
       (Caqti_type.tup2 id file)
       {| SELECT build_artifact.id, build_artifact.filepath,
-           build_artifact.localpath, build_artifact.sha256
+           build_artifact.localpath, build_artifact.sha256, build_artifact.size
          FROM build_artifact
          INNER JOIN build ON build.id = build_artifact.build
          WHERE build.uuid = ? AND build_artifact.filepath = ?
@@ -134,12 +136,12 @@ module Build_artifact = struct
       Caqti_type.(tup2
                     id
                     file)
-      "SELECT id, filepath, localpath, sha256 FROM build_artifact WHERE build = ?"
+      "SELECT id, filepath, localpath, sha256, size FROM build_artifact WHERE build = ?"
 
   let add =
     Caqti_request.exec
       Caqti_type.(tup2 file id)
-      "INSERT INTO build_artifact (filepath, localpath, sha256, build)
+      "INSERT INTO build_artifact (filepath, localpath, sha256, size, build)
         VALUES (?, ?, ?, ?)"
 
   let remove_by_build =
@@ -157,6 +159,7 @@ module Build_file = struct
              filepath TEXT NOT NULL, -- the path as in the build
              localpath TEXT NOT NULL, -- local path to the file on disk
              sha256 BLOB NOT NULL,
+             size INTEGER NOT NULL,
              build INTEGER NOT NULL,
 
              FOREIGN KEY(build) REFERENCES build(id),
@@ -172,8 +175,9 @@ module Build_file = struct
   let get_by_build_uuid =
     Caqti_request.find_opt
       (Caqti_type.tup2 uuid fpath)
-      (Caqti_type.tup2 fpath cstruct)
-      {| SELECT build_file.localpath, build_file.sha256
+      (Caqti_type.tup2 id file)
+      {| SELECT build_file.id, build_file.localpath,
+           build_file.localpath, build_file.sha256, build_file.size
          FROM build_file
          INNER JOIN build ON build.id = build_file.build
          WHERE build.uuid = ? AND build_file.filepath = ?
@@ -185,12 +189,12 @@ module Build_file = struct
       Caqti_type.(tup2
                     id
                     file)
-      "SELECT id, filepath, localpath, sha256 FROM build_file WHERE build = ?"
+      "SELECT id, filepath, localpath, sha256, size FROM build_file WHERE build = ?"
 
   let add =
     Caqti_request.exec
       Caqti_type.(tup2 file id)
-      "INSERT INTO build_file (filepath, localpath, sha256, build)
+      "INSERT INTO build_file (filepath, localpath, sha256, size, build)
         VALUES (?, ?, ?, ?)"
 
   let remove_by_build =
@@ -350,7 +354,7 @@ module Build = struct
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
                 build.result_kind, build.result_code, build.result_msg,
                 build.main_binary, build.job,
-                build_artifact.filepath, build_artifact.localpath, build_artifact.sha256
+                build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
            FROM build, job
            LEFT JOIN build_artifact ON
              build_artifact.build = build.id AND build.main_binary = build_artifact.filepath
@@ -369,7 +373,7 @@ module Build = struct
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_kind, b.result_code, b.result_msg,
            b.main_binary, b.job,
-           a.filepath, a.localpath, a.sha256
+           a.filepath, a.localpath, a.sha256, a.size
          FROM build b
          LEFT JOIN build_artifact a ON
            a.build = b.id AND b.main_binary = a.filepath

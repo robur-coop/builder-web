@@ -178,7 +178,7 @@ let job_build
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
-            (fun { Builder_db.filepath; localpath=_; sha256; } ->
+            (fun { Builder_db.filepath; localpath=_; sha256; size=_ } ->
                let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
                [
                  dt [a

@@ -4,6 +4,7 @@ type file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
+  size : int64;
 }
 
 val application_id : int32
@@ -73,7 +74,7 @@ module Build_file : sig
     (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 
   val get_by_build_uuid :
-    (Uuidm.t * Fpath.t, Fpath.t * Cstruct.t,
+    (Uuidm.t * Fpath.t, id * file,
      [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_all_by_build :

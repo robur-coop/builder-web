@@ -85,6 +85,11 @@ let r20210216 =
   Cmdliner.Term.(const do_database_action $ const M20210216.rollback $ setup_log $ dbpath),
   Cmdliner.Term.info ~doc "rollback-2021-02-16"
 
+let m20210218 =
+  let doc = "Adds column 'size' to 'build_file' and 'build_artifact' (2021-02-18)" in
+  Cmdliner.Term.(const do_database_action $ const M20210218.migrate $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "migrate-2021-02-18"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -106,5 +111,6 @@ let () =
       m20210126; r20210126;
       m20210202; r20210202;
       m20210216; r20210216;
+      m20210218;
     ]
   |> Cmdliner.Term.exit
