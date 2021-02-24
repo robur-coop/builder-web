@@ -119,4 +119,61 @@ let migrate (module Db : Caqti_blocking.CONNECTION) =
 
     Db.exec (set_version new_user_version) ()
 
-(* FIXME: rollback. Requires copying data and creating new table without size column. *)
+let old_build_artifact =
+  Caqti_request.exec ~oneshot:true
+    Caqti_type.unit
+    {| CREATE TABLE new_build_artifact (
+           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+           filepath TEXT NOT NULL, -- the path as in the build
+           localpath TEXT NOT NULL, -- local path to the file on disk
+           sha256 BLOB NOT NULL,
+           build INTEGER NOT NULL,
+
+           FOREIGN KEY(build) REFERENCES build(id),
+           UNIQUE(build, filepath)
+         )
+      |}
+
+let old_build_file =
+  Caqti_request.exec ~oneshot:true
+    Caqti_type.unit
+    {| CREATE TABLE new_build_file (
+           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+           filepath TEXT NOT NULL, -- the path as in the build
+           localpath TEXT NOT NULL, -- local path to the file on disk
+           sha256 BLOB NOT NULL,
+           build INTEGER NOT NULL,
+
+           FOREIGN KEY(build) REFERENCES build(id),
+           UNIQUE(build, filepath)
+         )
+      |}
+
+let copy_build_artifact =
+  Caqti_request.exec ~oneshot:true
+    Caqti_type.unit
+    "INSERT INTO new_build_artifact SELECT id, filepath, localpath, sha256, build FROM build_artifact"
+
+let copy_build_file =
+  Caqti_request.exec ~oneshot:true
+    Caqti_type.unit
+    "INSERT INTO new_build_file SELECT id, filepath, localpath, sha256, build FROM build_file"
+
+let rollback (module Db : Caqti_blocking.CONNECTION) =
+  let open Rresult.R.Infix in
+  Db.find Builder_db.get_application_id () >>= fun application_id ->
+  Db.find Builder_db.get_version () >>= fun user_version ->
+  if application_id <> Builder_db.application_id || user_version <> new_user_version
+  then Error (`Wrong_version (application_id, user_version))
+  else
+    Db.exec old_build_artifact () >>= fun () ->
+    Db.exec copy_build_artifact () >>= fun () ->
+    Db.exec drop_build_artifact () >>= fun () ->
+    Db.exec rename_build_artifact () >>= fun () ->
+
+    Db.exec old_build_file () >>= fun () ->
+    Db.exec copy_build_file () >>= fun () ->
+    Db.exec drop_build_file () >>= fun () ->
+    Db.exec rename_build_file () >>= fun () ->
+
+    Db.exec (set_version old_user_version) ()
