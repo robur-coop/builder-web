@@ -77,6 +77,19 @@ let toggleable ?(hidden=true) id description content =
       content;
   ]
 
+let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath = _; sha256; size } =
+  [
+    a ~a:[a_href (Fmt.strf "/job/%s/build/%a/f/%a"
+                    job_name
+                    Uuidm.pp build.Builder_db.Build.Meta.uuid
+                    Fpath.pp filepath)]
+      [if basename
+       then txt (Fpath.basename filepath)
+       else txtf "%a" Fpath.pp filepath];
+    txtf " (%a) " Fmt.byte_size (Int64.to_int size);
+    code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct sha256)];
+  ]
+
 
 
 let builder jobs =
@@ -115,16 +128,7 @@ let builder jobs =
               txt " ";
             ] @ match latest_artifact with
             | Some main_binary ->
-              [
-                a ~a:[a_href (Fmt.strf
-                                "job/%s/build/%a/f/%a"
-                                job_name
-                                Uuidm.pp latest_build.Builder_db.Build.Meta.uuid
-                                Fpath.pp main_binary.Builder_db.filepath)]
-                  [txtf "%s" (Fpath.basename main_binary.Builder_db.filepath)];
-                txt " ";
-                code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct main_binary.Builder_db.sha256)];
-              ]
+              artifact ~basename:true job_name latest_build main_binary
             | None ->
               [
                 txtf "Build failed";
@@ -150,13 +154,7 @@ let job name builds =
               br ();
             ] @ match main_binary with
             | Some main_binary ->
-              [
-                a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid
-                                               / "f" // main_binary.Builder_db.filepath))]
-                  [txtf "%s" (Fpath.basename main_binary.Builder_db.filepath)];
-                txt " ";
-                code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct main_binary.Builder_db.sha256)];
-              ]
+              artifact ~basename:true name build main_binary
             | None ->
               [
                 txtf "Build failed";
@@ -178,14 +176,16 @@ let job_build
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
-            (fun { Builder_db.filepath; localpath=_; sha256; size=_ } ->
+            (fun { Builder_db.filepath; localpath=_; sha256; size } ->
                let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
                [
                  dt [a
                        ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
-                       [code [txtf "%a" Fpath.pp filepath]];
-                     txt "(SHA256)"];
-                 dd [code [txt sha256_hex]];
+                       [code [txtf "%a" Fpath.pp filepath]]];
+                 dd [
+                   code [txt "SHA256:"; txt sha256_hex];
+                   txtf " (%a)" Fmt.byte_size (Int64.to_int size);
+                 ];
                ])
             artifacts);
       h3 [txt "Job script"];
