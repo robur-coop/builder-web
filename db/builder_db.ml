@@ -12,7 +12,7 @@ type file = Rep.file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
-  size : int64;
+  size : int;
 }
 
 let last_insert_rowid =

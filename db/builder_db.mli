@@ -4,7 +4,7 @@ type file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
-  size : int64;
+  size : int;
 }
 
 val application_id : int32

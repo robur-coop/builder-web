@@ -27,7 +27,7 @@ type file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
-  size : int64;
+  size : int;
 }
 
 let uuid =
@@ -62,10 +62,10 @@ let file =
     Ok (filepath, localpath, sha256, size) in
   let decode (filepath, localpath, sha256, size) =
     Ok { filepath; localpath; sha256; size } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(tup4 fpath fpath cstruct int64)
+  Caqti_type.custom ~encode ~decode Caqti_type.(tup4 fpath fpath cstruct int)
 
 let file_opt =
-  let rep = Caqti_type.(tup4 (option fpath) (option fpath) (option cstruct) (option int64)) in
+  let rep = Caqti_type.(tup4 (option fpath) (option fpath) (option cstruct) (option int)) in
   let encode = function
     | Some { filepath; localpath; sha256; size } ->
       Ok (Some filepath, Some localpath, Some sha256, Some size)

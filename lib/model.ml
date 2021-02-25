@@ -92,7 +92,7 @@ let save_exec build_dir exec =
   save Fpath.(build_dir / "full") (Cstruct.to_string cs)
 
 let save_file dir (filepath, data) =
-  let size = String.length data |> Int64.of_int in
+  let size = String.length data in
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let localpath = Fpath.append dir filepath in
   Lwt_result.lift (Bos.OS.Dir.create (Fpath.parent localpath)) >>= fun _ ->
