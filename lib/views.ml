@@ -86,8 +86,9 @@ let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath =
       [if basename
        then txt (Fpath.basename filepath)
        else txtf "%a" Fpath.pp filepath];
-    txtf " (%a) " Fmt.byte_size size;
+    txt " ";
     code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct sha256)];
+    txtf " (%a)" Fmt.byte_size size;
   ]
 
 
