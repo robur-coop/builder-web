@@ -142,7 +142,7 @@ module Build_artifact = struct
     Caqti_request.exec
       Caqti_type.(tup2 file id)
       "INSERT INTO build_artifact (filepath, localpath, sha256, size, build)
-        VALUES (?, ?, ?, ?)"
+        VALUES (?, ?, ?, ?, ?)"
 
   let remove_by_build =
     Caqti_request.exec
@@ -195,7 +195,7 @@ module Build_file = struct
     Caqti_request.exec
       Caqti_type.(tup2 file id)
       "INSERT INTO build_file (filepath, localpath, sha256, size, build)
-        VALUES (?, ?, ?, ?)"
+        VALUES (?, ?, ?, ?, ?)"
 
   let remove_by_build =
     Caqti_request.exec
