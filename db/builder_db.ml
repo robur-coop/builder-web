@@ -409,6 +409,11 @@ module Build = struct
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
+
+  let remove =
+    Caqti_request.exec
+      id
+      "DELETE FROM build WHERE id = ?"
 end
 
 module User = struct

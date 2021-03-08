@@ -1,6 +1,24 @@
-type id
+module Rep : sig
+  type id
+  type file = {
+    filepath : Fpath.t;
+    localpath : Fpath.t;
+    sha256 : Cstruct.t;
+    size : int;
+  }
 
-type file = {
+  val id : id Caqti_type.t
+  val uuid : Uuidm.t Caqti_type.t
+  val ptime : Ptime.t Caqti_type.t
+  val fpath : Fpath.t Caqti_type.t
+  val cstruct : Cstruct.t Caqti_type.t
+  val file : file Caqti_type.t
+  val execution_result : Builder.execution_result Caqti_type.t
+  val console : (int * string) list Caqti_type.t
+end
+type id = Rep.id
+
+type file = Rep.file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
   sha256 : Cstruct.t;
@@ -131,6 +149,7 @@ sig
   val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_by_hash :
     (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
+  val remove : (id, unit, [< `Many | `One | `Zero > `Zero]) Caqti_request.t
 end
 
 module User : sig

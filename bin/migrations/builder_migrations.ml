@@ -95,6 +95,12 @@ let r20210218 =
   Cmdliner.Term.(const do_database_action $ const M20210218.rollback $ setup_log $ dbpath),
   Cmdliner.Term.info ~doc "rollback-2021-02-18"
 
+let f20210308 =
+  let doc = "Remove broken builds as fixed in commit a57798f4c02eb4d528b90932ec26fb0b718f1a13. \
+    Note that the files on disk have to be removed manually." in
+  Cmdliner.Term.(const do_database_action $ const M20210308.fixup $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "fixup-2021-03-08"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -117,5 +123,6 @@ let () =
       m20210202; r20210202;
       m20210216; r20210216;
       m20210218; r20210218;
+      f20210308;
     ]
   |> Cmdliner.Term.exit
