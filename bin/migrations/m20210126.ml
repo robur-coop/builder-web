@@ -6,11 +6,6 @@ let set_application_id =
     Caqti_type.unit
     (Printf.sprintf "PRAGMA application_id = %ld" Builder_db.application_id)
 
-let set_version version =
-  Caqti_request.exec ~oneshot:true
-    Caqti_type.unit
-    (Printf.sprintf "PRAGMA user_version = %Ld" version)
-
 let alter_build =
   Caqti_request.exec ~oneshot:true
     Caqti_type.unit
@@ -35,31 +30,26 @@ let set_main_binary =
 
 let migrate (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Db.find Builder_db.get_application_id () >>= fun application_id ->
-  Db.find Builder_db.get_version () >>= fun user_version ->
-  if application_id <> 0l || user_version <> 0L
-  then
-    Error (`Wrong_version (application_id, user_version))
-  else
-    Db.exec alter_build () >>= fun () ->
-    Db.collect_list all_builds () >>= fun builds ->
-    List.fold_left (fun r build ->
-        r >>= fun () ->
-        Db.collect_list bin_artifact build >>= function
-        | [_id, main_binary] ->
-          Db.exec set_main_binary (build, Some main_binary)
-        | [] ->
-          Logs.debug (fun m -> m "No binaries for build id %Ld" build);
-          Ok ()
-        | binaries ->
-          Logs.warn (fun m -> m "More than one binary for build id %Ld" build);
-          Logs.debug (fun m -> m "binaries: [%a]" Fmt.(list ~sep:(any ";") string)
-                         (List.map snd binaries));
-          Ok ())
-      (Ok ())
-      builds >>= fun () ->
-    Db.exec Builder_db.set_application_id () >>= fun () ->
-    Db.exec (set_version new_user_version) ()
+  Grej.check_version ~application_id:0l ~user_version:0L (module Db) >>= fun () ->
+  Db.exec alter_build () >>= fun () ->
+  Db.collect_list all_builds () >>= fun builds ->
+  List.fold_left (fun r build ->
+      r >>= fun () ->
+      Db.collect_list bin_artifact build >>= function
+      | [_id, main_binary] ->
+        Db.exec set_main_binary (build, Some main_binary)
+      | [] ->
+        Logs.debug (fun m -> m "No binaries for build id %Ld" build);
+        Ok ()
+      | binaries ->
+        Logs.warn (fun m -> m "More than one binary for build id %Ld" build);
+        Logs.debug (fun m -> m "binaries: [%a]" Fmt.(list ~sep:(any ";") string)
+                       (List.map snd binaries));
+        Ok ())
+    (Ok ())
+    builds >>= fun () ->
+  Db.exec Builder_db.set_application_id () >>= fun () ->
+  Db.exec (Grej.set_version new_user_version) ()
 
 let rename_build =
   Caqti_request.exec
@@ -98,13 +88,8 @@ let rollback_data =
 
 let rollback (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Db.find Builder_db.get_application_id () >>= fun application_id ->
-  Db.find Builder_db.get_version () >>= fun user_version ->
-  if application_id <> Builder_db.application_id || user_version <> new_user_version
-  then
-    Error (`Wrong_version (application_id, user_version))
-  else
-    Db.exec rename_build () >>= fun () ->
-    Db.exec create_build () >>= fun () ->
-    Db.exec rollback_data () >>= fun () ->
-    Db.exec (set_version 0L) ()
+  Grej.check_version ~user_version:new_user_version (module Db) >>= fun () ->
+  Db.exec rename_build () >>= fun () ->
+  Db.exec create_build () >>= fun () ->
+  Db.exec rollback_data () >>= fun () ->
+  Db.exec (Grej.set_version 0L) ()

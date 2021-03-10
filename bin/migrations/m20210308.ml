@@ -12,6 +12,7 @@ let broken_builds =
 
 let fixup (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
+  Grej.check_version ~user_version:3L (module Db) >>= fun () ->
   Db.rev_collect_list broken_builds () >>= fun broken_builds ->
   List.fold_left
     (fun r ((build, uuid, job_name) : Rep.id * Uuidm.t * string) ->
