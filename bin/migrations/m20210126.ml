@@ -33,8 +33,7 @@ let migrate (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~application_id:0l ~user_version:0L (module Db) >>= fun () ->
   Db.exec alter_build () >>= fun () ->
   Db.collect_list all_builds () >>= fun builds ->
-  List.fold_left (fun r build ->
-      r >>= fun () ->
+  Grej.list_iter_result (fun build ->
       Db.collect_list bin_artifact build >>= function
       | [_id, main_binary] ->
         Db.exec set_main_binary (build, Some main_binary)
@@ -46,7 +45,6 @@ let migrate (module Db : Caqti_blocking.CONNECTION) =
         Logs.debug (fun m -> m "binaries: [%a]" Fmt.(list ~sep:(any ";") string)
                        (List.map snd binaries));
         Ok ())
-    (Ok ())
     builds >>= fun () ->
   Db.exec Builder_db.set_application_id () >>= fun () ->
   Db.exec (Grej.set_version new_user_version) ()

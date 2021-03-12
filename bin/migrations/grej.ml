@@ -16,4 +16,8 @@ let check_version
   then Error (`Wrong_version (application_id, user_version))
   else Ok ()
 
-
+let list_iter_result f xs =
+  List.fold_left
+    (fun r x -> r >>= fun () -> f x)
+    (Ok ())
+    xs

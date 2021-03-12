@@ -84,26 +84,22 @@ let migrate (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_user_version (module Db) >>= fun () ->
   Db.exec new_build_artifact () >>= fun () ->
   Db.rev_collect_list collect_build_artifact () >>= fun build_artifacts ->
-  List.fold_left
-    (fun r (id, (filepath, localpath, sha256), build) ->
-       r >>= fun () ->
+  Grej.list_iter_result
+    (fun (id, (filepath, localpath, sha256), build) ->
        let stats = Unix.stat localpath in
        Db.exec insert_new_build_artifact
          (id, (filepath, localpath, sha256, Int64.of_int stats.st_size), build))
-    (Ok ())
     build_artifacts >>= fun () ->
   Db.exec drop_build_artifact () >>= fun () ->
   Db.exec rename_build_artifact () >>= fun () ->
 
   Db.exec new_build_file () >>= fun () ->
   Db.rev_collect_list collect_build_file () >>= fun build_files ->
-  List.fold_left
-    (fun r (id, (filepath, localpath, sha256), build) ->
-       r >>= fun () ->
+  Grej.list_iter_result
+    (fun (id, (filepath, localpath, sha256), build) ->
        let stats = Unix.stat localpath in
        Db.exec insert_new_build_file
          (id, (filepath, localpath, sha256, Int64.of_int stats.st_size), build))
-    (Ok ())
     build_files >>= fun () ->
   Db.exec drop_build_file () >>= fun () ->
   Db.exec rename_build_file () >>= fun () ->

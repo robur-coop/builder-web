@@ -14,11 +14,9 @@ let fixup (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
   Grej.check_version ~user_version:3L (module Db) >>= fun () ->
   Db.rev_collect_list broken_builds () >>= fun broken_builds ->
-  List.fold_left
-    (fun r ((build, uuid, job_name) : Rep.id * Uuidm.t * string) ->
-       r >>= fun () ->
+  Grej.list_iter_result
+    (fun ((build, uuid, job_name) : Rep.id * Uuidm.t * string) ->
        Format.printf "Removing job %a.\nPlease clean up data files in /var/db/builder-web/%s/%a\n"
          Uuidm.pp uuid job_name Uuidm.pp uuid;
        Db.exec Builder_db.Build.remove build)
-    (Ok ())
     broken_builds
