@@ -23,6 +23,7 @@ depends: [
   "mirage-crypto-rng"
   "sexplib"
   "scrypt-kdf"
+  "alcotest" {with-test}
 ]
 
 synopsis: "Web interface for builder"
