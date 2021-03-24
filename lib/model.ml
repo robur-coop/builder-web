@@ -18,6 +18,8 @@ let not_found = function
   | None -> Lwt.return (Error `Not_found :> (_, [> error ]) result)
   | Some v -> Lwt_result.return v
 
+let staging datadir = Fpath.(datadir / "_staging")
+
 let read_file filepath =
   Lwt.try_bind
     (fun () -> Lwt_io.open_file ~mode:Lwt_io.Input (Fpath.to_string filepath))
@@ -74,6 +76,37 @@ let user username (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username >|=
   Option.map snd
 
+let cleanup_staging datadir (module Db : Caqti_lwt.CONNECTION) =
+  let cleanup_staged staged =
+    match Uuidm.of_string (Fpath.to_string staged) with
+    | None ->
+      Log.warn (fun m -> m "Non-uuid staged files: %a" Fpath.pp
+                   Fpath.(staging datadir // staged));
+      Lwt.return (Bos.OS.Path.delete ~recurse:true Fpath.(staging datadir // staged))
+    | Some uuid ->
+      let staged = Fpath.(staging datadir // staged) in
+      Db.find_opt Builder_db.Build.get_by_uuid uuid >>= function
+      | Some (_id, build) ->
+        Db.find Builder_db.Job.get build.job_id >>= fun job_name ->
+        let destdir = Fpath.(datadir / job_name / Uuidm.to_string uuid) in
+        Lwt.return (Bos.OS.Path.move staged destdir)
+      | None ->
+        Lwt.return (Bos.OS.Path.delete ~recurse:true Fpath.(staging datadir // staged))
+  in
+  Lwt.return (Bos.OS.Dir.contents ~rel:true (staging datadir)) >>= fun stageds ->
+  Lwt_result.ok @@
+  Lwt_list.iter_s
+    (fun staged ->
+       Lwt.map (function
+       | Error (_ as e) ->
+         Log.warn (fun m -> m "Failed cleaning up staged files %a in %a: %a"
+                      Fpath.pp staged
+                      Fpath.pp Fpath.(staging datadir // staged)
+                      pp_error e)
+       | Ok () -> ())
+       (cleanup_staged staged))
+    stageds
+
 let save file data =
   let open Lwt.Infix in
   Lwt.catch
@@ -91,37 +124,46 @@ let save_exec build_dir exec =
   let cs = Builder.Asn.exec_to_cs exec in
   save Fpath.(build_dir / "full") (Cstruct.to_string cs)
 
-let save_file dir (filepath, data) =
+let save_file dir staging (filepath, data) =
   let size = String.length data in
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let localpath = Fpath.append dir filepath in
-  Lwt_result.lift (Bos.OS.Dir.create (Fpath.parent localpath)) >>= fun _ ->
-  save localpath data >|= fun () ->
+  let destpath = Fpath.append staging filepath in
+  Lwt_result.lift (Bos.OS.Dir.create (Fpath.parent destpath)) >>= fun _ ->
+  save destpath data >|= fun () ->
   { Builder_db.filepath; localpath; sha256; size }
 
-let save_files dir files =
+let save_files dir staging files =
   List.fold_left
     (fun r file ->
        r >>= fun acc ->
-       save_file dir file >>= fun file ->
+       save_file dir staging file >>= fun file ->
        Lwt_result.return (file :: acc))
     (Lwt_result.return [])
     files
 
-let save_all basedir ((job, uuid, _, _, _, _, artifacts) as exec) =
+let save_all basedir staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
   let build_dir = Fpath.(basedir / job.Builder.name / Uuidm.to_string uuid) in
-  let input_dir = Fpath.(build_dir / "input") in
-  let output_dir = Fpath.(build_dir / "output") in
-  Lwt.return (Bos.OS.Dir.create build_dir) >>= (fun created ->
+  let input_dir = Fpath.(build_dir / "input")
+  and staging_input_dir = Fpath.(staging_dir / "input") in
+  let output_dir = Fpath.(build_dir / "output")
+  and staging_output_dir = Fpath.(staging_dir / "output") in
+  Lwt.return (Bos.OS.Dir.create staging_dir) >>= (fun created ->
       if not created
       then Lwt_result.fail (`Msg "build directory already exists")
       else Lwt_result.return ()) >>= fun () ->
-  Lwt.return (Bos.OS.Dir.create input_dir) >>= fun _ ->
-  Lwt.return (Bos.OS.Dir.create output_dir) >>= fun _ ->
-  save_exec build_dir exec >>= fun () ->
-  save_files output_dir artifacts >>= fun artifacts ->
-  save_files input_dir job.Builder.files >>= fun input_files ->
+  Lwt.return (Bos.OS.Dir.create staging_input_dir) >>= fun _ ->
+  Lwt.return (Bos.OS.Dir.create staging_output_dir) >>= fun _ ->
+  save_exec staging_dir exec >>= fun () ->
+  save_files output_dir staging_output_dir artifacts >>= fun artifacts ->
+  save_files input_dir staging_input_dir job.Builder.files >>= fun input_files ->
   Lwt_result.return (artifacts, input_files)
+
+let commit_files basedir staging_dir job_name uuid =
+  let job_dir = Fpath.(basedir / job_name) in
+  let dest = Fpath.(job_dir / Uuidm.to_string uuid) in
+  Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
+  Lwt.return (Bos.OS.Path.move staging_dir dest)
 
 let add_build
     basedir
@@ -129,7 +171,18 @@ let add_build
     (module Db : CONN) =
   let open Builder_db in
   let job_name = job.Builder.name in
-  save_all basedir exec >>= fun (artifacts, input_files) ->
+  let staging_dir = Fpath.(staging basedir / Uuidm.to_string uuid) in
+  let or_cleanup x =
+    Lwt_result.map_err (fun e ->
+        Bos.OS.Dir.delete ~recurse:true staging_dir
+        |> Result.iter_error (fun e ->
+            Log.err (fun m -> m "Failed to remove staging dir %a: %a"
+                        Fpath.pp staging_dir
+                        pp_error e));
+        e)
+      x
+  in
+  or_cleanup (save_all basedir staging_dir exec) >>= fun (artifacts, input_files) ->
   let main_binary =
     match List.find_all
             (fun file ->
@@ -147,21 +200,27 @@ let add_build
                     (List.map (fun f -> f.filepath) binaries));
       None
   in
-  Db.exec Job.try_add job_name >>= fun () ->
-  Db.find Job.get_id_by_name job_name >>= fun job_id ->
-  Db.exec Build.add { Build.uuid; start; finish; result;
-                      console; script = job.Builder.script;
-                      main_binary; job_id } >>= fun () ->
-  Db.find last_insert_rowid () >>= fun id ->
-  List.fold_left
-    (fun r file ->
-       r >>= fun () ->
-       Db.exec Build_artifact.add (file, id))
-    (Lwt_result.return ())
-    artifacts >>= fun () ->
-  List.fold_left
-    (fun r file ->
-       r >>= fun () ->
-       Db.exec Build_file.add (file, id))
-    (Lwt_result.return ())
-    input_files
+  let r =
+    Db.start () >>= fun () ->
+    Db.exec Job.try_add job_name >>= fun () ->
+    Db.find Job.get_id_by_name job_name >>= fun job_id ->
+    Db.exec Build.add { Build.uuid; start; finish; result;
+                        console; script = job.Builder.script;
+                        main_binary; job_id } >>= fun () ->
+    Db.find last_insert_rowid () >>= fun id ->
+    List.fold_left
+      (fun r file ->
+         r >>= fun () ->
+         Db.exec Build_artifact.add (file, id))
+      (Lwt_result.return ())
+      artifacts >>= fun () ->
+    List.fold_left
+      (fun r file ->
+         r >>= fun () ->
+         Db.exec Build_file.add (file, id))
+      (Lwt_result.return ())
+      input_files >>= fun () ->
+    Db.commit () >>= fun () ->
+    commit_files basedir staging_dir job_name uuid
+  in
+  or_cleanup r

@@ -2,6 +2,11 @@ type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.
 
 val pp_error : Format.formatter -> error -> unit
 
+val staging : Fpath.t -> Fpath.t
+
+val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
+  (unit, [> error ]) result Lwt.t
+
 val build_artifact : Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
   (string * Cstruct.t, [> error ]) result Lwt.t
 

@@ -22,7 +22,18 @@ type 'a t = {
 
 let realm = "builder-web"
 
+let init_datadir datadir =
+  let open Rresult.R.Infix in
+  Bos.OS.Dir.exists datadir >>= (fun exists ->
+      if exists
+      then Ok ()
+      else Error (`Msg "Datadir does not exist")) >>= fun () ->
+  Bos.OS.Dir.create ~path:false (Model.staging datadir) >>| fun _ -> ()
+
 let init ?(pool_size = 10) dbpath datadir =
+  Rresult.R.bind
+    (init_datadir datadir) @@
+  fun () ->
   match Caqti_lwt.connect_pool
           ~max_size:pool_size
           (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
@@ -32,18 +43,20 @@ let init ?(pool_size = 10) dbpath datadir =
   | Ok pool ->
     Lwt_main.run (Caqti_lwt.Pool.use (fun (module Db : Caqti_lwt.CONNECTION) ->
         Db.find Builder_db.get_application_id () >>= fun application_id ->
-        Db.find Builder_db.get_version () >>= fun version ->
-        Lwt_result.return (application_id, version))
+        Db.find Builder_db.get_version () >>= (fun version ->
+            if (application_id, version) = Builder_db.(application_id, current_version)
+            then Lwt_result.return ()
+            else Lwt_result.fail (`Wrong_version (application_id, version)))
+        >>= fun () ->
+        Model.cleanup_staging datadir (module Db))
       pool)
     |> (function
         | Error e -> Error (e :> [> db_error | `Wrong_version of int32 * int64 ])
-        | Ok (application_id, version) ->
-          if application_id = Builder_db.application_id && version = Builder_db.current_version
-          then Ok {
-              pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t);
-              datadir;
-            }
-          else Error (`Wrong_version (application_id, version)))
+        | Ok () ->
+          Ok {
+            pool = (pool :> (Caqti_lwt.connection, [> db_error ]) Caqti_lwt.Pool.t);
+            datadir;
+          })
 
 let pp_exec ppf (job, uuid, _, _, _, _, _) =
   Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
