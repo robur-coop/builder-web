@@ -223,4 +223,11 @@ let add_build
     Db.commit () >>= fun () ->
     commit_files basedir staging_dir job_name uuid
   in
-  or_cleanup r
+  Lwt_result.bind_lwt_err (or_cleanup r)
+    (fun e ->
+       Db.rollback ()
+       |> Lwt.map (fun r ->
+           Result.iter_error
+             (fun e' -> Log.err (fun m -> m "Failed rollback: %a" Caqti_error.pp e'))
+             r;
+           e))
