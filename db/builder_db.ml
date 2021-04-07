@@ -60,7 +60,7 @@ module Job = struct
       {| DROP TABLE IF EXISTS job |}
 
   let get =
-    Caqti_request.find_opt
+    Caqti_request.find
       id
       Caqti_type.string
       "SELECT name FROM job WHERE id = ?"
