@@ -58,6 +58,15 @@ let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
 
+let latest_build_uuid job_id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest_uuid job_id >>=
+  (* We know there's at least one job when this is called, probably. *)
+  not_found >|= snd
+
+let build_previous id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_previous id >|=
+  Option.map (fun (_id, meta) -> meta)
+
 let main_binary id main_binary (module Db : CONN) =
   match main_binary with
   | None -> Lwt_result.return None

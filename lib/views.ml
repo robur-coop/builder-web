@@ -168,14 +168,30 @@ let job name builds =
 
 let job_build
   name
-  { Builder_db.Build.uuid = _; start; finish; result; console; script; main_binary = _; job_id = _ }
+  { Builder_db.Build.uuid; start; finish; result; console; script; main_binary = _; job_id = _ }
   artifacts
+  latest_uuid
+  previous_build
   =
   let delta = Ptime.diff finish start in
   layout ~title:(Fmt.strf "Job build %s %a" name pp_ptime start)
     [ h1 [txtf "Job build %s %a" name pp_ptime start];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
+      p [
+        a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                Uuidm.pp uuid Uuidm.pp latest_uuid]
+          [txt "Compare opam-switch with latest build"];
+      ];
+      (match previous_build with
+       | Some previous_build ->
+         p [
+           a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                   Uuidm.pp uuid Uuidm.pp previous_build.Builder_db.Build.Meta.uuid]
+             [txt "Compare opam-switch with previous build"];
+         ]
+       | None ->
+         txt "");
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
             (fun { Builder_db.filepath; localpath=_; sha256; size } ->

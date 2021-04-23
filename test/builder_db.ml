@@ -233,6 +233,14 @@ let test_build_get_latest (module Db : CONN) =
   Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'
 
+let test_build_get_latest_uuid (module Db : CONN) =
+  add_second_build (module Db) >>= fun () ->
+  (* Test *)
+  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Build.get_latest_uuid job_id
+  >>| get_opt "no latest build" >>| fun (_id, latest_uuid) ->
+  Alcotest.(check Testable.uuid) "same uuid" latest_uuid uuid'
+
 let test_build_get_previous (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_by_uuid uuid'
@@ -308,6 +316,7 @@ let () =
       test_case "One build" `Quick (with_build_db test_build_get_all);
       test_case "One build (meta data)" `Quick (with_build_db test_build_get_all_meta);
       test_case "Get latest build" `Quick (with_build_db test_build_get_latest);
+      test_case "Get latest build uuid" `Quick (with_build_db test_build_get_latest_uuid);
       test_case "Get build by hash" `Quick (with_build_db test_build_get_by_hash);
       test_case "Get previous build" `Quick (with_build_db test_build_get_previous);
       test_case "Get previous build when first" `Quick (with_build_db test_build_get_previous_none);

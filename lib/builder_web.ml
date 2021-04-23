@@ -157,18 +157,20 @@ let routes t =
         "Bad request.\n"
       |> Lwt.return
     | Some uuid ->
-      let+ build_and_artifacts =
+      let+ data =
         Caqti_lwt.Pool.use (Model.build uuid) t.pool >>= fun (build_id, build) ->
-        Caqti_lwt.Pool.use (Model.build_artifacts build_id) t.pool >|= fun artifacts ->
-        (build, artifacts)
+        Caqti_lwt.Pool.use (Model.build_artifacts build_id) t.pool >>= fun artifacts ->
+        Caqti_lwt.Pool.use (Model.latest_build_uuid build.job_id) t.pool >>= fun latest_uuid ->
+        Caqti_lwt.Pool.use (Model.build_previous build_id) t.pool >|= fun previous_build ->
+        (build, artifacts, latest_uuid, previous_build)
       in
-      match build_and_artifacts with
+      match data with
       | Error e ->
         Log.warn (fun m -> m "Error getting job build: %a" pp_error e);
         Response.of_plain_text ~status:`Internal_server_error
           "Error getting job build"
-      | Ok (build, artifacts) ->
-        Views.job_build job_name build artifacts |> Response.of_html
+      | Ok (build, artifacts, latest_uuid, previous_build) ->
+        Views.job_build job_name build artifacts latest_uuid previous_build |> Response.of_html
   in
 
   let job_build_file req =

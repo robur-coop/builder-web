@@ -25,6 +25,12 @@ val build_hash : Cstruct.t -> Caqti_lwt.connection ->
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
   (bool, [> error ]) result Lwt.t
 
+val latest_build_uuid : Builder_db.id -> Caqti_lwt.connection ->
+  (Uuidm.t, [> error ]) result Lwt.t
+
+val build_previous : Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.Build.Meta.t option, [> error ]) result Lwt.t
+
 val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
   (Builder_db.file option, [> error ]) result Lwt.t
 

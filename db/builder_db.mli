@@ -146,6 +146,9 @@ sig
   val get_latest :
     (id, id * Meta.t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
+  val get_latest_uuid :
+    (id, id * Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
+      Caqti_request.t
   val get_previous :
     (id, id * Meta.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
