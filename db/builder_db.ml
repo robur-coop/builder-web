@@ -382,6 +382,21 @@ module Build = struct
          LIMIT 1
       |}
 
+  let get_previous =
+    Caqti_request.find_opt
+      id
+      Caqti_type.(tup2 id Meta.t)
+      {| SELECT b.id,
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_kind, b.result_code, b.result_msg,
+           b.main_binary, b.job
+         FROM build b, build b0
+         WHERE b0.id = ? AND b0.job = b.job AND
+           (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
+         ORDER BY b.start_d DESC, b.start_ps DESC
+         LIMIT 1
+      |}
+
   let add =
     Caqti_request.exec
       t

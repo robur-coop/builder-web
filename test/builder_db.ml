@@ -233,6 +233,22 @@ let test_build_get_latest (module Db : CONN) =
   Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'
 
+let test_build_get_previous (module Db : CONN) =
+  add_second_build (module Db) >>= fun () ->
+  Db.find_opt Builder_db.Build.get_by_uuid uuid'
+  >>| get_opt "no build" >>= fun (id, _build) ->
+  Db.find_opt Builder_db.Build.get_previous id
+  >>| get_opt "no previous build" >>| fun (_id, meta) ->
+  Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid
+
+let test_build_get_previous_none (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_by_uuid uuid
+  >>| get_opt "no build" >>= fun (id, _build) ->
+  Db.find_opt Builder_db.Build.get_previous id >>| function
+  | None -> ()
+  | Some (_id, meta) ->
+    Alcotest.failf "Got unexpected result %a" Uuidm.pp meta.uuid
+
 let test_build_get_by_hash (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_by_hash main_binary.sha256
@@ -293,6 +309,8 @@ let () =
       test_case "One build (meta data)" `Quick (with_build_db test_build_get_all_meta);
       test_case "Get latest build" `Quick (with_build_db test_build_get_latest);
       test_case "Get build by hash" `Quick (with_build_db test_build_get_by_hash);
+      test_case "Get previous build" `Quick (with_build_db test_build_get_previous);
+      test_case "Get previous build when first" `Quick (with_build_db test_build_get_previous_none);
     ];
     "build-artifact", [
       test_case "Get all by build" `Quick (with_build_db test_artifact_get_all_by_build);
