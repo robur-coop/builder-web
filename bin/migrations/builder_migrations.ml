@@ -101,6 +101,17 @@ let f20210308 =
   Cmdliner.Term.(const do_database_action $ const M20210308.fixup $ setup_log $ dbpath),
   Cmdliner.Term.info ~doc "fixup-2021-03-08"
 
+let m20210427 =
+  let doc = "Adds an index 'idx_build_job_start' on 'build' (2021-04-27)" in
+  Cmdliner.Term.(const do_database_action $ const M20210427.migrate $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "migrate-2021-04-27"
+
+let r20210427 =
+  let doc = "Rollback index 'idx_build_job_start'' on 'build' (2021-04-27)" in
+  Cmdliner.Term.(const do_database_action $ const M20210427.rollback $ setup_log $ dbpath),
+  Cmdliner.Term.info ~doc "rollback-2021-04-27"
+
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -124,5 +135,6 @@ let () =
       m20210216; r20210216;
       m20210218; r20210218;
       f20210308;
+      m20210427; r20210427;
     ]
   |> Cmdliner.Term.exit
