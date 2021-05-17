@@ -2,7 +2,7 @@
  (public_name builder-web)
  (name builder_web_app)
  (modules builder_web_app)
- (libraries builder_web mirage-crypto-rng.unix))
+ (libraries builder_web mirage-crypto-rng.unix cmdliner))
 
 (executable
  (public_name builder-db)
