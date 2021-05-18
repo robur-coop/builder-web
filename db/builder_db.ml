@@ -516,7 +516,7 @@ let migrate = [
   Build_file.migrate;
   User.migrate;
   Caqti_request.exec Caqti_type.unit
-    "CREATE INDEX idx_build_job_start ON build(job, startd DESC, start_ps DESC)";
+    "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)";
   set_current_version;
   set_application_id;
 ]
