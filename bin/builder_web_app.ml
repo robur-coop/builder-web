@@ -26,7 +26,7 @@ open Cmdliner
 
 let datadir =
   let doc = "data directory" in
-  Arg.(value & opt dir "/var/db/builder-web/" & info [ "-d"; "--datadir" ] ~doc)
+  Arg.(value & opt dir "/var/db/builder-web/" & info [ "d"; "datadir" ] ~doc)
 
 let port =
   let doc = "port" in
