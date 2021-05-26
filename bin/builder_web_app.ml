@@ -1,12 +1,29 @@
 open Opium
 
+let timestamp_reporter () =
+  let report src level ~over k msgf =
+    let k _ = over (); k () in
+    msgf @@ fun ?header ?tags:_ fmt ->
+    let posix_time = Ptime_clock.now () in
+    let src_name = Logs.Src.name src in
+    Format.kfprintf k Format.std_formatter
+      ("%a [%s] %a @[" ^^ fmt ^^ "@]@.")
+      (Ptime.pp_rfc3339 ()) posix_time src_name
+      Logs.pp_header (level, header)
+  in
+  { Logs.report }
+
+let setup_log style_renderer level =
+  Fmt_tty.setup_std_outputs ?style_renderer ();
+  Logs.set_level level;
+  Logs.set_reporter (timestamp_reporter ()) (* (Logs_fmt.reporter ~dst:Format.std_formatter ()) *)
 
 let app t =
   App.empty
   |> App.cmd_name "Builder Web"
   |> Builder_web.add_routes t
 
-let setup_app port host _debug _verbose datadir =
+let setup_app () port host datadir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
   match Builder_web.init dbpath datadir with
@@ -20,9 +37,13 @@ let setup_app port host _debug _verbose datadir =
     app t
     |> App.port port
     |> App.host host
+    |> (match Logs.level () with Some Debug -> (fun x -> x |> App.debug true |> App.verbose true) | Some Info -> App.verbose true | _ -> (fun x -> x))
     |> App.start
 
 open Cmdliner
+
+let setup_log =
+  Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
 
 let datadir =
   let doc = "data directory" in
@@ -36,25 +57,15 @@ let host =
   let doc = "host" in
   Arg.(value & opt string "0.0.0.0" & info [ "h"; "host" ] ~doc)
 
-let debug =
-  let doc = "enable debug information" in
-  Arg.(value & flag & info [ "d"; "debug" ] ~doc)
-
-let verbose =
-  let doc = "enable verbose mode" in
-  Arg.(value & flag & info [ "v"; "verbose" ] ~doc)
-
-
-
 let () =
   let () = Mirage_crypto_rng_unix.initialize () in
-  let term = Term.(pure setup_app $ port $ host $ pure false $ pure false $ datadir) in
+  let term = Term.(pure setup_app $ setup_log $ port $ host $ datadir) in
   let info = Term.info "Builder web" ~doc:"Builder web" ~man:[] in
   match Term.eval (term, info) with
   | `Ok s ->
-    Lwt_main.run (Lwt.async (fun () ->
-        Lwt.bind s (fun _ -> Lwt.return_unit));
-       let forever, _ = Lwt.wait () in
-       forever)
+    Printexc.record_backtrace true;
+    let () = Lwt.async (fun () -> Lwt.bind s (fun _ -> Lwt.return_unit)) in
+    let forever, _ = Lwt.wait () in
+    Lwt_main.run forever
   | `Error _ -> exit 1
   | _ -> exit 0
