@@ -27,6 +27,10 @@ depends: [
   "alcotest" {with-test}
   "opam-core"
   "opam-format"
+  "metrics"
+  "metrics-lwt"
+  "metrics-influx"
+  "ipaddr"
 ]
 
 synopsis: "Web interface for builder"
