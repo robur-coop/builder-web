@@ -168,6 +168,7 @@ let () =
   let info = Term.info "Builder web" ~doc:"Builder web" ~man:[] in
   match Term.eval (term, info) with
   | `Ok s ->
+    Sys.(set_signal sigpipe Signal_ignore);
     Printexc.record_backtrace true;
     let () = Lwt.async (fun () -> Lwt.bind s (fun _ -> Lwt.return_unit)) in
     let forever, _ = Lwt.wait () in
