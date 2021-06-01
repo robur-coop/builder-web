@@ -1,5 +1,3 @@
-open Opium
-
 open Lwt.Infix
 
 let safe_close fd =
@@ -80,30 +78,7 @@ let init_influx name data =
     in
     Lwt.async report
 
-let timestamp_reporter () =
-  let report src level ~over k msgf =
-    let k _ = over (); k () in
-    msgf @@ fun ?header ?tags:_ fmt ->
-    let posix_time = Ptime_clock.now () in
-    let src_name = Logs.Src.name src in
-    Format.kfprintf k Format.std_formatter
-      ("%a [%s] %a @[" ^^ fmt ^^ "@]@.")
-      (Ptime.pp_rfc3339 ()) posix_time src_name
-      Logs.pp_header (level, header)
-  in
-  { Logs.report }
-
-let setup_log style_renderer level =
-  Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
-  Logs.set_reporter (timestamp_reporter ()) (* (Logs_fmt.reporter ~dst:Format.std_formatter ()) *)
-
-let app t =
-  App.empty
-  |> App.cmd_name "Builder Web"
-  |> Builder_web.add_routes t
-
-let setup_app () influx port host datadir =
+let setup_app level influx port host datadir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
   let () = init_influx "builder-web" influx in
@@ -114,12 +89,14 @@ let setup_app () influx port host datadir =
   | Error (#Builder_web.db_error | `Wrong_version _ as e) ->
     Format.eprintf "Error: %a\n%!" Builder_web.pp_error e;
     exit 1
-  | Ok t ->
-    app t
-    |> App.port port
-    |> App.host host
-    |> (match Logs.level () with Some Debug -> (fun x -> x |> App.debug true |> App.verbose true) | Some Info -> App.verbose true | _ -> (fun x -> x))
-    |> App.start
+  | Ok () ->
+    let level = match level with None -> None | Some Logs.Debug -> Some `Debug | Some Info -> Some `Info | Some Warning -> Some `Warning | Some Error -> Some `Error | Some App -> None in
+    Dream.initialize_log ?level ();
+    Dream.run ~port ~interface:host ~https:false
+    @@ Dream.logger
+    @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
+    @@ Builder_web.add_routes datadir
+    @@ Dream.not_found
 
 open Cmdliner
 
@@ -142,9 +119,6 @@ let ip_port : (Ipaddr.V4.t * int) Arg.converter =
   in
   parse, fun ppf (ip, port) -> Format.fprintf ppf "%a:%d" Ipaddr.V4.pp ip port
 
-let setup_log =
-  Term.(const setup_log $ Fmt_cli.style_renderer () $ Logs_cli.level ())
-
 let datadir =
   let doc = "data directory" in
   Arg.(value & opt dir "/var/db/builder-web/" & info [ "d"; "datadir" ] ~doc)
@@ -161,17 +135,10 @@ let influx =
   let doc = "IP address and port (default: 8094) to report metrics to in influx line protocol" in
   Arg.(value & opt (some ip_port) None & info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
 
-
 let () =
-  let () = Mirage_crypto_rng_unix.initialize () in
-  let term = Term.(pure setup_app $ setup_log $ influx $ port $ host $ datadir) in
+  let term = Term.(pure setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir) in
   let info = Term.info "Builder web" ~doc:"Builder web" ~man:[] in
   match Term.eval (term, info) with
-  | `Ok s ->
-    Sys.(set_signal sigpipe Signal_ignore);
-    Printexc.record_backtrace true;
-    let () = Lwt.async (fun () -> Lwt.bind s (fun _ -> Lwt.return_unit)) in
-    let forever, _ = Lwt.wait () in
-    Lwt_main.run forever
+  | `Ok () -> exit 0
   | `Error _ -> exit 1
   | _ -> exit 0

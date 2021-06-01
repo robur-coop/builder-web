@@ -14,7 +14,7 @@ build: [
 
 depends: [
   "builder"
-  "opium"
+  "dream"
   "bos"
   "hex"
   "caqti"
