@@ -5,46 +5,46 @@ val pp_error : Format.formatter -> error -> unit
 val staging : Fpath.t -> Fpath.t
 
 val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
-  (unit, [> error ]) result Lwt.t
+  (unit, [> `Msg of string ]) result Lwt.t
 
 val build_artifact : Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
   (string * Cstruct.t, [> error ]) result Lwt.t
 
 val build_artifacts : Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.file list, [> error ]) result Lwt.t
+  (Builder_db.file list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build : Uuidm.t -> Caqti_lwt.connection ->
   (Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
 val build_meta : Builder_db.id -> Caqti_lwt.connection ->
-  ((Builder_db.Build.Meta.t * Builder_db.file option) option, [> error ]) result Lwt.t
+  ((Builder_db.Build.Meta.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_hash : Cstruct.t -> Caqti_lwt.connection ->
-  ((string * Builder_db.Build.t) option, [> error ]) result Lwt.t
+  ((string * Builder_db.Build.t) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
-  (bool, [> error ]) result Lwt.t
+  (bool, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val latest_build_uuid : Builder_db.id -> Caqti_lwt.connection ->
   (Uuidm.t, [> error ]) result Lwt.t
 
 val build_previous : Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.Meta.t option, [> error ]) result Lwt.t
+  (Builder_db.Build.Meta.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
-  (Builder_db.file option, [> error ]) result Lwt.t
+  (Builder_db.file option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val job : string -> Caqti_lwt.connection ->
-  ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
+  ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val jobs : Caqti_lwt.connection ->
-  ((Builder_db.id * string) list, [> error ]) result Lwt.t
+  ((Builder_db.id * string) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val job_name : Builder_db.id -> Caqti_lwt.connection ->
-  (string, [> error ]) result Lwt.t
+  (string, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val user : string -> Caqti_lwt.connection ->
-  (Builder_web_auth.scrypt Builder_web_auth.user_info option, [> error ]) result Lwt.t
+  (Builder_web_auth.scrypt Builder_web_auth.user_info option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 
 val add_build :
@@ -52,4 +52,4 @@ val add_build :
   (Builder.job * Uuidm.t * (int * string) list * Ptime.t * Ptime.t *
    Builder.execution_result * (Fpath.t * string) list) ->
   Caqti_lwt.connection ->
-  (unit, [> error ]) result Lwt.t
+  (unit, [> Caqti_error.call_or_retrieve | `Msg of string ]) result Lwt.t
