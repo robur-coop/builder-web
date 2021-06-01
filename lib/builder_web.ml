@@ -162,6 +162,7 @@ let add_routes datadir =
   in
 
   let job_build_file req =
+    let datadir = Dream.global datadir_global req in
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req
     and filepath = Dream.path req |> String.concat "/" in
@@ -176,7 +177,7 @@ let add_routes datadir =
       Log.debug (fun m -> m "bad path: %s" e);
       Dream.respond ~status:`Not_Found "File not found"
     | Some build, Ok filepath ->
-      let* artifact = Dream.sql req (Model.build_artifact build filepath) in
+      let* artifact = Dream.sql req (Model.build_artifact datadir build filepath) in
       match artifact with
       | Error e ->
         Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
@@ -242,6 +243,7 @@ let add_routes datadir =
   in
 
   let compare_opam req =
+    let datadir = Dream.global datadir_global req in
     let build_left = Dream.param "build_left" req in
     let build_right = Dream.param "build_right" req in
     match Uuidm.of_string build_left, Uuidm.of_string build_right with
@@ -249,9 +251,9 @@ let add_routes datadir =
       Dream.respond ~status:`Bad_Request "Bad request"
     | Some build_left, Some build_right ->
       let* r =
-        Dream.sql req (Model.build_artifact build_left (Fpath.v "opam-switch"))
+        Dream.sql req (Model.build_artifact datadir build_left (Fpath.v "opam-switch"))
           >>= fun switch_left ->
-        Dream.sql req (Model.build_artifact build_right (Fpath.v "opam-switch"))
+        Dream.sql req (Model.build_artifact datadir build_right (Fpath.v "opam-switch"))
           >>= fun switch_right ->
         Dream.sql req (Model.build build_left) >>= fun (_id, build_left) ->
         Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->

@@ -20,7 +20,8 @@ let not_found = function
 
 let staging datadir = Fpath.(datadir / "_staging")
 
-let read_file filepath =
+let read_file datadir filepath =
+  let filepath = Fpath.(datadir // filepath) in
   Lwt.try_bind
     (fun () -> Lwt_io.open_file ~mode:Lwt_io.Input (Fpath.to_string filepath))
     (fun ic -> Lwt_result.ok (Lwt_io.read ic))
@@ -31,11 +32,11 @@ let read_file filepath =
         Lwt.return_error (`File_error filepath)
       | e -> Lwt.fail e)
 
-let build_artifact build filepath (module Db : CONN) =
+let build_artifact datadir build filepath (module Db : CONN) =
   Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
   >>= function
   | Some (_id, file) ->
-    read_file file.Builder_db.localpath >|= fun data -> data, file.Builder_db.sha256
+    read_file datadir file.Builder_db.localpath >|= fun data -> data, file.Builder_db.sha256
   | None ->
     Lwt.return_error `Not_found
 
@@ -154,8 +155,8 @@ let save_files dir staging files =
     (Lwt_result.return [])
     files
 
-let save_all basedir staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
-  let build_dir = Fpath.(basedir / job.Builder.name / Uuidm.to_string uuid) in
+let save_all staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
+  let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
   let input_dir = Fpath.(build_dir / "input")
   and staging_input_dir = Fpath.(staging_dir / "input") in
   let output_dir = Fpath.(build_dir / "output")
@@ -171,19 +172,19 @@ let save_all basedir staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
   save_files input_dir staging_input_dir job.Builder.files >>= fun input_files ->
   Lwt_result.return (artifacts, input_files)
 
-let commit_files basedir staging_dir job_name uuid =
-  let job_dir = Fpath.(basedir / job_name) in
+let commit_files datadir staging_dir job_name uuid =
+  let job_dir = Fpath.(datadir / job_name) in
   let dest = Fpath.(job_dir / Uuidm.to_string uuid) in
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Path.move staging_dir dest)
 
 let add_build
-    basedir
+    datadir
     ((job, uuid, console, start, finish, result, _) as exec)
     (module Db : CONN) =
   let open Builder_db in
   let job_name = job.Builder.name in
-  let staging_dir = Fpath.(staging basedir / Uuidm.to_string uuid) in
+  let staging_dir = Fpath.(staging datadir / Uuidm.to_string uuid) in
   let or_cleanup x =
     Lwt_result.map_err (fun e ->
         Bos.OS.Dir.delete ~recurse:true staging_dir
@@ -194,7 +195,7 @@ let add_build
         e)
       x
   in
-  or_cleanup (save_all basedir staging_dir exec) >>= fun (artifacts, input_files) ->
+  or_cleanup (save_all staging_dir exec) >>= fun (artifacts, input_files) ->
   let main_binary =
     match List.find_all
             (fun file ->
@@ -233,7 +234,7 @@ let add_build
       (Lwt_result.return ())
       input_files >>= fun () ->
     Db.commit () >>= fun () ->
-    commit_files basedir staging_dir job_name uuid
+    commit_files datadir staging_dir job_name uuid
   in
   Lwt_result.bind_lwt_err (or_cleanup r)
     (fun e ->

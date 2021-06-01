@@ -7,7 +7,7 @@ val staging : Fpath.t -> Fpath.t
 val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
   (unit, [> `Msg of string ]) result Lwt.t
 
-val build_artifact : Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
+val build_artifact : Fpath.t -> Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
   (string * Cstruct.t, [> error ]) result Lwt.t
 
 val build_artifacts : Builder_db.id -> Caqti_lwt.connection ->

@@ -28,7 +28,7 @@ let set_main_binary =
     Caqti_type.(tup2 int64 (option string))
     "UPDATE build SET main_binary = ?2 WHERE id = ?1"
 
-let migrate (module Db : Caqti_blocking.CONNECTION) =
+let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
   Grej.check_version ~application_id:0l ~user_version:0L (module Db) >>= fun () ->
   Db.exec alter_build () >>= fun () ->
@@ -84,7 +84,7 @@ let rollback_data =
        FROM __tmp_build
     |}
 
-let rollback (module Db : Caqti_blocking.CONNECTION) =
+let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
   Grej.check_version ~user_version:new_user_version (module Db) >>= fun () ->
   Db.exec rename_build () >>= fun () ->

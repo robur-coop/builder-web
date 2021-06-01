@@ -10,7 +10,7 @@ let broken_builds =
           WHERE a.build = b.id and a.filepath = b.main_binary) = 0
     |}
 
-let fixup (module Db : Caqti_blocking.CONNECTION) =
+let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
   Grej.check_version ~user_version:3L (module Db) >>= fun () ->
   Db.rev_collect_list broken_builds () >>= fun broken_builds ->

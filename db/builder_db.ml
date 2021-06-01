@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 3L
+let current_version = 4L
 
 type id = Rep.id
 
