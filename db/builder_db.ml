@@ -395,7 +395,7 @@ module Build = struct
       |}
 
   let get_latest_successful_uuid =
-    Caqti_request.find
+    Caqti_request.find_opt
       id
       Rep.uuid
       {| SELECT b.uuid
@@ -405,7 +405,7 @@ module Build = struct
          LIMIT 1
       |}
 
-  let get_previous =
+  let get_previous_successful =
     Caqti_request.find_opt
       id
       Caqti_type.(tup2 id Meta.t)
@@ -415,6 +415,7 @@ module Build = struct
            b.main_binary, b.job
          FROM build b, build b0
          WHERE b0.id = ? AND b0.job = b.job AND
+           b.result_kind = 0 AND b.result_code = 0 AND
            (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1

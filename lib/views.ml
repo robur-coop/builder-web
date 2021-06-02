@@ -174,24 +174,27 @@ let job_build
   previous_build
   =
   let delta = Ptime.diff finish start in
+  let successful_build = match result with Builder.Exited 0 -> true | _ -> false in
   layout ~title:(Fmt.strf "Job build %s %a" name pp_ptime start)
     [ h1 [txtf "Job build %s %a" name pp_ptime start];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      p [
-        a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                Uuidm.pp uuid Uuidm.pp latest_uuid]
-          [txt "Compare opam-switch with latest build"];
-      ];
+      (match latest_uuid with
+       | Some latest_uuid when successful_build && not (Uuidm.equal latest_uuid uuid) ->
+         p [
+           a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                   Uuidm.pp uuid Uuidm.pp latest_uuid]
+             [txt "Compare opam-switch with latest build"];
+         ]
+       | _ -> txt "");
       (match previous_build with
-       | Some previous_build ->
+       | Some previous_build when successful_build ->
          p [
            a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
                    Uuidm.pp uuid Uuidm.pp previous_build.Builder_db.Build.Meta.uuid]
              [txt "Compare opam-switch with previous build"];
          ]
-       | None ->
-         txt "");
+       | _ -> txt "");
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
             (fun { Builder_db.filepath; localpath=_; sha256; size } ->

@@ -2,6 +2,8 @@ type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.
 
 val pp_error : Format.formatter -> error -> unit
 
+val not_found : 'a option -> ('a, [> error ]) result Lwt.t
+
 val staging : Fpath.t -> Fpath.t
 
 val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
@@ -28,10 +30,10 @@ val build_exists : Uuidm.t -> Caqti_lwt.connection ->
 val latest_build_uuid : Builder_db.id -> Caqti_lwt.connection ->
   (Uuidm.t, [> error ]) result Lwt.t
 
-val latest_successful_build_uuid : string -> Caqti_lwt.connection ->
-  (Uuidm.t, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+val latest_successful_build_uuid : Builder_db.id -> Caqti_lwt.connection ->
+  (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val build_previous : Builder_db.id -> Caqti_lwt.connection ->
+val previous_successful_build : Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.Meta.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
@@ -39,6 +41,9 @@ val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
 
 val job : string -> Caqti_lwt.connection ->
   ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
+val job_id : string -> Caqti_lwt.connection ->
+  (Builder_db.id, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val jobs : Caqti_lwt.connection ->
   ((Builder_db.id * string) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t

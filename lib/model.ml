@@ -64,12 +64,11 @@ let latest_build_uuid job_id (module Db : CONN) =
   (* We know there's at least one job when this is called, probably. *)
   not_found >|= snd
 
-let latest_successful_build_uuid job_name (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
-  Db.find Builder_db.Build.get_latest_successful_uuid job_id
+let latest_successful_build_uuid job_id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest_successful_uuid job_id
 
-let build_previous id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_previous id >|=
+let previous_successful_build id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_previous_successful id >|=
   Option.map (fun (_id, meta) -> meta)
 
 let main_binary id main_binary (module Db : CONN) =
@@ -82,6 +81,9 @@ let main_binary id main_binary (module Db : CONN) =
 let job job (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_all_meta_by_name job >|=
   List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
+
+let job_id job_name (module Db : CONN) =
+  Db.find Builder_db.Job.get_id_by_name job_name
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()

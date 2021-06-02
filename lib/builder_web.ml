@@ -142,7 +142,11 @@ let add_routes datadir =
   let redirect_latest req =
     let job_name = Dream.param "job" req in
     let path = Dream.path req |> String.concat "/" in
-    let* build = Dream.sql req (Model.latest_successful_build_uuid job_name) in
+    let* build =
+      Dream.sql req (Model.job_id job_name) >>= fun job_id ->
+      Dream.sql req (Model.latest_successful_build_uuid job_id)
+      >>= Model.not_found
+    in
     match build with
     | Error e ->
       Log.warn (fun m -> m "Error getting job: %a" pp_error e);
@@ -162,8 +166,8 @@ let add_routes datadir =
       let* data =
         Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
         Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
-        Dream.sql req (Model.latest_build_uuid build.job_id) >>= fun latest_uuid ->
-        Dream.sql req (Model.build_previous build_id) >|= fun previous_build ->
+        Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
+        Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
         (build, artifacts, latest_uuid, previous_build)
       in
       match data with

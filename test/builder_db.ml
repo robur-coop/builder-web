@@ -249,14 +249,14 @@ let test_build_get_previous (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_by_uuid uuid'
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous id
+  Db.find_opt Builder_db.Build.get_previous_successful id
   >>| get_opt "no previous build" >>| fun (_id, meta) ->
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid
 
 let test_build_get_previous_none (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous id >>| function
+  Db.find_opt Builder_db.Build.get_previous_successful id >>| function
   | None -> ()
   | Some (_id, meta) ->
     Alcotest.failf "Got unexpected result %a" Uuidm.pp meta.uuid
