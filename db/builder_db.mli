@@ -112,7 +112,7 @@ sig
     result : Builder.execution_result;
     console : (int * string) list;
     script : string;
-    main_binary : Fpath.t option;
+    main_binary : id option;
     job_id : id;
   }
   module Meta :
@@ -122,7 +122,7 @@ sig
       start : Ptime.t;
       finish : Ptime.t;
       result : Builder.execution_result;
-      main_binary : Fpath.t option;
+      main_binary : id option;
       job_id : id;
     }
   end
@@ -155,6 +155,7 @@ sig
   val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_by_hash :
     (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
+  val set_main_binary : (id * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove : (id, unit, [< `Many | `One | `Zero > `Zero]) Caqti_request.t
 end
 

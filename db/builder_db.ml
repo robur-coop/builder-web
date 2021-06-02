@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 4L
+let current_version = 5L
 
 type id = Rep.id
 
@@ -211,7 +211,7 @@ module Build = struct
     result : Builder.execution_result;
     console : (int * string) list;
     script : string;
-    main_binary : Fpath.t option;
+    main_binary : id option;
     job_id : id;
   }
 
@@ -228,7 +228,7 @@ module Build = struct
                           console)
                        (tup2
                           string
-                          (option Rep.fpath)))
+                          (option Rep.id)))
                     id)
     in
     let encode { uuid; start; finish; result; console; script; main_binary; job_id } =
@@ -245,7 +245,7 @@ module Build = struct
       start : Ptime.t;
       finish : Ptime.t;
       result : Builder.execution_result;
-      main_binary : Fpath.t option;
+      main_binary : id option;
       job_id : id;
     }
 
@@ -258,7 +258,7 @@ module Build = struct
                           Rep.ptime
                           Rep.ptime)
                        execution_result
-                       (option Rep.fpath))
+                       (option Rep.id))
                      id)
       in
       let encode { uuid; start; finish; result; main_binary; job_id } =
@@ -285,9 +285,10 @@ module Build = struct
            result_msg TEXT,
            console BLOB NOT NULL,
            script TEXT NOT NULL,
-           main_binary TEXT,
+           main_binary INTEGER,
            job INTEGER NOT NULL,
 
+           FOREIGN KEY(main_binary) REFERENCES build_artifact(id),
            FOREIGN KEY(job) REFERENCES job(id)
          )
       |}
@@ -357,7 +358,7 @@ module Build = struct
                 build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
            FROM build, job
            LEFT JOIN build_artifact ON
-             build_artifact.build = build.id AND build.main_binary = build_artifact.filepath
+             build.main_binary = build_artifact.id
            WHERE job.name = ? AND build.job = job.id
            ORDER BY start_d DESC, start_ps DESC
         |}
@@ -376,7 +377,7 @@ module Build = struct
            a.filepath, a.localpath, a.sha256, a.size
          FROM build b
          LEFT JOIN build_artifact a ON
-           a.build = b.id AND b.main_binary = a.filepath
+           b.main_binary = a.id
          WHERE b.job = ?
          ORDER BY start_d DESC, start_ps DESC
          LIMIT 1
@@ -435,6 +436,11 @@ module Build = struct
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
+
+  let set_main_binary =
+    Caqti_request.exec
+      (Caqti_type.tup2 id id)
+      "UPDATE build SET main_binary = ?2 WHERE id = ?1"
 
   let remove =
     Caqti_request.exec

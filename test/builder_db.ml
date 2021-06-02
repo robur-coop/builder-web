@@ -153,10 +153,12 @@ let add_test_build (module Db : CONN) =
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find Job.get_id_by_name job_name >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                        main_binary = Some main_binary.filepath;
+                        main_binary = None;
                         job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+    Db.find last_insert_rowid () >>= fun main_binary_id ->
+    Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
     Db.commit ()
   in
   Rresult.R.kignore_error
@@ -218,10 +220,12 @@ let add_second_build (module Db : CONN) =
   Db.start () >>= fun () ->
   Db.find Job.get_id_by_name job_name >>= fun job_id ->
   Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                      main_binary = Some main_binary.filepath; job_id;
+                      main_binary = None; job_id;
                     } >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
   Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+  Db.find last_insert_rowid () >>= fun main_binary_id ->
+  Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
   Db.commit ()
 
 let test_build_get_latest (module Db : CONN) =

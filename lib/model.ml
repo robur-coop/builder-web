@@ -196,30 +196,13 @@ let add_build
       x
   in
   or_cleanup (save_all staging_dir exec) >>= fun (artifacts, input_files) ->
-  let main_binary =
-    match List.find_all
-            (fun file ->
-               Fpath.is_prefix
-                 (Fpath.v "bin/")
-                 file.Builder_db.filepath)
-            artifacts with
-    | [ main_binary ] -> Some main_binary.filepath
-    | [] ->
-      Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
-      None
-    | binaries ->
-      Log.debug (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
-                    Fmt.(list ~sep:(any ",") Fpath.pp)
-                    (List.map (fun f -> f.filepath) binaries));
-      None
-  in
   let r =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find Job.get_id_by_name job_name >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
-                        main_binary; job_id } >>= fun () ->
+                        main_binary = None; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     List.fold_left
       (fun r file ->
@@ -233,6 +216,17 @@ let add_build
          Db.exec Build_file.add (file, id))
       (Lwt_result.return ())
       input_files >>= fun () ->
+    Db.collect_list Build_artifact.get_all_by_build id >>= fun artifacts ->
+    (match List.filter (fun (_, p) -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
+     | [ (build_artifact_id, _) ] -> Db.exec Build.set_main_binary (id, build_artifact_id)
+     | [] ->
+       Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
+       Lwt_result.return ()
+     | xs ->
+       Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
+                    Fmt.(list ~sep:(any ",") Fpath.pp)
+                    (List.map (fun (_, a) -> a.filepath) xs));
+       Lwt_result.return ()) >>= fun () ->
     Db.commit () >>= fun () ->
     commit_files datadir staging_dir job_name uuid
   in

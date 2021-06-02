@@ -125,6 +125,16 @@ let r20210531 =
   Cmdliner.Term.(const do_database_action $ const M20210531.rollback $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "rollback-2021-05-31"
 
+let m20210602 =
+  let doc = "build.main_binary foreign key" in
+  Cmdliner.Term.(const do_database_action $ const M20210602.migrate $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "migrate-2021-06-02"
+
+let r20210602 =
+  let doc = "build.main_binary filepath" in
+  Cmdliner.Term.(const do_database_action $ const M20210602.rollback $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "rollback-2021-06-02"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -150,5 +160,6 @@ let () =
       f20210308;
       m20210427; r20210427;
       m20210531; r20210531;
+      m20210602; r20210602;
     ]
   |> Cmdliner.Term.exit
