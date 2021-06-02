@@ -64,6 +64,10 @@ let latest_build_uuid job_id (module Db : CONN) =
   (* We know there's at least one job when this is called, probably. *)
   not_found >|= snd
 
+let latest_successful_build_uuid job_name (module Db : CONN) =
+  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find Builder_db.Build.get_latest_successful_uuid job_id
+
 let build_previous id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_previous id >|=
   Option.map (fun (_id, meta) -> meta)

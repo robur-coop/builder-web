@@ -149,6 +149,9 @@ sig
   val get_latest_uuid :
     (id, id * Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
+  val get_latest_successful_uuid :
+    (id, Uuidm.t, [< `Many | `One | `Zero > `One ])
+      Caqti_request.t
   val get_previous :
     (id, id * Meta.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t

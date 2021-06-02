@@ -28,6 +28,9 @@ val build_exists : Uuidm.t -> Caqti_lwt.connection ->
 val latest_build_uuid : Builder_db.id -> Caqti_lwt.connection ->
   (Uuidm.t, [> error ]) result Lwt.t
 
+val latest_successful_build_uuid : string -> Caqti_lwt.connection ->
+  (Uuidm.t, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
 val build_previous : Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.Meta.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 

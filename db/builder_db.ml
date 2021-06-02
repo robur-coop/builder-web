@@ -394,6 +394,17 @@ module Build = struct
          LIMIT 1
       |}
 
+  let get_latest_successful_uuid =
+    Caqti_request.find
+      id
+      Rep.uuid
+      {| SELECT b.uuid
+         FROM build b
+         WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
+         ORDER BY start_d DESC, start_ps DESC
+         LIMIT 1
+      |}
+
   let get_previous =
     Caqti_request.find_opt
       id

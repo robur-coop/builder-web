@@ -139,6 +139,19 @@ let add_routes datadir =
       Views.job job_name builds |> string_of_html |> Dream.html
   in
 
+  let redirect_latest req =
+    let job_name = Dream.param "job" req in
+    let path = Dream.path req |> String.concat "/" in
+    let* build = Dream.sql req (Model.latest_successful_build_uuid job_name) in
+    match build with
+    | Error e ->
+      Log.warn (fun m -> m "Error getting job: %a" pp_error e);
+      Dream.respond ~status:`Not_Found "Error getting job"
+    | Ok build ->
+      Dream.redirect req
+        (Fmt.strf "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+  in
+
   let job_build req =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
@@ -277,9 +290,10 @@ let add_routes datadir =
   Dream.router [
     Dream.get "/" builder;
     Dream.get "/job/:job/" job;
+    Dream.get "/job/:job/build/latest/**" redirect_latest;
     Dream.get "/job/:job/build/:build/" job_build;
-    Dream.get "/hash" hash;
     Dream.get "/job/:job/build/:build/f/**" job_build_file;
-    Dream.post "/upload" (authorized upload);
+    Dream.get "/hash" hash;
     Dream.get "/compare/:build_left/:build_right/opam-switch" compare_opam;
+    Dream.post "/upload" (authorized upload);
   ]
