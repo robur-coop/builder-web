@@ -30,6 +30,7 @@ depends: [
   "metrics"
   "metrics-lwt"
   "metrics-influx"
+  "metrics-rusage"
   "ipaddr"
 ]
 
