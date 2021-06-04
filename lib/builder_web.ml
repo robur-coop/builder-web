@@ -183,6 +183,7 @@ let add_routes datadir =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req
     and filepath = Dream.path req |> String.concat "/" in
+    let if_none_match = Dream.header "if-none-match" req in
     (* XXX: We don't check safety of [file]. This should be fine however since
      * we don't use [file] for the filesystem but is instead used as a key for
      * lookup in the data table of the 'full' file. *)
@@ -200,11 +201,16 @@ let add_routes datadir =
         Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
         Dream.respond ~status:`Internal_Server_Error "Error getting build artifact"
       | Ok (data, digest) ->
-        let headers = [
-          "Content-Type", mime_lookup filepath;
-          "ETag",(Base64.encode_string (Cstruct.to_string digest));
-        ] in
-        Dream.respond ~headers data
+        let etag = Base64.encode_string (Cstruct.to_string digest) in
+        match if_none_match with
+        | Some etag' when etag = etag' ->
+          Dream.empty `Not_Modified
+        | _ ->
+          let headers = [
+            "Content-Type", mime_lookup filepath;
+            "ETag", etag;
+          ] in
+          Dream.respond ~headers data
   in
 
   let upload req =
