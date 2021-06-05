@@ -195,22 +195,28 @@ let add_routes datadir =
       Log.debug (fun m -> m "bad path: %s" e);
       Dream.respond ~status:`Not_Found "File not found"
     | Some build, Ok filepath ->
-      let* artifact = Dream.sql req (Model.build_artifact datadir build filepath) in
-      match artifact with
+      let* file = Dream.sql req (Model.build_artifact build filepath) in
+      match file with
       | Error e ->
         Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
         Dream.respond ~status:`Internal_Server_Error "Error getting build artifact"
-      | Ok (data, digest) ->
-        let etag = Base64.encode_string (Cstruct.to_string digest) in
+      | Ok file ->
+        let etag = Base64.encode_string (Cstruct.to_string file.Builder_db.sha256) in
         match if_none_match with
         | Some etag' when etag = etag' ->
           Dream.empty `Not_Modified
         | _ ->
-          let headers = [
-            "Content-Type", mime_lookup filepath;
-            "ETag", etag;
-          ] in
-          Dream.respond ~headers data
+          let* data = Model.build_artifact_data datadir file in
+          match data with
+          | Ok data ->
+            let headers = [
+              "Content-Type", mime_lookup file.Builder_db.filepath;
+              "ETag", etag;
+            ] in
+            Dream.respond ~headers data
+          | Error e ->
+            Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
+            Dream.respond ~status:`Internal_Server_Error "Error getting build artifact"
   in
 
   let upload req =
@@ -274,10 +280,10 @@ let add_routes datadir =
       Dream.respond ~status:`Bad_Request "Bad request"
     | Some build_left, Some build_right ->
       let* r =
-        Dream.sql req (Model.build_artifact datadir build_left (Fpath.v "opam-switch"))
-          >>= fun switch_left ->
-        Dream.sql req (Model.build_artifact datadir build_right (Fpath.v "opam-switch"))
-          >>= fun switch_right ->
+        Dream.sql req (Model.build_artifact build_left (Fpath.v "opam-switch")) >>=
+        Model.build_artifact_data datadir >>= fun switch_left ->
+        Dream.sql req (Model.build_artifact build_right (Fpath.v "opam-switch")) >>=
+        Model.build_artifact_data datadir >>= fun switch_right ->
         Dream.sql req (Model.build build_left) >>= fun (_id, build_left) ->
         Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->
         Dream.sql req (Model.job_name build_left.job_id) >>= fun job_left ->
@@ -288,8 +294,7 @@ let add_routes datadir =
       | Error e ->
         Log.warn (fun m -> m "Database error: %a" pp_error e);
         Dream.respond ~status:`Internal_Server_Error "Internal server error"
-      | Ok (job_left, job_right, build_left, build_right,
-            (switch_left, _sha256_left), (switch_right, _sha256_right)) ->
+      | Ok (job_left, job_right, build_left, build_right, switch_left, switch_right) ->
         let switch_left = OpamFile.SwitchExport.read_from_string switch_left
         and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
         Opamdiff.compare switch_left switch_right

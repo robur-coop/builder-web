@@ -32,13 +32,12 @@ let read_file datadir filepath =
         Lwt.return_error (`File_error filepath)
       | e -> Lwt.fail e)
 
-let build_artifact datadir build filepath (module Db : CONN) =
+let build_artifact build filepath (module Db : CONN) =
   Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
-  >>= function
-  | Some (_id, file) ->
-    read_file datadir file.Builder_db.localpath >|= fun data -> data, file.Builder_db.sha256
-  | None ->
-    Lwt.return_error `Not_found
+  >>= not_found >|= snd
+
+let build_artifact_data datadir file =
+  read_file datadir file.Builder_db.localpath
 
 let build_artifacts build (module Db : CONN) =
   Db.collect_list Builder_db.Build_artifact.get_all_by_build build >|=
