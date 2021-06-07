@@ -77,12 +77,13 @@ let main_binary id main_binary (module Db : CONN) =
     Db.find Builder_db.Build_artifact.get_by_build (id, main_binary) >|= fun (_id, file) ->
     Some file
 
-let job job (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_all_meta_by_name job >|=
-  List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
-
 let job_id job_name (module Db : CONN) =
   Db.find Builder_db.Job.get_id_by_name job_name
+
+let job job (module Db : CONN) =
+  job_id job (module Db) >>= fun job_id ->
+  Db.collect_list Builder_db.Build.get_all_meta job_id >|=
+  List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()

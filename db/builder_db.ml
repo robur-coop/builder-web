@@ -335,22 +335,8 @@ module Build = struct
   let get_all_meta =
     Caqti_request.collect
       Caqti_type.int64
-      (Caqti_type.tup2
-         id Meta.t)
-      {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
-                  result_kind, result_code, result_msg, main_binary, job
-           FROM build
-           WHERE job = ?
-           ORDER BY start_d DESC, start_ps DESC
-        |}
-
-  let get_all_meta_by_name =
-    Caqti_request.collect
-      Caqti_type.string
       (Caqti_type.tup3
-         id
-         Meta.t
-         file_opt)
+         id Meta.t file_opt)
       {| SELECT build.id, build.uuid,
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
                 build.result_kind, build.result_code, build.result_msg,
@@ -359,7 +345,7 @@ module Build = struct
            FROM build, job
            LEFT JOIN build_artifact ON
              build.main_binary = build_artifact.id
-           WHERE job.name = ? AND build.job = job.id
+           WHERE job.id = ? AND build.job = job.id
            ORDER BY start_d DESC, start_ps DESC
         |}
 

@@ -4,8 +4,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Syntax
 open Lwt_result.Infix
 
-type db_error = [ Caqti_error.connect | Model.error ]
-
 let pp_error ppf = function
   | #Caqti_error.connect as e -> Caqti_error.pp ppf e
   | #Model.error as e -> Model.pp_error ppf e
@@ -58,6 +56,20 @@ let mime_lookup path =
     then "application/octet-stream"
     else Magic_mime.lookup (Fpath.to_string path)
 
+let or_error_response r =
+  let* r = r in
+  match r with
+  | Ok response -> Lwt.return response
+  | Error (text, status) -> Dream.respond ~status text
+
+let if_error ~status ?(log=(fun e -> Log.warn (fun m -> m "%s: %a" (Dream.status_to_string status) pp_error e))) message r =
+  let* r = r in
+  match r with
+  | Error (#Model.error as e) ->
+    log e;
+    Lwt_result.fail (message, status)
+  | Ok _ as r -> Lwt.return r
+
 let authorized handler = fun req ->
   let unauthorized () =
     let headers = ["WWW-Authenticate", Printf.sprintf "Basic realm=\"%s\"" realm] in
@@ -97,85 +109,74 @@ let authorized handler = fun req ->
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
 
+let get_uuid s =
+  Lwt.return
+    (if String.length s = 36 then
+       match Uuidm.of_string s with
+       | Some uuid -> Ok uuid
+       | None -> Error ("Bad uuid", `Not_Found)
+     else Error ("Bad uuid", `Not_Found))
+
 let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
   let builder req =
-    let* jobs = Dream.sql req Model.jobs in
-    match jobs with
-    | Error e ->
-      Log.warn (fun m -> m "Error getting jobs: %a" pp_error e);
-      Dream.respond ~status:`Internal_Server_Error "Error getting jobs"
-    | Ok jobs ->
-      let* jobs =
-        List.fold_right
-          (fun (job_id, job_name) r ->
-             r >>= fun acc ->
-             Dream.sql req (Model.build_meta job_id) >>= function
-             | Some (latest_build, latest_artifact) ->
-               Lwt_result.return ((job_name, latest_build, latest_artifact) :: acc)
-             | None ->
-               Log.warn (fun m -> m "Job without builds: %s" job_name);
-               Lwt_result.return acc)
-          jobs
-          (Lwt_result.return [])
-      in
-      match jobs with
-      | Error e ->
-        Log.warn (fun m -> m "Error getting jobs: %a" pp_error e);
-        Dream.respond ~status:`Internal_Server_Error "Error getting jobs"
-      | Ok jobs ->
-        Views.builder jobs |> string_of_html |> Dream.html
+    Dream.sql req Model.jobs
+    |> if_error ~status:`Internal_Server_Error "Error getting jobs"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
+    >>= fun jobs ->
+    List.fold_right
+      (fun (job_id, job_name) r ->
+         r >>= fun acc ->
+         Dream.sql req (Model.build_meta job_id) >>= function
+         | Some (latest_build, latest_artifact) ->
+           Lwt_result.return ((job_name, latest_build, latest_artifact) :: acc)
+         | None ->
+           Log.warn (fun m -> m "Job without builds: %s" job_name);
+           Lwt_result.return acc)
+      jobs
+      (Lwt_result.return [])
+    |> if_error ~status:`Internal_Server_Error "Error getting jobs"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
+    >>= fun jobs ->
+    Views.builder jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
     let job_name = Dream.param "job" req in
-    let* job = Dream.sql req (Model.job job_name) in
-    match job with
-    | Error e ->
-      Log.warn (fun m -> m "Error getting job: %a" pp_error e);
-      Dream.respond ~status:`Internal_Server_Error "Error getting job"
-    | Ok builds ->
-      Views.job job_name builds |> string_of_html |> Dream.html
+    Dream.sql req (Model.job job_name)
+    |> if_error ~status:`Internal_Server_Error "Error getting job"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
+    >>= fun builds ->
+    Views.job job_name builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
     let job_name = Dream.param "job" req in
     let path = Dream.path req |> String.concat "/" in
-    let* build =
-      Dream.sql req (Model.job_id job_name) >>= fun job_id ->
-      Dream.sql req (Model.latest_successful_build_uuid job_id)
-      >>= Model.not_found
-    in
-    match build with
-    | Error e ->
-      Log.warn (fun m -> m "Error getting job: %a" pp_error e);
-      Dream.respond ~status:`Not_Found "Error getting job"
-    | Ok build ->
-      Dream.redirect req
-        (Fmt.strf "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+    (Dream.sql req (Model.job_id job_name) >>= fun job_id ->
+     Dream.sql req (Model.latest_successful_build_uuid job_id))
+    >>= Model.not_found
+    |> if_error ~status:`Not_Found "Error getting job" >>= fun build ->
+    Dream.redirect req
+      (Fmt.strf "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+    |> Lwt_result.ok
   in
 
   let job_build req =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
-    match Uuidm.of_string build with
-    | None ->
-      Dream.respond "Bad request." ~status:`Bad_Request
-    | Some uuid ->
-      let* data =
-        Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
-        Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
-        Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
-        Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
-        (build, artifacts, latest_uuid, previous_build)
-      in
-      match data with
-      | Error e ->
-        Log.warn (fun m -> m "Error getting job build: %a" pp_error e);
-        Dream.respond "Error getting job build" ~status:`Internal_Server_Error
-      | Ok (build, artifacts, latest_uuid, previous_build) ->
-        Views.job_build job_name build artifacts latest_uuid previous_build |> string_of_html |> Dream.html
+    get_uuid build >>= fun uuid ->
+    (Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
+     Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
+     Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
+     Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
+         (build, artifacts, latest_uuid, previous_build))
+    |> if_error ~status:`Internal_Server_Error "Error getting job build"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+    >>= fun (build, artifacts, latest_uuid, previous_build) ->
+    Views.job_build job_name build artifacts latest_uuid previous_build |> string_of_html |> Dream.html
+    |> Lwt_result.ok
   in
 
   let job_build_file req =
@@ -187,128 +188,102 @@ let add_routes datadir =
     (* XXX: We don't check safety of [file]. This should be fine however since
      * we don't use [file] for the filesystem but is instead used as a key for
      * lookup in the data table of the 'full' file. *)
-    match Uuidm.of_string build, Fpath.of_string filepath with
-    | None, _ ->
-      Log.debug (fun m -> m "bad uuid: %s" build);
-      Dream.respond ~status:`Not_Found "File not found"
-    | _, Error (`Msg e) ->
-      Log.debug (fun m -> m "bad path: %s" e);
-      Dream.respond ~status:`Not_Found "File not found"
-    | Some build, Ok filepath ->
-      let* file = Dream.sql req (Model.build_artifact build filepath) in
-      match file with
-      | Error e ->
-        Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
-        Dream.respond ~status:`Internal_Server_Error "Error getting build artifact"
-      | Ok file ->
-        let etag = Base64.encode_string (Cstruct.to_string file.Builder_db.sha256) in
-        match if_none_match with
-        | Some etag' when etag = etag' ->
-          Dream.empty `Not_Modified
-        | _ ->
-          let* data = Model.build_artifact_data datadir file in
-          match data with
-          | Ok data ->
-            let headers = [
-              "Content-Type", mime_lookup file.Builder_db.filepath;
-              "ETag", etag;
-            ] in
-            Dream.respond ~headers data
-          | Error e ->
-            Log.warn (fun m -> m "Error getting build artifact: %a" pp_error e);
-            Dream.respond ~status:`Internal_Server_Error "Error getting build artifact"
+    get_uuid build >>= fun build ->
+    Fpath.of_string filepath |> Rresult.R.open_error_msg |> Lwt_result.lift
+    |> if_error ~status:`Not_Found "File not found" >>= fun filepath ->
+    Dream.sql req (Model.build_artifact build filepath)
+    |> if_error ~status:`Internal_Server_Error "Error getting build artifact" >>= fun file ->
+    let etag = Base64.encode_string (Cstruct.to_string file.Builder_db.sha256) in
+    match if_none_match with
+    | Some etag' when etag = etag' ->
+      Dream.empty `Not_Modified |> Lwt_result.ok
+    | _ ->
+      Model.build_artifact_data datadir file
+      |> if_error ~status:`Internal_Server_Error "Error getting build artifact" >>= fun data ->
+      let headers = [
+        "Content-Type", mime_lookup file.Builder_db.filepath;
+        "ETag", etag;
+      ] in
+      Dream.respond ~headers data |> Lwt_result.ok
   in
 
   let upload req =
     let* body = Dream.body req in
-    match Builder.Asn.exec_of_cs (Cstruct.of_string body) with
-    | Error (`Msg e) ->
-      Log.warn (fun m -> m "Received bad builder ASN.1");
-      Log.debug (fun m -> m "Parse error: %s" e);
-      Dream.respond ~status:`Bad_Request "Bad request"
-    | Ok ((_, uuid, _, _, _, _, _) as exec) ->
-      Log.info (fun m -> m "Received build %a" pp_exec exec);
-      let* r = Dream.sql req (Model.build_exists uuid) in
-      match r with
-      | Error e ->
-        Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
-        Dream.respond ~status:`Internal_Server_Error "Internal server error"
-      | Ok true ->
-        Log.warn (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
-        Dream.respond ~status:`Conflict
-          (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
-      | Ok false ->
-        let datadir = Dream.global datadir_global req in
-        let* r = Dream.sql req (Model.add_build datadir exec) in
-        match r with
-        | Ok () ->
-          Dream.respond ""
-        | Error e ->
-          Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e);
-          Dream.respond ~status:`Internal_Server_Error "Internal server error"
+    Builder.Asn.exec_of_cs (Cstruct.of_string body) |> Lwt.return
+    |> if_error ~status:`Bad_Request "Bad request"
+      ~log:(fun e ->
+        Log.warn (fun m -> m "Received bad builder ASN.1: %a" pp_error e))
+    >>= fun ((_, uuid, _, _, _, _, _) as exec) ->
+    Log.debug (fun m -> m "Received build %a" pp_exec exec);
+    Dream.sql req (Model.build_exists uuid)
+    |> if_error ~status:`Internal_Server_Error "Internal server error"
+      ~log:(fun e ->
+              Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
+    >>= function
+    | true ->
+      Log.warn (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
+      Dream.respond ~status:`Conflict
+        (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
+      |> Lwt_result.ok
+    | false ->
+      let datadir = Dream.global datadir_global req in
+      Dream.sql req (Model.add_build datadir exec)
+      |> if_error ~status:`Internal_Server_Error "Internal server error"
+        ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
+      >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
   let hash req =
-    let hash_hex = Dream.query "sha256" req in
-    match Option.map (fun h -> Hex.to_cstruct (`Hex h)) hash_hex with
+    Dream.query "sha256" req |> Option.to_result ~none:(`Msg "Missing sha256 query parameter") |> Lwt.return
+    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash_hex ->
+    begin try Hex.to_cstruct (`Hex hash_hex) |> Lwt_result.return
+      with Invalid_argument e -> Lwt_result.fail (`Msg ("Bad hex: " ^ e))
+    end
+    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash ->
+    Dream.sql req (Model.build_hash hash)
+    |> if_error ~status:`Internal_Server_Error "Internal server error" >>= function
     | None ->
-      Log.debug (fun m -> m "sha256 query parameter not provided");
-      Dream.respond ~status:`Bad_Request "Bad request"
-    | Some hash ->
-      let* build = Dream.sql req (Model.build_hash hash) in
-      (match build with
-       | Error e ->
-         Log.warn (fun m -> m "Database error: %a" pp_error e);
-         Dream.respond ~status:`Internal_Server_Error "Internal server error"
-       | Ok None ->
-         Log.debug (fun m -> m "Hash not found: %S" (Option.get hash_hex));
-         Dream.respond ~status:`Not_Found "Artifact not found"
-       | Ok (Some (job_name, build)) ->
-         Dream.redirect req
-           (Fmt.strf "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid))
-    | exception Invalid_argument _ ->
-      Log.debug (fun m -> m "Invalid hash hex %S" (Option.get hash_hex));
-      Dream.respond ~status:`Bad_Request "Bad request"
+      Log.debug (fun m -> m "Hash not found: %S" hash_hex);
+      Dream.respond ~status:`Not_Found "Artifact not found" |> Lwt_result.ok
+    | Some (job_name, build) ->
+      Dream.redirect req
+        (Fmt.strf "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid)
+      |> Lwt_result.ok
   in
 
   let compare_opam req =
     let datadir = Dream.global datadir_global req in
     let build_left = Dream.param "build_left" req in
     let build_right = Dream.param "build_right" req in
-    match Uuidm.of_string build_left, Uuidm.of_string build_right with
-    | None, _ | _, None ->
-      Dream.respond ~status:`Bad_Request "Bad request"
-    | Some build_left, Some build_right ->
-      let* r =
-        Dream.sql req (Model.build_artifact build_left (Fpath.v "opam-switch")) >>=
-        Model.build_artifact_data datadir >>= fun switch_left ->
-        Dream.sql req (Model.build_artifact build_right (Fpath.v "opam-switch")) >>=
-        Model.build_artifact_data datadir >>= fun switch_right ->
-        Dream.sql req (Model.build build_left) >>= fun (_id, build_left) ->
-        Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->
-        Dream.sql req (Model.job_name build_left.job_id) >>= fun job_left ->
-        Dream.sql req (Model.job_name build_right.job_id) >>= fun job_right ->
-        Lwt_result.return (job_left, job_right, build_left, build_right, switch_left, switch_right)
-      in
-      match r with
-      | Error e ->
-        Log.warn (fun m -> m "Database error: %a" pp_error e);
-        Dream.respond ~status:`Internal_Server_Error "Internal server error"
-      | Ok (job_left, job_right, build_left, build_right, switch_left, switch_right) ->
-        let switch_left = OpamFile.SwitchExport.read_from_string switch_left
-        and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-        Opamdiff.compare switch_left switch_right
-        |> Views.compare_opam job_left job_right build_left build_right
-        |> string_of_html |> Dream.html
+    get_uuid build_left >>= fun build_left ->
+    get_uuid build_right >>= fun build_right ->
+    (Dream.sql req (Model.build_artifact build_left (Fpath.v "opam-switch")) >>=
+     Model.build_artifact_data datadir >>= fun switch_left ->
+     Dream.sql req (Model.build_artifact build_right (Fpath.v "opam-switch")) >>=
+     Model.build_artifact_data datadir >>= fun switch_right ->
+     Dream.sql req (Model.build build_left) >>= fun (_id, build_left) ->
+     Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->
+     Dream.sql req (Model.job_name build_left.job_id) >>= fun job_left ->
+     Dream.sql req (Model.job_name build_right.job_id) >|= fun job_right ->
+     (job_left, job_right, build_left, build_right, switch_left, switch_right))
+    |> if_error ~status:`Internal_Server_Error "Internal server error"
+    >>= fun (job_left, job_right, build_left, build_right, switch_left, switch_right) ->
+    let switch_left = OpamFile.SwitchExport.read_from_string switch_left
+    and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
+    Opamdiff.compare switch_left switch_right
+    |> Views.compare_opam job_left job_right build_left build_right
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
+  let w f req = or_error_response (f req) in
+
   Dream.router [
-    Dream.get "/" builder;
-    Dream.get "/job/:job/" job;
-    Dream.get "/job/:job/build/latest/**" redirect_latest;
-    Dream.get "/job/:job/build/:build/" job_build;
-    Dream.get "/job/:job/build/:build/f/**" job_build_file;
-    Dream.get "/hash" hash;
-    Dream.get "/compare/:build_left/:build_right/opam-switch" compare_opam;
-    Dream.post "/upload" (authorized upload);
+    Dream.get "/" (w builder);
+    Dream.get "/job/:job/" (w job);
+    Dream.get "/job/:job/build/latest/**" (w redirect_latest);
+    Dream.get "/job/:job/build/:build/" (w job_build);
+    Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
+    Dream.get "/hash" (w hash);
+    Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
+    Dream.post "/upload" (authorized (w upload));
   ]

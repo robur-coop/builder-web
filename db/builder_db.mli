@@ -140,9 +140,7 @@ sig
   val get_all :
     (id, id * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_meta :
-    (id, id * Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_all_meta_by_name :
-    (string, id * Meta.t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
+    (id, id * Meta.t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest :
     (id, id * Meta.t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t

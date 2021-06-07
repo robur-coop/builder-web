@@ -86,7 +86,7 @@ let setup_app level influx port host datadir =
   | Error (#Caqti_error.load as e) ->
     Format.eprintf "Error: %a\n%!" Caqti_error.pp e;
     exit 2
-  | Error (#Builder_web.db_error | `Wrong_version _ as e) ->
+  | Error (#Caqti_error.connect | #Caqti_error.call_or_retrieve | `Msg _ | `Wrong_version _ as e) ->
     Format.eprintf "Error: %a\n%!" Builder_web.pp_error e;
     exit 1
   | Ok () ->
