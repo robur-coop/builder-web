@@ -95,6 +95,7 @@ let setup_app level influx port host datadir =
     Dream.run ~port ~interface:host ~https:false
     @@ Dream.logger
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
+    @@ Http_status_metrics.handle
     @@ Builder_web.add_routes datadir
     @@ Dream.not_found
 

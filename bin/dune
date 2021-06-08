@@ -2,7 +2,7 @@
  (public_name builder-web)
  (name builder_web_app)
  (modules builder_web_app)
- (libraries builder_web mirage-crypto-rng.unix cmdliner logs.cli metrics metrics-lwt metrics-influx metrics-rusage ipaddr ipaddr.unix))
+ (libraries builder_web mirage-crypto-rng.unix cmdliner logs.cli metrics metrics-lwt metrics-influx metrics-rusage ipaddr ipaddr.unix http_status_metrics))
 
 (executable
  (public_name builder-db)
