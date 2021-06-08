@@ -55,8 +55,9 @@ val job_name : Builder_db.id -> Caqti_lwt.connection ->
   (string, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val user : string -> Caqti_lwt.connection ->
-  (Builder_web_auth.scrypt Builder_web_auth.user_info option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  ((Builder_db.id * Builder_web_auth.scrypt Builder_web_auth.user_info) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val authorized : Builder_db.id -> string -> Caqti_lwt.connection -> (unit, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val add_build :
   Fpath.t ->

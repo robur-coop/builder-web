@@ -92,8 +92,12 @@ let job_name id (module Db : CONN) =
   Db.find Builder_db.Job.get id
 
 let user username (module Db : CONN) =
-  Db.find_opt Builder_db.User.get_user username >|=
-  Option.map snd
+  Db.find_opt Builder_db.User.get_user username
+
+let authorized user_id job_name (module Db : CONN) =
+  job_id job_name (module Db) >>= fun job_id ->
+  Db.find Builder_db.Access_list.get (user_id, job_id) >|= fun _id ->
+  ()
 
 let cleanup_staging datadir (module Db : Caqti_lwt.CONNECTION) =
   let cleanup_staged staged =

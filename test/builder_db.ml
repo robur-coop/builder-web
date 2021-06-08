@@ -19,17 +19,18 @@ module Testable = struct
   let builder_web_auth =
     let equal (x : _ Builder_web_auth.user_info) (y : _ Builder_web_auth.user_info) =
       x.username = y.username &&
+      x.restricted = y.restricted &&
       match x.password_hash, y.password_hash with
       | `Scrypt (hash, salt, params), `Scrypt (hash', salt', params') ->
         Cstruct.equal hash hash' &&
         Cstruct.equal salt salt' &&
         params = params'
     in
-    let pp ppf { Builder_web_auth.username; password_hash } =
+    let pp ppf { Builder_web_auth.username; password_hash; restricted } =
       match password_hash with
       | `Scrypt (hash, salt, { Builder_web_auth.scrypt_n; scrypt_r; scrypt_p }) ->
-        Format.fprintf ppf "user:%s;(%d,%d,%d);%a;%a" username
-          scrypt_n scrypt_r scrypt_p
+        Format.fprintf ppf "user:%s;(%d,%d,%d);%B;%a;%a" username
+          scrypt_n scrypt_r scrypt_p restricted
           Cstruct.hexdump_pp hash Cstruct.hexdump_pp salt
     in
     Alcotest.testable
@@ -67,8 +68,9 @@ let setup_db () =
 let scrypt_params = Builder_web_auth.scrypt_params
     ~scrypt_n:1024 ~scrypt_r:1 ()
 let username = "test" and password = "testtest"
+let restricted = false
 (* Bad, but fast *)
-let auth = Builder_web_auth.hash ~scrypt_params ~username ~password ()
+let auth = Builder_web_auth.hash ~scrypt_params ~username ~password ~restricted ()
 
 let add_test_user (module Db : CONN) =
   Db.exec Builder_db.User.add auth
@@ -96,7 +98,7 @@ let test_user_remove_user (module Db : CONN) =
 
 let test_user_update (module Db : CONN) =
   let auth' = Builder_web_auth.hash ~scrypt_params ~username
-      ~password:"differentpassword" () in
+      ~password:"differentpassword" ~restricted () in
   Db.exec Builder_db.User.update_user auth' >>= fun () ->
   Db.find_opt Builder_db.User.get_user username >>| fun res ->
   let auth_opt = Option.map snd res in

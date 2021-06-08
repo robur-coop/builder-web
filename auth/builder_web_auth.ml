@@ -21,6 +21,7 @@ type password_hash = [ pbkdf2_sha256 | scrypt ]
 type 'a user_info = {
   username : string;
   password_hash : [< password_hash ] as 'a;
+  restricted : bool;
 }
 
 let pbkdf2_sha256 ~params:{ pbkdf2_sha256_iter = count } ~salt ~password =
@@ -30,12 +31,13 @@ let scrypt ~params:{ scrypt_n = n; scrypt_r = r; scrypt_p = p } ~salt ~password 
   Scrypt_kdf.scrypt_kdf ~n ~r ~p ~dk_len:32l ~salt ~password:(Cstruct.of_string password)
 
 let hash ?(scrypt_params=scrypt_params ())
-    ~username ~password () =
+    ~username ~password ~restricted () =
   let salt = Mirage_crypto_rng.generate 16 in
   let password_hash = scrypt ~params:scrypt_params ~salt ~password in
   {
     username;
-    password_hash = `Scrypt (password_hash, salt, scrypt_params)
+    password_hash = `Scrypt (password_hash, salt, scrypt_params);
+    restricted;
   }
 
 let verify_password password user_info =

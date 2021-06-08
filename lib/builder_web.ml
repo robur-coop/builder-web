@@ -12,8 +12,6 @@ let pp_error ppf = function
     then Format.fprintf ppf "Wrong database version: %Ld" version
     else Format.fprintf ppf "Wrong database application id: %ld" application_id
 
-let realm = "builder-web"
-
 let init_datadir datadir =
   let open Rresult.R.Infix in
   Bos.OS.Dir.exists datadir >>= (fun exists ->
@@ -69,42 +67,6 @@ let if_error ~status ?(log=(fun e -> Log.warn (fun m -> m "%s: %a" (Dream.status
     log e;
     Lwt_result.fail (message, status)
   | Ok _ as r -> Lwt.return r
-
-let authorized handler = fun req ->
-  let unauthorized () =
-    let headers = ["WWW-Authenticate", Printf.sprintf "Basic realm=\"%s\"" realm] in
-    Dream.respond ~headers ~status:`Unauthorized "Forbidden!"
-  in
-  match Dream.header "Authorization" req with
-  | None -> unauthorized ()
-  | Some data -> match String.split_on_char ' ' data with
-     | [ "Basic" ; user_pass ] ->
-       (match Base64.decode user_pass with
-       | Error `Msg msg ->
-         Log.info (fun m -> m "Invalid user / pasword encoding in %S: %S" data msg);
-         Dream.respond ~status:`Bad_Request "Couldn't decode authorization"
-       | Ok user_pass -> match String.split_on_char ':' user_pass with
-         | [] | [_] ->
-           Log.info (fun m -> m "Invalid user / pasword encoding in %S" data);
-           Dream.respond ~status:`Bad_Request "Couldn't decode authorization"
-         | user :: password ->
-           let pass = String.concat ":" password in
-           let* user_info = Dream.sql req (Model.user user) in
-           match user_info with
-           | Ok (Some user_info) ->
-             if Builder_web_auth.verify_password pass user_info
-             then handler req
-             else unauthorized ()
-           | Ok None ->
-             let _ : _ Builder_web_auth.user_info =
-               Builder_web_auth.hash ~username:user ~password:pass () in
-             unauthorized ()
-           | Error e ->
-             Log.warn (fun m -> m "Error getting user: %a" pp_error e);
-             Dream.respond ~status:`Internal_Server_Error "Internal server error")
-     | _ ->
-       Log.warn (fun m -> m "Error retrieving authorization %S" data);
-       Dream.respond ~status:`Bad_Request "Couldn't decode authorization"
 
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
@@ -213,8 +175,10 @@ let add_routes datadir =
     |> if_error ~status:`Bad_Request "Bad request"
       ~log:(fun e ->
         Log.warn (fun m -> m "Received bad builder ASN.1: %a" pp_error e))
-    >>= fun ((_, uuid, _, _, _, _, _) as exec) ->
+    >>= fun (({ name ; _ }, uuid, _, _, _, _, _) as exec) ->
     Log.debug (fun m -> m "Received build %a" pp_exec exec);
+    Authorization.authorized req name
+    |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->
     Dream.sql req (Model.build_exists uuid)
     |> if_error ~status:`Internal_Server_Error "Internal server error"
       ~log:(fun e ->
@@ -285,5 +249,5 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
-    Dream.post "/upload" (authorized (w upload));
+    Dream.post "/upload" (Authorization.authenticate (w upload));
   ]

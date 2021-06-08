@@ -182,6 +182,21 @@ module User : sig
     Caqti_request.t
 end
 
+module Access_list : sig
+  val migrate :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val rollback :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get :
+    (id * id, id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  val add :
+    (id * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val remove :
+    (id * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val remove_all_by_username :
+    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+end
+
 val migrate :
   (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t list
 val rollback :

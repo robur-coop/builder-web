@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 5L
+let current_version = 6L
 
 type id = Rep.id
 
@@ -457,7 +457,8 @@ module User = struct
            password_salt BLOB NOT NULL,
            scrypt_n INTEGER NOT NULL,
            scrypt_r INTEGER NOT NULL,
-           scrypt_p INTEGER NOT NULL
+           scrypt_p INTEGER NOT NULL,
+           restricted BOOLEAN NOT NULL
          )
       |}
 
@@ -471,7 +472,7 @@ module User = struct
       Caqti_type.string
       (Caqti_type.tup2 id user_info)
       {| SELECT id, username, password_hash, password_salt,
-           scrypt_n, scrypt_r, scrypt_p
+           scrypt_n, scrypt_r, scrypt_p, restricted
          FROM user
          WHERE username = ?
       |}
@@ -486,8 +487,8 @@ module User = struct
     Caqti_request.exec
       user_info
       {| INSERT INTO user (username, password_hash, password_salt,
-           scrypt_n, scrypt_r, scrypt_p)
-         VALUES (?, ?, ?, ?, ?, ?)
+           scrypt_n, scrypt_r, scrypt_p, restricted)
+         VALUES (?, ?, ?, ?, ?, ?, ?)
       |}
 
   let remove =
@@ -508,9 +509,53 @@ module User = struct
              password_salt = ?3,
              scrypt_n = ?4,
              scrypt_r = ?5,
-             scrypt_p = ?6
+             scrypt_p = ?6,
+             restricted = ?7
          WHERE username = ?1
       |}
+end
+
+module Access_list = struct
+  let migrate =
+    Caqti_request.exec
+      Caqti_type.unit
+      {| CREATE TABLE access_list (
+             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+             user INTEGER NOT NULL,
+             job INTEGER NOT NULL,
+
+             FOREIGN KEY(user) REFERENCES user(id),
+             FOREIGN KEY(job) REFERENCES job(id),
+             UNIQUE(user, job)
+           )
+      |}
+
+  let rollback =
+    Caqti_request.exec
+      Caqti_type.unit
+      "DROP TABLE IF EXISTS access_list"
+
+  let get =
+    Caqti_request.find
+      Caqti_type.(tup2 Rep.id Rep.id)
+      Rep.id
+      "SELECT id FROM access_list WHERE user = ? AND job = ?"
+
+  let add =
+    Caqti_request.exec
+      Caqti_type.(tup2 Rep.id Rep.id)
+      "INSERT INTO access_list (user, job) VALUES (?, ?)"
+
+  let remove =
+    Caqti_request.exec
+      Caqti_type.(tup2 Rep.id Rep.id)
+      "DELETE FROM access_list WHERE user = ? AND job = ?"
+
+  let remove_all_by_username =
+    Caqti_request.exec
+      Caqti_type.string
+      "DELETE FROM access_list, user WHERE access_list.user = user.id AND user.username = ?"
+
 end
 
 let migrate = [
@@ -519,6 +564,7 @@ let migrate = [
   Build_artifact.migrate;
   Build_file.migrate;
   User.migrate;
+  Access_list.migrate;
   Caqti_request.exec Caqti_type.unit
     "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)";
   set_current_version;
@@ -526,6 +572,7 @@ let migrate = [
 ]
 
 let rollback = [
+  Access_list.rollback;
   User.rollback;
   Build_file.migrate;
   Build_artifact.rollback;

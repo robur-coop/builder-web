@@ -135,6 +135,16 @@ let r20210602 =
   Cmdliner.Term.(const do_database_action $ const M20210602.rollback $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "rollback-2021-06-02"
 
+let m20210608 =
+  let doc = "add access list" in
+  Cmdliner.Term.(const do_database_action $ const M20210608.migrate $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "migrate-2021-06-08"
+
+let r20210608 =
+  let doc = "remove access list" in
+  Cmdliner.Term.(const do_database_action $ const M20210608.rollback $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "rollback-2021-06-08"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -161,5 +171,6 @@ let () =
       m20210427; r20210427;
       m20210531; r20210531;
       m20210602; r20210602;
+      m20210608; r20210608;
     ]
   |> Cmdliner.Term.exit

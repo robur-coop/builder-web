@@ -2,7 +2,10 @@ open Rresult.R.Infix
 
 let or_die exit_code = function
   | Ok r -> r
-  | Error e ->
+  | Error (`Msg msg) ->
+    Format.eprintf "Error: %s" msg;
+    exit exit_code
+  | Error (#Caqti_error.t as e) ->
     Format.eprintf "Database error: %a" Caqti_error.pp e;
     exit exit_code
 
@@ -20,7 +23,7 @@ let do_migrate dbpath =
 let migrate () dbpath =
   or_die 1 (do_migrate dbpath)
 
-let user_mod action dbpath scrypt_n scrypt_r scrypt_p username =
+let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
   let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
   let r =
     Caqti_blocking.connect
@@ -30,7 +33,8 @@ let user_mod action dbpath scrypt_n scrypt_r scrypt_p username =
     flush stdout;
     (* FIXME: getpass *)
     let password = read_line () in
-    let user_info = Builder_web_auth.hash ~scrypt_params ~username ~password () in
+    let restricted = not unrestricted in
+    let user_info = Builder_web_auth.hash ~scrypt_params ~username ~password ~restricted () in
     match action with
     | `Add ->
       Db.exec Builder_db.User.add user_info
@@ -59,9 +63,36 @@ let user_remove () dbpath username =
     Caqti_blocking.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.exec Builder_db.Access_list.remove_all_by_username username >>= fun () ->
     Db.exec Builder_db.User.remove_user username
   in
   or_die 1 r
+
+let access_add () dbpath username jobname =
+  let r =
+    Caqti_blocking.connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.find_opt Builder_db.User.get_user username >>= function
+    | None -> Error (`Msg "unknown user")
+    | Some (user_id, _) ->
+      Db.find Builder_db.Job.get_id_by_name jobname >>= fun job_id ->
+      Db.exec Builder_db.Access_list.add (user_id, job_id)
+   in
+   or_die 1 r
+
+ let access_remove () dbpath username jobname =
+  let r =
+    Caqti_blocking.connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.find_opt Builder_db.User.get_user username >>= function
+    | None -> Error (`Msg "unknown user")
+    | Some (user_id, _) ->
+      Db.find Builder_db.Job.get_id_by_name jobname >>= fun job_id ->
+      Db.exec Builder_db.Access_list.remove (user_id, job_id)
+   in
+   or_die 1 r
 
 let help man_format cmds = function
   | None -> `Help (man_format, None)
@@ -112,6 +143,16 @@ let scrypt_p =
                 opt (some int) None &
                 info ~doc ["scrypt-p"])
 
+let unrestricted =
+  let doc = "unrestricted user" in
+  Cmdliner.Arg.(value & flag & info ~doc [ "unrestricted" ])
+
+let job =
+  let doc = "job" in
+  Cmdliner.Arg.(required &
+                pos 1 (some string) None &
+                info ~doc ~docv:"JOB" [])
+
 let setup_log =
   let setup_log level =
     Logs.set_level level;
@@ -127,12 +168,12 @@ let migrate_cmd =
 
 let user_add_cmd =
   let doc = "add a user" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username),
+  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username $ unrestricted),
    Cmdliner.Term.info ~doc "user-add")
 
 let user_update_cmd =
   let doc = "update a user password" in
-  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username),
+  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username $ unrestricted),
    Cmdliner.Term.info ~doc "user-update")
 
 let user_remove_cmd =
@@ -144,6 +185,16 @@ let user_list_cmd =
   let doc = "list all users" in
   (Cmdliner.Term.(pure user_list $ setup_log $ dbpath),
    Cmdliner.Term.info ~doc "user-list")
+
+let access_add_cmd =
+  let doc = "grant access to user and job" in
+  (Cmdliner.Term.(pure access_add $ setup_log $ dbpath $ username $ job),
+   Cmdliner.Term.info ~doc "access-add")
+
+let access_remove_cmd =
+  let doc = "remove access to user and job" in
+  (Cmdliner.Term.(pure access_remove $ setup_log $ dbpath $ username $ job),
+   Cmdliner.Term.info ~doc "access-remove")
 
 let help_cmd =
   let topic =
@@ -164,5 +215,6 @@ let () =
   Cmdliner.Term.eval_choice
     default_cmd
     [help_cmd; migrate_cmd;
-     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd]
+     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd;
+     access_add_cmd; access_remove_cmd]
   |> Cmdliner.Term.exit

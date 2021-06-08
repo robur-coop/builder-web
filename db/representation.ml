@@ -107,18 +107,20 @@ let console =
   Caqti_type.custom ~encode ~decode cstruct
 
 let user_info =
-  let rep = Caqti_type.(tup4 string cstruct cstruct (tup3 int int int)) in
+  let rep = Caqti_type.(tup4 string cstruct cstruct (tup4 int int int bool)) in
   let encode { Builder_web_auth.username;
                password_hash = `Scrypt (password_hash, password_salt, {
                    Builder_web_auth.scrypt_n; scrypt_r; scrypt_p
-                 }) }
+               });
+               restricted; }
     =
-    Ok (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p))
+    Ok (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p, restricted))
   in
-  let decode (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p)) =
+  let decode (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p, restricted)) =
     Ok { Builder_web_auth.username;
          password_hash =
            `Scrypt (password_hash, password_salt,
                     { Builder_web_auth.scrypt_n;
-                      scrypt_r; scrypt_p }) }  in
+                      scrypt_r; scrypt_p });
+         restricted; }  in
   Caqti_type.custom ~encode ~decode rep
