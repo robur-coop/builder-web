@@ -12,6 +12,8 @@ let get_opt message = function
 let or_fail x =
   match x with
   | Ok x -> x
+  | Error (`Msg msg) ->
+    Alcotest.failf "Error: %s" msg
   | Error (#Caqti_error.t as e) ->
     Alcotest.failf "DB error: %a" Caqti_error.pp e
 
@@ -148,12 +150,15 @@ let main_binary =
   let size = String.length data in
   { Builder_db.Rep.filepath; localpath; sha256; size }
 
+let fail_if_none =
+  Option.to_result ~none:(`Msg "Failed to retrieve job id")
+
 let add_test_build (module Db : CONN) =
   let r =
     let open Builder_db in
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
-    Db.find Job.get_id_by_name job_name >>= fun job_id ->
+    Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result; console; script;
                         main_binary = None;
                         job_id } >>= fun () ->
@@ -178,11 +183,11 @@ let test_job_get_all (module Db : CONN) =
   Alcotest.(check int) "one job" (List.length jobs) 1
 
 let test_job_get_id_by_name (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name >>| fun _id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>| fun _id ->
   ()
 
 let test_job_get (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.find_opt Builder_db.Job.get job_id >>| fun job_name' ->
   Alcotest.(check (option string)) "job equal" job_name' (Some job_name)
 
@@ -190,7 +195,7 @@ let test_job_remove () =
   let r =
     setup_db () >>= fun (module Db : CONN) ->
     Db.exec Builder_db.Job.try_add "test-job" >>= fun () ->
-    Db.find Builder_db.Job.get_id_by_name "test-job" >>= fun id ->
+    Db.find_opt Builder_db.Job.get_id_by_name "test-job" >>= fail_if_none >>= fun id ->
     Db.exec Builder_db.Job.remove id >>= fun () ->
     Db.collect_list Builder_db.Job.get_all () >>| fun jobs ->
     Alcotest.(check int) "no jobs" (List.length jobs) 0
@@ -203,12 +208,12 @@ let test_build_get_by_uuid (module Db : CONN) =
   Alcotest.(check Testable.uuid) "same uuid" build.uuid uuid
 
 let test_build_get_all (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_all job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
 let test_build_get_all_meta (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_all_meta job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
@@ -220,7 +225,7 @@ let add_second_build (module Db : CONN) =
   let uuid = uuid' and start = start' and finish = finish' in
   let open Builder_db in
   Db.start () >>= fun () ->
-  Db.find Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.exec Build.add { Build.uuid; start; finish; result; console; script;
                       main_binary = None; job_id;
                     } >>= fun () ->
@@ -233,7 +238,7 @@ let add_second_build (module Db : CONN) =
 let test_build_get_latest (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   (* Test *)
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.find_opt Builder_db.Build.get_latest job_id
   >>| get_opt "no latest build" >>| fun (_id, meta, main_binary') ->
   Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
@@ -242,7 +247,7 @@ let test_build_get_latest (module Db : CONN) =
 let test_build_get_latest_uuid (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   (* Test *)
-  Db.find Builder_db.Job.get_id_by_name job_name >>= fun job_id ->
+  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.find_opt Builder_db.Build.get_latest_uuid job_id
   >>| get_opt "no latest build" >>| fun (_id, latest_uuid) ->
   Alcotest.(check Testable.uuid) "same uuid" latest_uuid uuid'

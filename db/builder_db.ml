@@ -66,7 +66,7 @@ module Job = struct
       "SELECT name FROM job WHERE id = ?"
 
   let get_id_by_name =
-    Caqti_request.find
+    Caqti_request.find_opt
       Caqti_type.string
       id
       "SELECT id FROM job WHERE name = ?"

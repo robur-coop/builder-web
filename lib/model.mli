@@ -43,10 +43,10 @@ val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
   (Builder_db.file option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val job : string -> Caqti_lwt.connection ->
-  ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
 val job_id : string -> Caqti_lwt.connection ->
-  (Builder_db.id, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  (Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val jobs : Caqti_lwt.connection ->
   ((Builder_db.id * string) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
@@ -57,7 +57,7 @@ val job_name : Builder_db.id -> Caqti_lwt.connection ->
 val user : string -> Caqti_lwt.connection ->
   ((Builder_db.id * Builder_web_auth.scrypt Builder_web_auth.user_info) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val authorized : Builder_db.id -> string -> Caqti_lwt.connection -> (unit, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+val authorized : Builder_db.id -> string -> Caqti_lwt.connection -> (unit, [> Caqti_error.call_or_retrieve | `Msg of string ]) result Lwt.t
 
 val add_build :
   Fpath.t ->

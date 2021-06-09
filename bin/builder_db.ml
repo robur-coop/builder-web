@@ -73,24 +73,24 @@ let access_add () dbpath username jobname =
     Caqti_blocking.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find_opt Builder_db.User.get_user username >>= function
-    | None -> Error (`Msg "unknown user")
-    | Some (user_id, _) ->
-      Db.find Builder_db.Job.get_id_by_name jobname >>= fun job_id ->
-      Db.exec Builder_db.Access_list.add (user_id, job_id)
+    Db.find_opt Builder_db.User.get_user username >>=
+    Option.to_result ~none:(`Msg "unknown user") >>= fun (user_id, _) ->
+    Db.find_opt Builder_db.Job.get_id_by_name jobname >>=
+    Option.to_result ~none:(`Msg "job not found") >>= fun job_id ->
+    Db.exec Builder_db.Access_list.add (user_id, job_id)
    in
    or_die 1 r
 
- let access_remove () dbpath username jobname =
+let access_remove () dbpath username jobname =
   let r =
     Caqti_blocking.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find_opt Builder_db.User.get_user username >>= function
-    | None -> Error (`Msg "unknown user")
-    | Some (user_id, _) ->
-      Db.find Builder_db.Job.get_id_by_name jobname >>= fun job_id ->
-      Db.exec Builder_db.Access_list.remove (user_id, job_id)
+    Db.find_opt Builder_db.User.get_user username >>=
+    Option.to_result ~none:(`Msg "unknown user") >>= fun (user_id, _) ->
+    Db.find_opt Builder_db.Job.get_id_by_name jobname >>=
+    Option.to_result ~none:(`Msg "job not found") >>= fun job_id ->
+    Db.exec Builder_db.Access_list.remove (user_id, job_id)
    in
    or_die 1 r
 

@@ -54,7 +54,7 @@ module Job : sig
     (id, string, [< `Many | `One | `Zero > `One ])
       Caqti_request.t
   val get_id_by_name :
-    (string, id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+    (string, id, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
   val get_all :
     (unit, id * string, [ `Many | `One | `Zero ]) Caqti_request.t
   val try_add :

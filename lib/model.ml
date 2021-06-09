@@ -78,10 +78,10 @@ let main_binary id main_binary (module Db : CONN) =
     Some file
 
 let job_id job_name (module Db : CONN) =
-  Db.find Builder_db.Job.get_id_by_name job_name
+  Db.find_opt Builder_db.Job.get_id_by_name job_name
 
 let job job (module Db : CONN) =
-  job_id job (module Db) >>= fun job_id ->
+  job_id job (module Db) >>= not_found >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_all_meta job_id >|=
   List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
 
@@ -95,7 +95,8 @@ let user username (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username
 
 let authorized user_id job_name (module Db : CONN) =
-  job_id job_name (module Db) >>= fun job_id ->
+  job_id job_name (module Db) >>=
+  (function None -> Lwt_result.fail (`Msg "No such job") | Some r -> Lwt_result.return r) >>= fun job_id ->
   Db.find Builder_db.Access_list.get (user_id, job_id) >|= fun _id ->
   ()
 
@@ -209,7 +210,8 @@ let add_build
   let r =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
-    Db.find Job.get_id_by_name job_name >>= fun job_id ->
+    Db.find_opt Job.get_id_by_name job_name >>= fun job_id ->
+    Lwt.return (Option.to_result ~none:(`Msg "No such job id") job_id) >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
                         main_binary = None; job_id } >>= fun () ->
