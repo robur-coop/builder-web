@@ -27,7 +27,6 @@ depends: [
   "caqti-driver-sqlite3"
   "pbkdf"
   "mirage-crypto-rng"
-  "sexplib"
   "scrypt-kdf"
   "alcotest" {with-test}
   "opam-core"
@@ -37,6 +36,16 @@ depends: [
   "metrics-influx"
   "metrics-rusage"
   "ipaddr"
+  "tyxml"
+  "ptime"
+  "duration"
+  "rresult"
+  "mirage-crypto"
+  "asn1-combinators"
+  "logs"
+  "cmdliner"
+  "uri"
+  "fmt"
 ]
 
 synopsis: "Web interface for builder"
