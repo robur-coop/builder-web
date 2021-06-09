@@ -1,5 +1,9 @@
 let old_version = 4L and new_version = 5L
 
+let idx_build_job_start =
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)"
+
 let new_build =
     Caqti_request.exec
       Caqti_type.unit
@@ -121,6 +125,7 @@ let migrate _ (module Db : Caqti_blocking.CONNECTION) =
     builds >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
+  Db.exec idx_build_job_start () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
  
@@ -140,4 +145,5 @@ let rollback _ (module Db : Caqti_blocking.CONNECTION) =
     builds >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
+  Db.exec idx_build_job_start () >>= fun () ->
   Db.exec (Grej.set_version old_version) ()

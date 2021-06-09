@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 6L
+let current_version = 7L
 
 type id = Rep.id
 
@@ -212,12 +212,13 @@ module Build = struct
     console : (int * string) list;
     script : string;
     main_binary : id option;
+    user_id : id;
     job_id : id;
   }
 
   let t =
     let rep =
-      Caqti_type.(tup2
+      Caqti_type.(tup3
                     (tup4
                        uuid
                        (tup2
@@ -229,13 +230,14 @@ module Build = struct
                        (tup2
                           string
                           (option Rep.id)))
+                    id
                     id)
     in
-    let encode { uuid; start; finish; result; console; script; main_binary; job_id } =
-      Ok ((uuid, (start, finish), (result, console), (script, main_binary)), job_id)
+    let encode { uuid; start; finish; result; console; script; main_binary; user_id; job_id } =
+      Ok ((uuid, (start, finish), (result, console), (script, main_binary)), user_id, job_id)
     in
-    let decode ((uuid, (start, finish), (result, console), (script, main_binary)), job_id) =
-      Ok { uuid; start; finish; result; console; script; main_binary; job_id }
+    let decode ((uuid, (start, finish), (result, console), (script, main_binary)), user_id, job_id) =
+      Ok { uuid; start; finish; result; console; script; main_binary; user_id; job_id }
     in
     Caqti_type.custom ~encode ~decode rep
 
@@ -246,12 +248,13 @@ module Build = struct
       finish : Ptime.t;
       result : Builder.execution_result;
       main_binary : id option;
+      user_id : id;
       job_id : id;
     }
 
     let t =
       let rep =
-        Caqti_type.(tup2
+        Caqti_type.(tup3
                      (tup4
                        uuid
                        (tup2
@@ -259,13 +262,14 @@ module Build = struct
                           Rep.ptime)
                        execution_result
                        (option Rep.id))
+                     id
                      id)
       in
-      let encode { uuid; start; finish; result; main_binary; job_id } =
-        Ok ((uuid, (start, finish), result, main_binary), job_id)
+      let encode { uuid; start; finish; result; main_binary; user_id; job_id } =
+        Ok ((uuid, (start, finish), result, main_binary), user_id, job_id)
       in
-      let decode ((uuid, (start, finish), result, main_binary), job_id) =
-        Ok { uuid; start; finish; result; main_binary; job_id }
+      let decode ((uuid, (start, finish), result, main_binary), user_id, job_id) =
+        Ok { uuid; start; finish; result; main_binary; user_id; job_id }
       in
       Caqti_type.custom ~encode ~decode rep
   end
@@ -286,9 +290,11 @@ module Build = struct
            console BLOB NOT NULL,
            script TEXT NOT NULL,
            main_binary INTEGER,
+           user INTEGER NOT NULL,
            job INTEGER NOT NULL,
 
            FOREIGN KEY(main_binary) REFERENCES build_artifact(id),
+           FOREIGN KEY(user) REFERENCES user(id),
            FOREIGN KEY(job) REFERENCES job(id)
          )
       |}
@@ -304,7 +310,7 @@ module Build = struct
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
                 result_kind, result_code, result_msg,
-                console, script, main_binary, job
+                console, script, main_binary, user, job
            FROM build
            WHERE id = ?
         |}
@@ -315,7 +321,7 @@ module Build = struct
       (Caqti_type.tup2 id t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg,
-                  console, script, main_binary, job
+                  console, script, main_binary, user, job
            FROM build
            WHERE uuid = ?
         |}
@@ -326,7 +332,7 @@ module Build = struct
       (Caqti_type.tup2 id t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg, console,
-                  script, main_binary, job
+                  script, main_binary, user, job
            FROM build
            WHERE job = ?
            ORDER BY start_d DESC, start_ps DESC
@@ -340,7 +346,7 @@ module Build = struct
       {| SELECT build.id, build.uuid,
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
                 build.result_kind, build.result_code, build.result_msg,
-                build.main_binary, build.job,
+                build.main_binary, build.user, build.job,
                 build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
            FROM build, job
            LEFT JOIN build_artifact ON
@@ -359,7 +365,7 @@ module Build = struct
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_kind, b.result_code, b.result_msg,
-           b.main_binary, b.job,
+           b.main_binary, b.user, b.job,
            a.filepath, a.localpath, a.sha256, a.size
          FROM build b
          LEFT JOIN build_artifact a ON
@@ -398,7 +404,7 @@ module Build = struct
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_kind, b.result_code, b.result_msg,
-           b.main_binary, b.job
+           b.main_binary, b.user, b.job
          FROM build b, build b0
          WHERE b0.id = ? AND b0.job = b.job AND
            b.result_kind = 0 AND b.result_code = 0 AND
@@ -412,9 +418,9 @@ module Build = struct
       t
       {| INSERT INTO build
            (uuid, start_d, start_ps, finish_d, finish_ps,
-           result_kind, result_code, result_msg, console, script, main_binary, job)
+           result_kind, result_code, result_msg, console, script, main_binary, user, job)
            VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
   let get_by_hash =
@@ -426,7 +432,7 @@ module Build = struct
       {| SELECT job.name,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_kind, b.result_code, b.result_msg,
-           b.console, b.script, b.main_binary, b.job
+           b.console, b.script, b.main_binary, b.user, b.job
          FROM build_artifact a
          INNER JOIN build b ON b.id = a.build
          INNER JOIN job ON job.id = b.job

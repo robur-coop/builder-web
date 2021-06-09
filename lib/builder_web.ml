@@ -196,7 +196,9 @@ let add_routes datadir =
       |> Lwt_result.ok
     | false ->
       let datadir = Dream.global datadir_global req in
-      Dream.sql req (Model.add_build datadir exec)
+      (Lwt.return (Dream.local Authorization.user_info_local req |>
+                   Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
+       Dream.sql req (Model.add_build datadir user_id exec))
       |> if_error "Internal server error"
         ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
       >>= fun () -> Dream.respond "" |> Lwt_result.ok

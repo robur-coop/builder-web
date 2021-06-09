@@ -75,12 +75,13 @@ let restricted = false
 let auth = Builder_web_auth.hash ~scrypt_params ~username ~password ~restricted ()
 
 let add_test_user (module Db : CONN) =
-  Db.exec Builder_db.User.add auth
+  Db.exec Builder_db.User.add auth >>= fun () ->
+  Db.find Builder_db.last_insert_rowid ()
 
 let with_user_db f () =
   or_fail
     (setup_db () >>= fun conn ->
-     add_test_user conn >>= fun () ->
+     add_test_user conn >>= fun _id ->
      f conn)
 
 let test_user_get_all (module Db : CONN) =
@@ -150,17 +151,17 @@ let main_binary =
   let size = String.length data in
   { Builder_db.Rep.filepath; localpath; sha256; size }
 
-let fail_if_none =
-  Option.to_result ~none:(`Msg "Failed to retrieve job id")
+let fail_if_none a =
+  Option.to_result ~none:(`Msg "Failed to retrieve") a
 
-let add_test_build (module Db : CONN) =
+let add_test_build user_id (module Db : CONN) =
   let r =
     let open Builder_db in
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                        main_binary = None;
+                        main_binary = None; user_id;
                         job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
@@ -175,7 +176,8 @@ let add_test_build (module Db : CONN) =
 let with_build_db f () =
   or_fail
     (setup_db () >>= fun conn ->
-     add_test_build conn >>= fun () ->
+     add_test_user conn >>= fun user_id ->
+     add_test_build user_id conn >>= fun () ->
      f conn)
 
 let test_job_get_all (module Db : CONN) =
@@ -224,10 +226,11 @@ let finish' = Option.get (Ptime.of_float_s 3601.)
 let add_second_build (module Db : CONN) =
   let uuid = uuid' and start = start' and finish = finish' in
   let open Builder_db in
+  Db.find_opt User.get_user username >>= fail_if_none >>= fun (user_id, _) ->
   Db.start () >>= fun () ->
   Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                      main_binary = None; job_id;
+                      main_binary = None; user_id; job_id;
                     } >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
   Db.exec Build_artifact.add (main_binary, id) >>= fun () ->

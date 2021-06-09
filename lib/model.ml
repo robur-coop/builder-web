@@ -191,6 +191,7 @@ let commit_files datadir staging_dir job_name uuid =
 
 let add_build
     datadir
+    user_id
     ((job, uuid, console, start, finish, result, _) as exec)
     (module Db : CONN) =
   let open Builder_db in
@@ -214,7 +215,7 @@ let add_build
     Lwt.return (Option.to_result ~none:(`Msg "No such job id") job_id) >>= fun job_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
-                        main_binary = None; job_id } >>= fun () ->
+                        main_binary = None; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     List.fold_left
       (fun r file ->

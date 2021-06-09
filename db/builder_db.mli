@@ -113,6 +113,7 @@ sig
     console : (int * string) list;
     script : string;
     main_binary : id option;
+    user_id : id;
     job_id : id;
   }
   module Meta :
@@ -123,6 +124,7 @@ sig
       finish : Ptime.t;
       result : Builder.execution_result;
       main_binary : id option;
+      user_id : id;
       job_id : id;
     }
   end
