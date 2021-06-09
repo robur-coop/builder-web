@@ -9,8 +9,18 @@ let or_die exit_code = function
     Format.eprintf "Database error: %a" Caqti_error.pp e;
     exit exit_code
 
+let foreign_keys =
+  Caqti_request.exec
+    Caqti_type.unit
+    "PRAGMA foreign_keys = ON"
+
+let connect uri =
+  Caqti_blocking.connect uri >>= fun (module Db : Caqti_blocking.CONNECTION) ->
+  Db.exec foreign_keys () >>= fun () ->
+  Ok (module Db : Caqti_blocking.CONNECTION)
+
 let do_migrate dbpath =
-  Caqti_blocking.connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
+  connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
   >>= fun (module Db : Caqti_blocking.CONNECTION) ->
   List.fold_left
     (fun r migrate ->
@@ -26,7 +36,7 @@ let migrate () dbpath =
 let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
   let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
   let r =
-    Caqti_blocking.connect
+    connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
     print_string "Password: ";
@@ -49,7 +59,7 @@ let user_update () dbpath = user_mod `Update dbpath
 
 let user_list () dbpath =
   let r =
-    Caqti_blocking.connect
+    connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION) ->
     Db.iter_s Builder_db.User.get_all
@@ -60,7 +70,7 @@ let user_list () dbpath =
 
 let user_remove () dbpath username =
   let r =
-    Caqti_blocking.connect
+    connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
     Db.exec Builder_db.Access_list.remove_all_by_username username >>= fun () ->
@@ -68,9 +78,24 @@ let user_remove () dbpath username =
   in
   or_die 1 r
 
+let user_disable () dbpath username =
+  let r =
+    connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.exec Builder_db.Access_list.remove_all_by_username username >>= fun () ->
+    Db.find_opt Builder_db.User.get_user username >>= function
+    | None -> Error (`Msg "user not found")
+    | Some (_, user_info) ->
+      let password_hash = `Scrypt (Cstruct.empty, Cstruct.empty, Builder_web_auth.scrypt_params ()) in
+      let user_info = { user_info with password_hash ; restricted = true } in
+      Db.exec Builder_db.User.update_user user_info
+  in
+  or_die 1 r
+
 let access_add () dbpath username jobname =
   let r =
-    Caqti_blocking.connect
+    connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
     Db.find_opt Builder_db.User.get_user username >>=
@@ -83,7 +108,7 @@ let access_add () dbpath username jobname =
 
 let access_remove () dbpath username jobname =
   let r =
-    Caqti_blocking.connect
+    connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
     Db.find_opt Builder_db.User.get_user username >>=
@@ -181,6 +206,11 @@ let user_remove_cmd =
   (Cmdliner.Term.(pure user_remove $ setup_log $ dbpath $ username),
    Cmdliner.Term.info ~doc "user-remove")
 
+let user_disable_cmd =
+  let doc = "disable a user" in
+  (Cmdliner.Term.(pure user_disable $ setup_log $ dbpath $ username),
+   Cmdliner.Term.info ~doc "user-disable")
+
 let user_list_cmd =
   let doc = "list all users" in
   (Cmdliner.Term.(pure user_list $ setup_log $ dbpath),
@@ -215,6 +245,6 @@ let () =
   Cmdliner.Term.eval_choice
     default_cmd
     [help_cmd; migrate_cmd;
-     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd;
+     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
      access_add_cmd; access_remove_cmd]
   |> Cmdliner.Term.exit

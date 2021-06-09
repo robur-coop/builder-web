@@ -15,6 +15,11 @@ let or_die exit_code = function
     Format.eprintf "Database error: %a" pp_error e;
     exit exit_code
 
+let foreign_keys =
+  Caqti_request.exec
+    Caqti_type.unit
+    "PRAGMA foreign_keys = ON"
+
 let do_database_action action () datadir =
   let datadir = Fpath.v datadir in
   let dbpath = Fpath.(datadir / "builder.sqlite3") in
@@ -26,6 +31,7 @@ let do_database_action action () datadir =
   in
   Logs.debug (fun m -> m "Connected!");
   let r =
+    Db.exec foreign_keys () >>= fun () ->
     Db.start () >>= fun () ->
     Logs.debug (fun m -> m "Started database transaction");
     match action datadir conn with
