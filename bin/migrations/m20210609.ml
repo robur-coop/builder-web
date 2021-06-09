@@ -8,7 +8,7 @@ let nologin_user =
   Caqti_request.exec
     Caqti_type.unit
     "INSERT INTO user (username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p, restricted) \
-     VALUES ('nologin', '', '', 16384, 8, 1, true)"
+     VALUES ('nologin', x'', x'', 16384, 8, 1, true)"
 
 let remove_nologin_user =
   Caqti_request.exec
