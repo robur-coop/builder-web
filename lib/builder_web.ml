@@ -64,7 +64,7 @@ let if_error ?(status  = `Internal_Server_Error) ?(log=(fun e -> Log.warn (fun m
   let* r = r in
   match r with
   | Error `Not_found ->
-    Lwt_result.fail (message, `Not_Found)
+    Lwt_result.fail ("Resource not found", `Not_Found)
   | Error (#Model.error as e) ->
     log e;
     Lwt_result.fail (message, status)
