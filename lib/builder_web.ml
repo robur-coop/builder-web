@@ -242,6 +242,37 @@ let add_routes datadir =
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
+  let upload_binary req =
+    let job = Dream.param "job" req in
+    let* body = Dream.body req in
+    Authorization.authorized req job
+    |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->
+    let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+    Dream.sql req (Model.build_exists uuid)
+    |> if_error "Internal server error"
+      ~log:(fun e ->
+              Log.warn (fun m -> m "Error saving binary %S: %a" job pp_error e))
+    >>= function
+    | true ->
+      Log.warn (fun m -> m "Build %S with same uuid exists: %a" job Uuidm.pp uuid);
+      Dream.respond ~status:`Conflict
+        (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
+      |> Lwt_result.ok
+    | false ->
+      let datadir = Dream.global datadir_global req in
+      let exec =
+        let now = Ptime_clock.now () in
+        ({ Builder.name = job ; script = "" ; files = [] }, uuid, [], now, now, Builder.Exited 0,
+         [ (Fpath.(v "bin" / job + "bin"), body) ])
+      in
+      (Lwt.return (Dream.local Authorization.user_info_local req |>
+                   Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
+       Dream.sql req (Model.add_build datadir user_id exec))
+      |> if_error "Internal server error"
+        ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
+      >>= fun () -> Dream.respond "" |> Lwt_result.ok
+  in
+
   let w f req = or_error_response (f req) in
 
   Dream.router [
@@ -253,4 +284,5 @@ let add_routes datadir =
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
     Dream.post "/upload" (Authorization.authenticate (w upload));
+    Dream.post "/job/:job/upload" (Authorization.authenticate (w upload_binary));
   ]
