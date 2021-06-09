@@ -1,0 +1,27 @@
+name:         builder_web
+version:      %%VERSION_NUM%%
+origin:	      local/builder_web
+comment:      Builder web service
+www:	      https://git.robur.io/robur/builder-web
+maintainer:   Robur <team@robur.coop>
+prefix:	      /usr/local
+licenselogic: single
+licenses:     [ISCL]
+flatsize:     %%FLATSIZE%%
+categories:   [local]
+deps {
+    gmp {
+        origin = "math/gmp";
+    },
+    libev {
+        origin = "devel/libev";
+    },
+    sqlite3 {
+        origin = "databases/sqlite3";
+    }
+}
+
+desc = <<EOD
+A web server serving and accepting reproducible builds
+
+EOD;

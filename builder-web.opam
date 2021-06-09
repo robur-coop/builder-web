@@ -7,9 +7,14 @@ bug-reports: "https://github.com/roburio/builder-web/issues"
 license: "ISC"
 
 build: [
-  ["dune" "subst"] {pinned}
+  ["dune" "subst"] {dev}
   ["dune" "build" "-p" name "-j" jobs]
   ["dune" "runtest" "-p" name "-j" jobs] {with-test}
+  ["sh" "packaging/FreeBSD/create_package.sh"] {os = "freebsd"}
+]
+
+install: [
+  ["cp" "builder_web.txz" "%{bin}%/"] {os = "freebsd"}
 ]
 
 depends: [
@@ -37,5 +42,5 @@ depends: [
 synopsis: "Web interface for builder"
 
 pin-depends: [
-  ["builder.dev" "git+https://git.data.coop/reynir/builder.git"]
+  ["builder.dev" "git+https://github.com/roburio/builder.git"]
 ]
