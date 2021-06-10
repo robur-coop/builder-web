@@ -1,5 +1,8 @@
-let old_user_version = 1L
-let new_user_version = 2L
+let old_version = 1L
+let new_version = 2L
+let identifier = "2021-02-16"
+let migrate_doc = "change to scrypt hashed passwords (NB: destructive!!)"
+let rollback_doc = "rollback scrypt hashed passwords (NB: destructive!!)"
 
 let drop_user =
   Caqti_request.exec ~oneshot:true
@@ -34,14 +37,14 @@ let old_user =
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Grej.check_version ~user_version:old_user_version (module Db) >>= fun () ->
+  Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec drop_user () >>= fun () ->
   Db.exec new_user () >>= fun () ->
-  Db.exec (Grej.set_version new_user_version) ()
+  Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Grej.check_version ~user_version:new_user_version (module Db) >>= fun () ->
+  Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec drop_user () >>= fun () ->
   Db.exec old_user () >>= fun () ->
-  Db.exec (Grej.set_version old_user_version) ()
+  Db.exec (Grej.set_version old_version) ()

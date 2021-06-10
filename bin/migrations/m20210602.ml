@@ -1,4 +1,7 @@
 let old_version = 4L and new_version = 5L
+let identifier = "2021-06-02"
+let migrate_doc = "build.main_binary foreign key"
+let rollback_doc = "build.main_binary filepath"
 
 let idx_build_job_start =
   Caqti_request.exec Caqti_type.unit

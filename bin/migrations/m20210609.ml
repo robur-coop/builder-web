@@ -1,4 +1,7 @@
 let new_version = 7L and old_version = 6L
+let identifier = "2021-06-09"
+let migrate_doc = "add user column to build"
+let rollback_doc = "remove user column from build"
 
 let idx_build_job_start =
   Caqti_request.exec Caqti_type.unit

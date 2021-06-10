@@ -1,5 +1,7 @@
-let new_user_version =
-  1L
+let new_version = 1L and old_version = 0L
+let identifier = "2021-01-26"
+let migrate_doc = "add column main_binary to build"
+let rollback_doc = "remove column main_binary from build"
 
 let set_application_id =
   Caqti_request.exec
@@ -47,7 +49,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
         Ok ())
     builds >>= fun () ->
   Db.exec Builder_db.set_application_id () >>= fun () ->
-  Db.exec (Grej.set_version new_user_version) ()
+  Db.exec (Grej.set_version new_version) ()
 
 let rename_build =
   Caqti_request.exec
@@ -86,8 +88,8 @@ let rollback_data =
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Grej.check_version ~user_version:new_user_version (module Db) >>= fun () ->
+  Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec rename_build () >>= fun () ->
   Db.exec create_build () >>= fun () ->
   Db.exec rollback_data () >>= fun () ->
-  Db.exec (Grej.set_version 0L) ()
+  Db.exec (Grej.set_version old_version) ()

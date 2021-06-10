@@ -1,5 +1,8 @@
 let old_version = 3L
 let new_version = 4L
+let identifier = "2021-05-31"
+let migrate_doc = "remove datadir prefix from build_artifact.localpath"
+let rollback_doc = "add datadir prefix to build_artifact.localpath"
 
 let build_artifacts =
   Caqti_request.collect ~oneshot:true

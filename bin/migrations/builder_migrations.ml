@@ -1,5 +1,18 @@
 open Rresult.R.Infix
 
+type action = Fpath.t -> Caqti_blocking.connection ->
+  (unit, [ Caqti_error.call_or_retrieve | `Wrong_version of int32 * int64 | `Msg of string ]) result
+
+module type MIGRATION = sig
+  val new_version : int64
+  val old_version : int64
+  val identifier : string
+  val migrate_doc : string
+  val rollback_doc : string
+  val migrate : action
+  val rollback : action
+end
+
 let pp_error ppf = function
   | #Caqti_error.load_or_connect | #Caqti_error.call_or_retrieve as e ->
     Caqti_error.pp ppf e
@@ -15,11 +28,6 @@ let or_die exit_code = function
     Format.eprintf "Database error: %a" pp_error e;
     exit exit_code
 
-let foreign_keys =
-  Caqti_request.exec
-    Caqti_type.unit
-    "PRAGMA foreign_keys = ON"
-
 let do_database_action action () datadir =
   let datadir = Fpath.v datadir in
   let dbpath = Fpath.(datadir / "builder.sqlite3") in
@@ -31,7 +39,6 @@ let do_database_action action () datadir =
   in
   Logs.debug (fun m -> m "Connected!");
   let r =
-    Db.exec foreign_keys () >>= fun () ->
     Db.start () >>= fun () ->
     Logs.debug (fun m -> m "Started database transaction");
     match action datadir conn with
@@ -65,101 +72,23 @@ let setup_log =
   in
   Cmdliner.Term.(const setup_log $ Logs_cli.level ())
 
-let m20210126 =
-  let doc = "Adds a column 'main_binary' in 'build' (2021-01-26)" in
-  Cmdliner.Term.(const do_database_action $ const M20210126.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-01-26"
-
-let r20210126 =
-  let doc = "Rollback 'main_binary' in 'build' (2021-01-26)" in
-  Cmdliner.Term.(const do_database_action $ const M20210126.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-01-26"
-
-let m20210202 =
-  let doc = "Adds an index 'job_build_idx' on 'build' (2021-02-02)" in
-  Cmdliner.Term.(const do_database_action $ const M20210202.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-02-02"
-
-let r20210202 =
-  let doc = "Rollback index 'job_build_idx' on 'build' (2021-02-02)" in
-  Cmdliner.Term.(const do_database_action $ const M20210202.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-02-02"
-
-let m20210216 =
-  let doc = "Changes 'user' for scrypt hashed passwords (NB: Destructive!!) (2021-02-16)" in
-  Cmdliner.Term.(const do_database_action $ const M20210216.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-02-16"
-
-let r20210216 =
-  let doc = "Rollback scrypt hashed passwords (NB: Destructive!!) (2021-02-16)" in
-  Cmdliner.Term.(const do_database_action $ const M20210216.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-02-16"
-
-let m20210218 =
-  let doc = "Adds column 'size' to 'build_file' and 'build_artifact' (2021-02-18)" in
-  Cmdliner.Term.(const do_database_action $ const M20210218.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-02-18"
-
-let r20210218 =
-  let doc = "Roll back column 'size' in 'build_file' and 'build_artifact' (2021-02-18)" in
-  Cmdliner.Term.(const do_database_action $ const M20210218.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-02-18"
+let actions (module M : MIGRATION) =
+  let c s = s ^ "-" ^ M.identifier in
+  let v doc from_ver to_ver = Printf.sprintf "%s (DB version %Ld -> %Ld)" doc from_ver to_ver in
+  [
+    (Cmdliner.Term.(const do_database_action $ const M.migrate $ setup_log $ datadir),
+     Cmdliner.Term.info ~doc:(v M.migrate_doc M.old_version M.new_version)
+       (c "migrate"));
+    (Cmdliner.Term.(const do_database_action $ const M.rollback $ setup_log $ datadir),
+     Cmdliner.Term.info ~doc:(v M.rollback_doc M.new_version M.old_version)
+       (c "rollback"));
+  ]
 
 let f20210308 =
   let doc = "Remove broken builds as fixed in commit a57798f4c02eb4d528b90932ec26fb0b718f1a13. \
     Note that the files on disk have to be removed manually." in
   Cmdliner.Term.(const do_database_action $ const M20210308.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-03-08"
-
-let m20210427 =
-  let doc = "Adds an index 'idx_build_job_start' on 'build' (2021-04-27)" in
-  Cmdliner.Term.(const do_database_action $ const M20210427.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-04-27"
-
-let r20210427 =
-  let doc = "Rollback index 'idx_build_job_start'' on 'build' (2021-04-27)" in
-  Cmdliner.Term.(const do_database_action $ const M20210427.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-04-27"
-
-let m20210531 =
-  let doc = "Remove datadir from build_artifact.localpath" in
-  Cmdliner.Term.(const do_database_action $ const M20210531.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-05-31"
-
-let r20210531 =
-  let doc = "Add datadir to build_artifact.localpath" in
-  Cmdliner.Term.(const do_database_action $ const M20210531.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-05-31"
-
-let m20210602 =
-  let doc = "build.main_binary foreign key" in
-  Cmdliner.Term.(const do_database_action $ const M20210602.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-06-02"
-
-let r20210602 =
-  let doc = "build.main_binary filepath" in
-  Cmdliner.Term.(const do_database_action $ const M20210602.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-06-02"
-
-let m20210608 =
-  let doc = "add access list" in
-  Cmdliner.Term.(const do_database_action $ const M20210608.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-06-08"
-
-let r20210608 =
-  let doc = "remove access list" in
-  Cmdliner.Term.(const do_database_action $ const M20210608.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-06-08"
-
-let m20210609 =
-  let doc = "add user column to build" in
-  Cmdliner.Term.(const do_database_action $ const M20210609.migrate $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "migrate-2021-06-09"
-
-let r20210609 =
-  let doc = "remove user column to build" in
-  Cmdliner.Term.(const do_database_action $ const M20210609.rollback $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "rollback-2021-06-09"
 
 let help_cmd =
   let topic =
@@ -178,16 +107,17 @@ let default_cmd =
 let () =
   Cmdliner.Term.eval_choice
     default_cmd
-    [ help_cmd;
-      m20210126; r20210126;
-      m20210202; r20210202;
-      m20210216; r20210216;
-      m20210218; r20210218;
-      f20210308;
-      m20210427; r20210427;
-      m20210531; r20210531;
-      m20210602; r20210602;
-      m20210608; r20210608;
-      m20210609; r20210609;
-    ]
+    (List.concat [
+        [ help_cmd ];
+        actions (module M20210126);
+        actions (module M20210202);
+        actions (module M20210216);
+        actions (module M20210218);
+        [ f20210308 ];
+        actions (module M20210427);
+        actions (module M20210531);
+        actions (module M20210602);
+        actions (module M20210608);
+        actions (module M20210609);
+      ])
   |> Cmdliner.Term.exit

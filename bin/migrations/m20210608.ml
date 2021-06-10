@@ -1,6 +1,7 @@
-open Rresult.R.Infix
-
 let new_version = 6L and old_version = 5L
+let identifier = "2021-06-08"
+let migrate_doc = "add access list"
+let rollback_doc = "remove access list"
 
 let new_user =
   Caqti_request.exec
@@ -81,6 +82,8 @@ let rollback_access_list =
  Caqti_request.exec
    Caqti_type.unit
    "DROP TABLE IF EXISTS access_list"
+
+open Rresult.R.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

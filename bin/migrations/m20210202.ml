@@ -1,3 +1,8 @@
+let old_version = 1L and new_version = 1L
+let identifier = "2021-02-02"
+let migrate_doc = "add index job_build_idx on build"
+let rollback_doc = "rollback index job_build_idx on build"
+
 open Rresult.R.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =

@@ -21,3 +21,9 @@ let list_iter_result f xs =
     (fun r x -> r >>= fun () -> f x)
     (Ok ())
     xs
+
+let foreign_keys on =
+  let on = if on then "ON" else "OFF" in
+  Caqti_request.exec
+    Caqti_type.unit
+    (Printf.sprintf "PRAGMA foreign_keys = %s" on)

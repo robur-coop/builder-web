@@ -1,5 +1,8 @@
-let old_user_version = 2L
-let new_user_version = 3L
+let old_version = 2L
+let new_version = 3L
+let identifier = "2021-02-18"
+let migrate_doc = "add column size to build_file and build_artifact"
+let rollback_doc = "remove column size to build_file and build_artifact"
 
 let new_build_artifact =
   Caqti_request.exec ~oneshot:true
@@ -81,7 +84,7 @@ let rename_build_file =
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Grej.check_version ~user_version:old_user_version (module Db) >>= fun () ->
+  Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec new_build_artifact () >>= fun () ->
   Db.rev_collect_list collect_build_artifact () >>= fun build_artifacts ->
   Grej.list_iter_result
@@ -104,7 +107,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec drop_build_file () >>= fun () ->
   Db.exec rename_build_file () >>= fun () ->
 
-  Db.exec (Grej.set_version new_user_version) ()
+  Db.exec (Grej.set_version new_version) ()
 
 let old_build_artifact =
   Caqti_request.exec ~oneshot:true
@@ -148,7 +151,7 @@ let copy_build_file =
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Rresult.R.Infix in
-  Grej.check_version ~user_version:new_user_version (module Db) >>= fun () ->
+  Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec old_build_artifact () >>= fun () ->
   Db.exec copy_build_artifact () >>= fun () ->
   Db.exec drop_build_artifact () >>= fun () ->
@@ -159,4 +162,4 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec drop_build_file () >>= fun () ->
   Db.exec rename_build_file () >>= fun () ->
 
-  Db.exec (Grej.set_version old_user_version) ()
+  Db.exec (Grej.set_version old_version) ()
