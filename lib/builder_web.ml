@@ -103,7 +103,9 @@ let add_routes datadir =
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.builder jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    let username = Dream.session "username" req in
+    Views.builder username (Dream.csrf_token req) jobs
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -273,16 +275,61 @@ let add_routes datadir =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
+  let login req =
+    let username = Dream.session "username" req in
+    Views.login username (Dream.csrf_token req) |> string_of_html |> Dream.html
+  in
+
+  let do_login req =
+    let* form = Dream.form req in
+    (match form with
+     | `Ok [ "password", password; "user", username ] ->
+       Lwt.return (Ok (username, password))
+     | _ ->
+       Lwt.return (Error ("Bad request", `Bad_Request))) >>= fun (username, password) ->
+    Dream.sql req (Model.user username)
+    |> if_error "Internal server error" >>= fun user_info ->
+    match user_info with
+    | Some (_user_id, user_info) ->
+      if Builder_web_auth.verify_password password user_info
+      then
+        let* () = Dream.invalidate_session req in
+        let* () = Dream.put_session "username" user_info.Builder_web_auth.username req in
+        Dream.redirect req "/" |> Lwt_result.ok
+      else
+        Dream.redirect req "/login" |> Lwt_result.ok
+    | None ->
+      let _ = Builder_web_auth.hash ~username ~password ~restricted:true () in
+      Dream.redirect req "/login" |> Lwt_result.ok
+  in
+
+  let do_logout req =
+    let* form = Dream.form req in
+    match form with
+    | `Ok [] ->
+      let* () = Dream.invalidate_session req in
+      Dream.redirect req "/"
+    | _ ->
+      Log.warn (fun m -> m "Bad logout");
+      Dream.redirect req "/"
+  in
+
   let w f req = or_error_response (f req) in
 
-  Dream.router [
-    Dream.get "/" (w builder);
-    Dream.get "/job/:job/" (w job);
-    Dream.get "/job/:job/build/latest/**" (w redirect_latest);
-    Dream.get "/job/:job/build/:build/" (w job_build);
-    Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
-    Dream.get "/hash" (w hash);
-    Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
-    Dream.post "/upload" (Authorization.authenticate (w upload));
-    Dream.post "/job/:job/upload" (Authorization.authenticate (w upload_binary));
+  Dream.pipeline [
+    Dream.sql_sessions;
+    Dream.router [
+      Dream.get "/" (w builder);
+      Dream.get "/job/:job/" (w job);
+      Dream.get "/job/:job/build/latest/**" (w redirect_latest);
+      Dream.get "/job/:job/build/:build/" (w job_build);
+      Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
+      Dream.get "/hash" (w hash);
+      Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
+      Dream.post "/upload" (Authorization.authenticate (w upload));
+      Dream.post "/job/:job/upload" (Authorization.authenticate (w upload_binary));
+      Dream.get "/login" login;
+      Dream.post "/login" (w do_login);
+      Dream.post "/logout" do_logout;
+    ];
   ]

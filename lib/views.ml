@@ -5,6 +5,11 @@ let pp_ptime = Ptime.pp_human ()
 let txtf fmt = Fmt.kstrf txt fmt
 let a_titlef fmt = Fmt.kstrf a_title fmt
 
+let form ~csrf_token ?a children =
+  form ?a
+    (input ~a:[a_name "dream.csrf"; a_input_type `Hidden; a_value csrf_token] () ::
+     children)
+
 let check_icon result =
   match result with
   | Builder.Exited 0 ->
@@ -95,10 +100,21 @@ let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath =
 
 
 
-let builder jobs =
+let builder username csrf_token jobs =
   layout ~title:"Builder Web"
     [ h1 [txt "Builder web"];
-      form ~a:[a_action "/hash"; a_method `Get]
+      begin match username with
+        | Some username ->
+          form ~csrf_token ~a:[a_method `Post; a_action "/logout"]
+            [
+              p [
+                txtf "Logged in as %s." username;
+              ];
+              input ~a:[a_input_type `Submit; a_value "Log out!"] ();
+            ];
+        | None -> txt ""
+      end;
+      form ~csrf_token ~a:[a_action "/hash"; a_method `Get]
         [
           label [
             txt "Search artifact by SHA256";
@@ -305,3 +321,16 @@ let compare_opam job_left job_right
         [txt "Unchanged packages"];
       code (packages same);
     ]
+
+let login _username csrf_token =
+  layout ~title:"Login" [
+    h1 [txt "Please login"];
+    form ~csrf_token ~a:[a_method `Post; a_action "/login"]
+      [
+        label ~a:[a_label_for "user"] [txt "User name"];
+        input ~a:[a_name "user"] ();
+        label ~a:[a_label_for "password"] [txt "Password"];
+        input ~a:[a_input_type `Password; a_name "password"] ();
+        input ~a:[a_input_type `Submit; a_value "Log in!"] ();
+      ]
+  ]
