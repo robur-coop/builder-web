@@ -13,10 +13,6 @@ build: [
   ["sh" "packaging/FreeBSD/create_package.sh"] {os = "freebsd"}
 ]
 
-install: [
-  ["cp" "builder_web.txz" "%{bin}%/"] {os = "freebsd"}
-]
-
 depends: [
   "builder"
   "dream"
