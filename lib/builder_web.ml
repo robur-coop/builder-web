@@ -34,7 +34,7 @@ let init dbpath datadir =
     >>= fun () ->
     Model.cleanup_staging datadir (module Db))
 
-let pp_exec ppf (job, uuid, _, _, _, _, _) =
+let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
   Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
 
 let safe_seg path =
@@ -180,7 +180,7 @@ let add_routes datadir =
     |> if_error ~status:`Bad_Request "Bad request"
       ~log:(fun e ->
         Log.warn (fun m -> m "Received bad builder ASN.1: %a" pp_error e))
-    >>= fun (({ name ; _ }, uuid, _, _, _, _, _) as exec) ->
+    >>= fun ((({ name ; _ } : Builder.script_job), uuid, _, _, _, _, _) as exec) ->
     Log.debug (fun m -> m "Received build %a" pp_exec exec);
     Authorization.authorized req name
     |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->

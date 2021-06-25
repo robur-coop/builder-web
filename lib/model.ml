@@ -166,7 +166,7 @@ let save_files dir staging files =
     (Lwt_result.return [])
     files
 
-let save_all staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
+let save_all staging_dir (((job : Builder.script_job), uuid, _, _, _, _, artifacts) as exec) =
   let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
   let output_dir = Fpath.(build_dir / "output")
   and staging_output_dir = Fpath.(staging_dir / "output") in
@@ -188,7 +188,7 @@ let commit_files datadir staging_dir job_name uuid =
 let add_build
     datadir
     user_id
-    ((job, uuid, console, start, finish, result, _) as exec)
+    (((job : Builder.script_job), uuid, console, start, finish, result, _) as exec)
     (module Db : CONN) =
   let open Builder_db in
   let job_name = job.Builder.name in
