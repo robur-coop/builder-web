@@ -14,9 +14,15 @@ let foreign_keys =
     Caqti_type.unit
     "PRAGMA foreign_keys = ON"
 
+let defer_foreign_keys =
+  Caqti_request.exec
+    Caqti_type.unit
+    "PRAGMA defer_foreign_keys = ON"
+
 let connect uri =
   Caqti_blocking.connect uri >>= fun (module Db : Caqti_blocking.CONNECTION) ->
   Db.exec foreign_keys () >>= fun () ->
+  Db.exec defer_foreign_keys () >>= fun () ->
   Ok (module Db : Caqti_blocking.CONNECTION)
 
 let do_migrate dbpath =
@@ -119,6 +125,43 @@ let access_remove () dbpath username jobname =
    in
    or_die 1 r
 
+let job_remove () datadir jobname =
+  let dbpath = datadir ^ "/builder.sqlite3" in
+  let r =
+    connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.find_opt Builder_db.Job.get_id_by_name jobname >>= function
+    | None ->
+      Logs.info (fun m -> m "Job %S doesn't exist or has already been removed." jobname);
+      Ok ()
+    | Some job_id ->
+      Db.start () >>= fun () ->
+      Db.exec defer_foreign_keys () >>= fun () ->
+      let r =
+        Db.collect_list Builder_db.Build.get_all_meta job_id >>= fun builds ->
+        List.fold_left (fun r (build, meta, _) ->
+            r >>= fun () ->
+            let dir = Fpath.(v datadir / jobname / Uuidm.to_string meta.Builder_db.Build.Meta.uuid) in
+            (match Bos.OS.Dir.delete ~recurse:true dir with
+            | Ok _ -> ()
+            | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
+            Db.exec Builder_db.Build_artifact.remove_by_build build >>= fun () ->
+            Db.exec Builder_db.Build.remove build)
+          (Ok ())
+          builds >>= fun () ->
+        Db.exec Builder_db.Job.remove job_id >>= fun () ->
+        Db.commit ()
+      in
+      match r with
+      | Ok () -> Ok ()
+      | Error _ as e ->
+        Logs.warn (fun m -> m "Error: rolling back...");
+        Db.rollback () >>= fun () ->
+        e
+  in
+  or_die 1 r
+
 let help man_format cmds = function
   | None -> `Help (man_format, None)
   | Some cmd ->
@@ -137,6 +180,18 @@ let dbpath_new =
   Cmdliner.Arg.(value &
                 opt string "/var/db/builder-web/builder.sqlite3" &
                 info ~doc ["dbpath"])
+
+let datadir =
+  let doc = "data directory" in
+  Cmdliner.Arg.(value &
+                opt dir "/var/db/builder-web/" &
+                info ~doc ["datadir"])
+
+let jobname =
+  let doc = "jobname" in
+  Cmdliner.Arg.(required &
+                pos 0 (some string) None &
+                info ~doc ~docv:"JOBNAME" [])
 
 let username =
   let doc = "username" in
@@ -226,6 +281,12 @@ let access_remove_cmd =
   (Cmdliner.Term.(pure access_remove $ setup_log $ dbpath $ username $ job),
    Cmdliner.Term.info ~doc "access-remove")
 
+let job_remove_cmd =
+  let doc = "remove job and its associated builds and artifacts" in
+  (Cmdliner.Term.(pure job_remove $ setup_log $ datadir $ jobname),
+   Cmdliner.Term.info ~doc "job-remove")
+
+
 let help_cmd =
   let topic =
     let doc = "Command to get help on" in
@@ -246,5 +307,5 @@ let () =
     default_cmd
     [help_cmd; migrate_cmd;
      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
-     access_add_cmd; access_remove_cmd]
+     access_add_cmd; access_remove_cmd; job_remove_cmd]
   |> Cmdliner.Term.exit

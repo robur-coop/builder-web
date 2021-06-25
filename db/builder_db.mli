@@ -83,6 +83,8 @@ module Build_artifact : sig
     (file * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove_by_build :
     (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val remove :
+    (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end
 
 module Build :

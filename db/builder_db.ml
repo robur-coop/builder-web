@@ -148,6 +148,11 @@ module Build_artifact = struct
     Caqti_request.exec
       id
       "DELETE FROM build_artifact WHERE build = ?"
+
+  let remove =
+    Caqti_request.exec
+      id
+      "DELETE FROM build_artifact WHERE id = ?"
 end
 
 module Build = struct
