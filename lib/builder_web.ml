@@ -262,7 +262,7 @@ let add_routes datadir =
       let datadir = Dream.global datadir_global req in
       let exec =
         let now = Ptime_clock.now () in
-        ({ Builder.name = job ; script = "" ; files = [] }, uuid, [], now, now, Builder.Exited 0,
+        ({ Builder.name = job ; script = "" }, uuid, [], now, now, Builder.Exited 0,
          [ (Fpath.(v "bin" / job + "bin"), body) ])
       in
       (Lwt.return (Dream.local Authorization.user_info_local req |>

@@ -85,24 +85,6 @@ module Build_artifact : sig
     (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end
 
-module Build_file : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-
-  val get_by_build_uuid :
-    (Uuidm.t * Fpath.t, id * file,
-     [< `Many | `One | `Zero > `One `Zero ])
-      Caqti_request.t
-  val get_all_by_build :
-    (id, id * file, [ `Many | `One | `Zero ]) Caqti_request.t
-  val add :
-    (file * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val remove_by_build :
-    (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-end
-
 module Build :
 sig
   type t = {

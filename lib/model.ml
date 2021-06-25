@@ -168,20 +168,16 @@ let save_files dir staging files =
 
 let save_all staging_dir ((job, uuid, _, _, _, _, artifacts) as exec) =
   let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
-  let input_dir = Fpath.(build_dir / "input")
-  and staging_input_dir = Fpath.(staging_dir / "input") in
   let output_dir = Fpath.(build_dir / "output")
   and staging_output_dir = Fpath.(staging_dir / "output") in
   Lwt.return (Bos.OS.Dir.create staging_dir) >>= (fun created ->
       if not created
       then Lwt_result.fail (`Msg "build directory already exists")
       else Lwt_result.return ()) >>= fun () ->
-  Lwt.return (Bos.OS.Dir.create staging_input_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Dir.create staging_output_dir) >>= fun _ ->
   save_exec staging_dir exec >>= fun () ->
   save_files output_dir staging_output_dir artifacts >>= fun artifacts ->
-  save_files input_dir staging_input_dir job.Builder.files >>= fun input_files ->
-  Lwt_result.return (artifacts, input_files)
+  Lwt_result.return artifacts
 
 let commit_files datadir staging_dir job_name uuid =
   let job_dir = Fpath.(datadir / job_name) in
@@ -207,7 +203,7 @@ let add_build
         e)
       x
   in
-  or_cleanup (save_all staging_dir exec) >>= fun (artifacts, input_files) ->
+  or_cleanup (save_all staging_dir exec) >>= fun artifacts ->
   let r =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
@@ -223,12 +219,6 @@ let add_build
          Db.exec Build_artifact.add (file, id))
       (Lwt_result.return ())
       artifacts >>= fun () ->
-    List.fold_left
-      (fun r file ->
-         r >>= fun () ->
-         Db.exec Build_file.add (file, id))
-      (Lwt_result.return ())
-      input_files >>= fun () ->
     Db.collect_list Build_artifact.get_all_by_build id >>= fun artifacts ->
     (match List.filter (fun (_, p) -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
      | [ (build_artifact_id, _) ] -> Db.exec Build.set_main_binary (id, build_artifact_id)

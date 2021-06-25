@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 7L
+let current_version = 8L
 
 type id = Rep.id
 
@@ -148,59 +148,6 @@ module Build_artifact = struct
     Caqti_request.exec
       id
       "DELETE FROM build_artifact WHERE build = ?"
-end
-
-module Build_file = struct
-  let migrate =
-    Caqti_request.exec
-      Caqti_type.unit
-      {| CREATE TABLE build_file (
-             id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-             filepath TEXT NOT NULL, -- the path as in the build
-             localpath TEXT NOT NULL, -- local path to the file on disk
-             sha256 BLOB NOT NULL,
-             size INTEGER NOT NULL,
-             build INTEGER NOT NULL,
-
-             FOREIGN KEY(build) REFERENCES build(id),
-             UNIQUE(build, filepath)
-           )
-        |}
-
-  let rollback =
-    Caqti_request.exec
-      Caqti_type.unit
-      "DROP TABLE IF EXISTS build_file"
-
-  let get_by_build_uuid =
-    Caqti_request.find_opt
-      (Caqti_type.tup2 uuid fpath)
-      (Caqti_type.tup2 id file)
-      {| SELECT build_file.id, build_file.localpath,
-           build_file.localpath, build_file.sha256, build_file.size
-         FROM build_file
-         INNER JOIN build ON build.id = build_file.build
-         WHERE build.uuid = ? AND build_file.filepath = ?
-      |}
-
-  let get_all_by_build =
-    Caqti_request.collect
-      id
-      Caqti_type.(tup2
-                    id
-                    file)
-      "SELECT id, filepath, localpath, sha256, size FROM build_file WHERE build = ?"
-
-  let add =
-    Caqti_request.exec
-      Caqti_type.(tup2 file id)
-      "INSERT INTO build_file (filepath, localpath, sha256, size, build)
-        VALUES (?, ?, ?, ?, ?)"
-
-  let remove_by_build =
-    Caqti_request.exec
-      id
-      "DELETE FROM build_file WHERE build = ?"
 end
 
 module Build = struct
@@ -568,7 +515,6 @@ let migrate = [
   Job.migrate;
   Build.migrate;
   Build_artifact.migrate;
-  Build_file.migrate;
   User.migrate;
   Access_list.migrate;
   Caqti_request.exec Caqti_type.unit
@@ -580,7 +526,6 @@ let migrate = [
 let rollback = [
   Access_list.rollback;
   User.rollback;
-  Build_file.migrate;
   Build_artifact.rollback;
   Build.rollback;
   Job.rollback;
