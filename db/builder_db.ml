@@ -140,7 +140,7 @@ module Job_tag = struct
       {| CREATE TABLE job_tag (
            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
            tag INTEGER NOT NULL,
-           value VARCHAR(255) NOT NULL,
+           value TEXT NOT NULL,
            job INTEGER NOT NULL,
 
            FOREIGN KEY(job) REFERENCES job(id),

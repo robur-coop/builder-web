@@ -18,7 +18,7 @@ let job_tag =
     {| CREATE TABLE job_tag (
          id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
          tag INTEGER NOT NULL,
-         value VARCHAR(255) NOT NULL,
+         value TEXT NOT NULL,
          job INTEGER NOT NULL,
 
          FOREIGN KEY(job) REFERENCES job(id),
@@ -60,15 +60,15 @@ let infer_section_and_synopsis artifacts =
     | None -> None
     | Some (_, data) -> Some (OpamFile.SwitchExport.read_from_string data)
   in
-  let infer_synopsis switch =
+  let infer_synopsis_and_descr switch =
     let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
     if OpamPackage.Set.cardinal root <> 1 then
-      None
+      None, None
     else
       let root = OpamPackage.Set.choose root in
       match OpamPackage.Name.Map.find_opt root.OpamPackage.name switch.OpamFile.SwitchExport.overlays with
-      | None -> None
-      | Some opam -> OpamFile.OPAM.synopsis opam
+      | None -> None, None
+      | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
   in
   let infer_section_from_packages switch =
     let influx = OpamPackage.Name.of_string "metrics-influx" in
@@ -89,14 +89,14 @@ let infer_section_and_synopsis artifacts =
        | _ -> None
   in
   match opam_switch with
-  | None -> None, None
+  | None -> None, (None, None)
   | Some opam_switch ->
     let section =
       match infer_section_from_extension with
       | Some x -> x
       | None -> infer_section_from_packages opam_switch
     in
-    Some section, infer_synopsis opam_switch
+    Some section, infer_synopsis_and_descr opam_switch
  
 let remove_tag =
   Caqti_request.exec
@@ -132,8 +132,10 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec job_tag () >>= fun () ->
   Db.exec insert_tag "section" >>= fun () ->
   Db.exec insert_tag "synopsis" >>= fun () ->
+  Db.exec insert_tag "description" >>= fun () ->
   Db.find find_tag "section" >>= fun section_id ->
   Db.find find_tag "synopsis" >>= fun synopsis_id ->
+  Db.find find_tag "description" >>= fun descr_id ->
   Db.collect_list jobs () >>= fun jobs ->
   Grej.list_iter_result (fun job ->
     Db.find latest_successful_build job >>= fun build ->
@@ -146,7 +148,8 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
       artifacts >>= fun files ->
     let sec_syn = infer_section_and_synopsis files in
     (match fst sec_syn with None -> Ok () | Some s -> Db.exec insert_job_tag (section_id, s, job)) >>= fun () ->
-    (match snd sec_syn with None -> Ok () | Some s -> Db.exec insert_job_tag (synopsis_id, s, job)))
+    (match snd sec_syn with None, _ -> Ok () | Some s, _ -> Db.exec insert_job_tag (synopsis_id, s, job)) >>= fun () ->
+    (match snd sec_syn with _, None -> Ok () | _, Some s -> Db.exec insert_job_tag (descr_id, s, job)))
     jobs >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 

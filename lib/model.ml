@@ -194,15 +194,15 @@ let infer_section_and_synopsis artifacts =
     | None -> None
     | Some (_, data) -> Some (OpamFile.SwitchExport.read_from_string data)
   in
-  let infer_synopsis switch =
+  let infer_synopsis_and_descr switch =
     let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
     if OpamPackage.Set.cardinal root <> 1 then
-      None
+      None, None
     else
       let root = OpamPackage.Set.choose root in
       match OpamPackage.Name.Map.find_opt root.OpamPackage.name switch.OpamFile.SwitchExport.overlays with
-      | None -> None
-      | Some opam -> OpamFile.OPAM.synopsis opam
+      | None -> None, None
+      | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
   in
   let infer_section_from_packages switch =
     let influx = OpamPackage.Name.of_string "metrics-influx" in
@@ -223,14 +223,14 @@ let infer_section_and_synopsis artifacts =
        | _ -> None
   in
   match opam_switch with
-  | None -> None, None
+  | None -> None, (None, None)
   | Some opam_switch ->
     let section =
       match infer_section_from_extension with
       | Some x -> x
       | None -> infer_section_from_packages opam_switch
     in
-    Some section, infer_synopsis opam_switch
+    Some section, infer_synopsis_and_descr opam_switch
 
 let add_build
     datadir
@@ -262,6 +262,9 @@ let add_build
     let synopsis_tag = "synopsis" in
     Db.exec Tag.try_add synopsis_tag >>= fun () ->
     Db.find Tag.get_id_by_name synopsis_tag >>= fun synopsis_id ->
+    let descr_tag = "description" in
+    Db.exec Tag.try_add descr_tag >>= fun () ->
+    Db.find Tag.get_id_by_name descr_tag >>= fun descr_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
                         main_binary = None; user_id; job_id } >>= fun () ->
@@ -271,8 +274,11 @@ let add_build
     | None -> Lwt_result.return ()
     | Some section_v -> Db.exec Job_tag.add (section_id, section_v, id)) >>= fun () ->
     (match snd sec_syn with
-    | None -> Lwt_result.return ()
-    | Some synopsis_v -> Db.exec Job_tag.add (synopsis_id, synopsis_v, id)) >>= fun () ->
+    | None, _-> Lwt_result.return ()
+    | Some synopsis_v, _ -> Db.exec Job_tag.add (synopsis_id, synopsis_v, id)) >>= fun () ->
+    (match snd sec_syn with
+    | _, None -> Lwt_result.return ()
+    | _, Some descr_v -> Db.exec Job_tag.add (descr_id, descr_v, id)) >>= fun () ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->
