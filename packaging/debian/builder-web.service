@@ -1,0 +1,12 @@
+[Unit]
+Description=Builder web daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+User=builder
+Group=builder
+ExecStart=/usr/bin/builder-web --data-dir /var/lib/builder/
+
+[Install]
+WantedBy=multi-user.target

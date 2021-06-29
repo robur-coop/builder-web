@@ -1,0 +1,13 @@
+Package: builder-web
+Version: 0.0.1-%%VERSION_NUM%%
+Section: unknown
+Priority: optional
+Maintainer: Robur Team <team@robur.coop>
+Standards-Version: 4.4.1
+Homepage: https://git.robur.io/robur/builder-web
+Vcs-Browser: https://git.robur.io/robur/builder-web
+Vcs-Git: https://git.robur.io/robur/builder-web.git
+Architecture: all
+Depends: libgmp10, libsqlite3, libev4
+Description: Web service for storing and presenting builds.
+  Builder-web stores builds in a sqlite database and serves them via HTTP.
