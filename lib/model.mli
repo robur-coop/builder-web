@@ -51,6 +51,9 @@ val job_id : string -> Caqti_lwt.connection ->
 val jobs : Caqti_lwt.connection ->
   ((Builder_db.id * string) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val jobs_with_section_synopsis : Caqti_lwt.connection ->
+  ((Builder_db.id * string * string option * string option) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
 val job_name : Builder_db.id -> Caqti_lwt.connection ->
   (string, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 

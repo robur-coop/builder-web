@@ -88,6 +88,9 @@ let job job (module Db : CONN) =
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()
 
+let jobs_with_section_synopsis (module Db : CONN) =
+  Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
+
 let job_name id (module Db : CONN) =
   Db.find Builder_db.Job.get id
 
@@ -185,10 +188,54 @@ let commit_files datadir staging_dir job_name uuid =
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Path.move staging_dir dest)
 
+let infer_section_and_synopsis artifacts =
+  let opam_switch =
+    match List.find_opt (fun (p, _) -> String.equal (Fpath.basename p) "opam-switch") artifacts with
+    | None -> None
+    | Some (_, data) -> Some (OpamFile.SwitchExport.read_from_string data)
+  in
+  let infer_synopsis switch =
+    let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
+    if OpamPackage.Set.cardinal root <> 1 then
+      None
+    else
+      let root = OpamPackage.Set.choose root in
+      match OpamPackage.Name.Map.find_opt root.OpamPackage.name switch.OpamFile.SwitchExport.overlays with
+      | None -> None
+      | Some opam -> OpamFile.OPAM.synopsis opam
+  in
+  let infer_section_from_packages switch =
+    let influx = OpamPackage.Name.of_string "metrics-influx" in
+    if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
+         switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
+    then
+      "Unikernel (monitoring)"
+    else
+      "Unikernel"
+  in
+  let infer_section_from_extension =
+    match List.find_opt (fun (p, _) -> Fpath.(is_prefix (v "bin/") p)) artifacts with
+     | None -> None
+     | Some (p, _) ->
+       match Fpath.get_ext p with
+       | ".deb" -> Some "Debian Package"
+       | ".txz" -> Some "FreeBSD Package"
+       | _ -> None
+  in
+  match opam_switch with
+  | None -> None, None
+  | Some opam_switch ->
+    let section =
+      match infer_section_from_extension with
+      | Some x -> x
+      | None -> infer_section_from_packages opam_switch
+    in
+    Some section, infer_synopsis opam_switch
+
 let add_build
     datadir
     user_id
-    (((job : Builder.script_job), uuid, console, start, finish, result, _) as exec)
+    (((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts) as exec)
     (module Db : CONN) =
   let open Builder_db in
   let job_name = job.Builder.name in
@@ -209,10 +256,23 @@ let add_build
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find_opt Job.get_id_by_name job_name >>= fun job_id ->
     Lwt.return (Option.to_result ~none:(`Msg "No such job id") job_id) >>= fun job_id ->
+    let section_tag = "section" in
+    Db.exec Tag.try_add section_tag >>= fun () ->
+    Db.find Tag.get_id_by_name section_tag >>= fun section_id ->
+    let synopsis_tag = "synopsis" in
+    Db.exec Tag.try_add synopsis_tag >>= fun () ->
+    Db.find Tag.get_id_by_name synopsis_tag >>= fun synopsis_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
                         main_binary = None; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
+    let sec_syn = infer_section_and_synopsis raw_artifacts in
+    (match fst sec_syn with
+    | None -> Lwt_result.return ()
+    | Some section_v -> Db.exec Job_tag.add (section_id, section_v, id)) >>= fun () ->
+    (match snd sec_syn with
+    | None -> Lwt_result.return ()
+    | Some synopsis_v -> Db.exec Job_tag.add (synopsis_id, synopsis_v, id)) >>= fun () ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->

@@ -85,21 +85,24 @@ let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
   let builder req =
-    Dream.sql req Model.jobs
+    (* TODO filter unsuccessful builds, ?failed=true *)
+    Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
     List.fold_right
-      (fun (job_id, job_name) r ->
+      (fun (job_id, job_name, section, synopsis) r ->
          r >>= fun acc ->
          Dream.sql req (Model.build_meta job_id) >>= function
          | Some (latest_build, latest_artifact) ->
-           Lwt_result.return ((job_name, latest_build, latest_artifact) :: acc)
+           let v = (job_name, synopsis, latest_build, latest_artifact) in
+           let section = Option.value ~default:"Failed" section in
+           Lwt_result.return (Utils.String_map.add_or_create section v acc)
          | None ->
            Log.warn (fun m -> m "Job without builds: %s" job_name);
            Lwt_result.return acc)
       jobs
-      (Lwt_result.return [])
+      (Lwt_result.return Utils.String_map.empty)
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->

@@ -95,49 +95,57 @@ let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath =
 
 
 
-let builder jobs =
-  layout ~title:"Builder Web"
-    [ h1 [txt "Builder web"];
-      form ~a:[a_action "/hash"; a_method `Get]
-        [
-          label [
-            txt "Search artifact by SHA256";
-            br ();
-            input ~a:[
-              a_input_type `Search;
-              a_id "sha256";
-              a_name "sha256";
-            ] ();
-          ];
-          input ~a:[
-            a_input_type `Submit;
-            a_value "Search";
-          ] ();
-        ];
-      p [
-        txtf "We have currently %d jobs."
-          (List.length jobs);
-      ];
-      ul (List.map (fun (job_name, latest_build, latest_artifact) ->
-          li ([
-              a ~a:[a_href ("job/" ^ job_name ^ "/")]
-                [txt job_name];
-              txt " ";
-              check_icon latest_build.Builder_db.Build.Meta.result;
-              br ();
-              a ~a:[a_href (Fmt.strf "job/%s/build/%a/" job_name Uuidm.pp
-                              latest_build.Builder_db.Build.Meta.uuid)]
-                [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.Meta.start];
-              txt " ";
-            ] @ match latest_artifact with
-            | Some main_binary ->
-              artifact ~basename:true job_name latest_build main_binary
-            | None ->
-              [
-                txtf "Build failed";
-              ]))
-        jobs);
-    ]
+let builder section_job_map =
+  layout ~title:"Reproducible OPAM builds"
+    ([ h1 [txt "Introduction to reproducible OPAM builds"];
+       p [ txt "This website offers binary MirageOS unikernels and supplementary OS packages." ];
+       p [ txt {|Following is a list of jobs that are built daily. A persistent link to the latest successful build is available as /job/*jobname*/build/latest/. You can also look up a binary by the resulting SHA 256. All builds can be reproduced with |} ;
+           a ~a:[a_href "https://github.com/roburio/orb/"] [txt "orb"];
+           txt "."
+       ];
+       form ~a:[a_action "/hash"; a_method `Get]
+         [
+           label [
+             txt "Search artifact by SHA256";
+             br ();
+             input ~a:[
+               a_input_type `Search;
+               a_id "sha256";
+               a_name "sha256";
+             ] ();
+           ];
+           input ~a:[
+             a_input_type `Submit;
+             a_value "Search";
+           ] ();
+         ];
+       ] @
+       Utils.String_map.fold (fun section jobs acc ->
+         acc @ [
+           h2 [ txt section ];
+           ul (List.map (fun (job_name, synopsis, latest_build, latest_artifact) ->
+               li ([
+                   a ~a:[a_href ("job/" ^ job_name ^ "/")]
+                     [txt job_name];
+                   txt " ";
+                   check_icon latest_build.Builder_db.Build.Meta.result;
+                   br ();
+                   txt (Option.value ~default:"" synopsis);
+                   br ();
+                   a ~a:[a_href (Fmt.strf "job/%s/build/%a/" job_name Uuidm.pp
+                                   latest_build.Builder_db.Build.Meta.uuid)]
+                     [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.Meta.start];
+                   txt " ";
+                 ] @ match latest_artifact with
+                 | Some main_binary ->
+                   artifact ~basename:true job_name latest_build main_binary
+                 | None ->
+                   [
+                     txtf "Build failed";
+                   ])) jobs)
+        ])
+        section_job_map
+        [])
 
 let job name builds =
   layout ~title:(Printf.sprintf "Job %s" name)

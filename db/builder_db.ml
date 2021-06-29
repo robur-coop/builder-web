@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 8L
+let current_version = 9L
 
 type id = Rep.id
 
@@ -77,6 +77,18 @@ module Job = struct
       Caqti_type.(tup2 id string)
       "SELECT id, name FROM job ORDER BY name ASC"
 
+  let get_all_with_section_synopsis =
+    Caqti_request.collect
+      Caqti_type.unit
+      Caqti_type.(tup4 id string (option string) (option string))
+      {| SELECT j.id, j.name, section.value, synopsis.value
+         FROM job j, tag section_tag, tag synopsis_tag
+         LEFT JOIN job_tag section ON section.job = j.id AND section.tag = section_tag.id
+         LEFT JOIN job_tag synopsis ON synopsis.job = j.id AND synopsis.tag = synopsis_tag.id
+         WHERE section_tag.tag = 'section' AND synopsis_tag.tag = 'synopsis'
+         ORDER BY section.value, j.name ASC
+      |}
+
   let try_add =
     Caqti_request.exec
       Caqti_type.string
@@ -86,6 +98,72 @@ module Job = struct
     Caqti_request.exec
       id
       "DELETE FROM job WHERE id = ?"
+end
+
+module Tag = struct
+  let migrate =
+    Caqti_request.exec
+      Caqti_type.unit
+      {| CREATE TABLE tag (
+           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+           tag VARCHAR(255) NOT NULL UNIQUE
+         )
+      |}
+
+  let rollback =
+    Caqti_request.exec
+      Caqti_type.unit
+      "DROP TABLE IF EXISTS tag"
+
+  let get =
+    Caqti_request.find
+      id
+      Caqti_type.string
+      "SELECT tag FROM tag WHERE id = ?"
+
+  let get_id_by_name =
+    Caqti_request.find
+      Caqti_type.string
+      id
+      "SELECT id FROM tag WHERE tag = ?"
+
+  let try_add =
+    Caqti_request.exec
+      Caqti_type.string
+      "INSERT OR IGNORE INTO tag (tag) VALUES (?)"
+end
+
+module Job_tag = struct
+  let migrate =
+    Caqti_request.exec
+      Caqti_type.unit
+      {| CREATE TABLE job_tag (
+           id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+           tag INTEGER NOT NULL,
+           value VARCHAR(255) NOT NULL,
+           job INTEGER NOT NULL,
+
+           FOREIGN KEY(job) REFERENCES job(id),
+           FOREIGN KEY(tag) REFERENCES tag(id),
+           UNIQUE(tag, job)
+         )
+       |}
+
+  let rollback =
+    Caqti_request.exec
+      Caqti_type.unit
+      "DROP TABLE IF EXISTS job_tag"
+
+  let add =
+    Caqti_request.exec
+      Caqti_type.(tup3 id string id)
+      "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
+
+  let get_value =
+    Caqti_request.find
+      Caqti_type.(tup2 id id)
+      Caqti_type.string
+      "SELECT value FROM job_tag WHERE tag = ? AND job = ?"
 end
 
 module Build_artifact = struct
@@ -522,6 +600,8 @@ let migrate = [
   Build_artifact.migrate;
   User.migrate;
   Access_list.migrate;
+  Tag.migrate;
+  Job_tag.migrate;
   Caqti_request.exec Caqti_type.unit
     "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)";
   set_current_version;
@@ -529,6 +609,8 @@ let migrate = [
 ]
 
 let rollback = [
+  Job_tag.rollback;
+  Tag.rollback;
   Access_list.rollback;
   User.rollback;
   Build_artifact.rollback;

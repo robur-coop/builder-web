@@ -57,10 +57,36 @@ module Job : sig
     (string, id, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
   val get_all :
     (unit, id * string, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_all_with_section_synopsis :
+    (unit, id * string * string option * string option, [ `Many | `One | `Zero ]) Caqti_request.t
   val try_add :
     (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove :
     (id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+end
+
+module Tag : sig
+  val migrate :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val rollback :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get :
+    (id, string, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  val get_id_by_name :
+    (string, id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  val try_add :
+    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+end
+
+module Job_tag : sig
+  val migrate :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val rollback :
+    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val add :
+    (id * string * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get_value :
+    (id * id, string, [< `Many | `One | `Zero > `One ]) Caqti_request.t
 end
 
 module Build_artifact : sig
