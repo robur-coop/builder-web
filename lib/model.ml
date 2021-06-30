@@ -209,7 +209,7 @@ let infer_section_and_synopsis artifacts =
     if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
          switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
     then
-      "Unikernel (monitoring)"
+      "Unikernel (with metrics reported to Influx)"
     else
       "Unikernel"
   in

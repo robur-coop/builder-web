@@ -157,7 +157,7 @@ module Job_tag = struct
   let add =
     Caqti_request.exec
       Caqti_type.(tup3 id string id)
-      "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
+      "INSERT OR REPLACE INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
 
   let get_value =
     Caqti_request.find
