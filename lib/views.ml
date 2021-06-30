@@ -97,11 +97,15 @@ let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath =
 
 let builder section_job_map =
   layout ~title:"Reproducible OPAM builds"
-    ([ h1 [txt "Introduction to reproducible OPAM builds"];
+    ([ h1 [txt "Reproducible OPAM builds"];
        p [ txt "This website offers binary MirageOS unikernels and supplementary OS packages." ];
-       p [ txt {|Following is a list of jobs that are built daily. A persistent link to the latest successful build is available as /job/*jobname*/build/latest/. You can also look up a binary by the resulting SHA 256. All builds can be reproduced with |} ;
+       p [ txt {|Following is a list of jobs that are built daily. A persistent link to the latest successful build is available as /job/*jobname*/build/latest/. All builds can be reproduced with |} ;
            a ~a:[a_href "https://github.com/roburio/orb/"] [txt "orb"];
-           txt "."
+           txt ". The builds are scheduled and executed by ";
+           a ~a:[a_href "https://github.com/roburio/builder/"] [txt "builder"];
+           txt ". The web interface is ";
+           a ~a:[a_href "https://git.robur.io/robur/builder-web/"] [txt "builder-web"];
+           txt ". Contact team@robur.coop if you have any questions or suggestions.";
        ];
        form ~a:[a_action "/hash"; a_method `Get]
          [
