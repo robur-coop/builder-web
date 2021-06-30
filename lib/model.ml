@@ -294,9 +294,15 @@ let add_build
     (match snd sec_syn with
      | _, None -> Lwt_result.return ()
      | _, Some descr_v -> add_or_update descr_id descr_v) >>= fun () ->
-    (match List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) raw_artifacts with
-     | None -> Lwt_result.return ()
-     | Some (_, data) -> add_or_update readme_id data) >>= fun () ->
+    (let readme =
+       List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) raw_artifacts
+     in
+     let readme_anywhere =
+       List.find_opt (fun (p, _) -> String.equal "README.md" (Fpath.basename p)) raw_artifacts
+     in
+     match readme, readme_anywhere with
+     | None, None -> Lwt_result.return ()
+     | Some (_, data), _ | None, Some (_, data) -> add_or_update readme_id data) >>= fun () ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->

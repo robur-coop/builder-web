@@ -71,9 +71,16 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
         Ok ((fpath, data) :: acc))
       (Ok [])
       artifacts >>= fun files ->
-    (match List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) files with
-     | None -> Ok ()
-     | Some (_, data) -> Db.exec insert_job_tag (readme_id, data, job)))
+    let readme =
+      List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) files
+    in
+    let readme_anywhere =
+      List.find_opt (fun (p, _) -> String.equal "README.md" (Fpath.basename p)) files
+    in
+    (match readme, readme_anywhere with
+     | None, None -> Ok ()
+     | Some (_, data), _ | None, Some (_, data) ->
+       Db.exec insert_job_tag (readme_id, data, job)))
     jobs >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
