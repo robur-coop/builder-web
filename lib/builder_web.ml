@@ -111,11 +111,11 @@ let add_routes datadir =
 
   let job req =
     let job_name = Dream.param "job" req in
-    Dream.sql req (Model.job job_name)
+    Dream.sql req (Model.job_and_readme job_name)
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
-    >>= fun builds ->
-    Views.job job_name builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    >>= fun (readme, builds) ->
+    Views.job job_name readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
@@ -134,15 +134,16 @@ let add_routes datadir =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
-    (Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
+    (Dream.sql req (Model.readme job_name) >>= fun readme ->
+     Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
      Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
      Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
      Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
-         (build, artifacts, latest_uuid, previous_build))
+         (readme, build, artifacts, latest_uuid, previous_build))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (build, artifacts, latest_uuid, previous_build) ->
-    Views.job_build job_name build artifacts latest_uuid previous_build |> string_of_html |> Dream.html
+    >>= fun (readme, build, artifacts, latest_uuid, previous_build) ->
+    Views.job_build job_name readme build artifacts latest_uuid previous_build |> string_of_html |> Dream.html
     |> Lwt_result.ok
   in
 

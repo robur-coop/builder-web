@@ -80,10 +80,17 @@ let main_binary id main_binary (module Db : CONN) =
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
 
-let job job (module Db : CONN) =
+let readme job (module Db : CONN) =
   job_id job (module Db) >>= not_found >>= fun job_id ->
-  Db.collect_list Builder_db.Build.get_all_meta job_id >|=
-  List.map (fun (_id, meta, main_binary) -> (meta, main_binary))
+  Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
+  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id)
+
+let job_and_readme job (module Db : CONN) =
+  job_id job (module Db) >>= not_found >>= fun job_id ->
+  Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
+  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) >>= fun readme ->
+  Db.collect_list Builder_db.Build.get_all_meta job_id >|= fun builds ->
+  readme, List.map (fun (_id, meta, main_binary) -> (meta, main_binary)) builds
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()
@@ -265,6 +272,9 @@ let add_build
     let descr_tag = "description" in
     Db.exec Tag.try_add descr_tag >>= fun () ->
     Db.find Tag.get_id_by_name descr_tag >>= fun descr_id ->
+    let readme_tag = "readme.md" in
+    Db.exec Tag.try_add readme_tag >>= fun () ->
+    Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
     Db.exec Build.add { Build.uuid; start; finish; result;
                         console; script = job.Builder.script;
                         main_binary = None; user_id; job_id } >>= fun () ->
@@ -276,14 +286,17 @@ let add_build
       | Some _ -> Db.exec Job_tag.update (tag_id, tag_value, job_id)
     in
     (match fst sec_syn with
-    | None -> Lwt_result.return ()
-    | Some section_v -> add_or_update section_id section_v) >>= fun () ->
+     | None -> Lwt_result.return ()
+     | Some section_v -> add_or_update section_id section_v) >>= fun () ->
     (match snd sec_syn with
-    | None, _-> Lwt_result.return ()
-    | Some synopsis_v, _ -> add_or_update synopsis_id synopsis_v) >>= fun () ->
+     | None, _-> Lwt_result.return ()
+     | Some synopsis_v, _ -> add_or_update synopsis_id synopsis_v) >>= fun () ->
     (match snd sec_syn with
-    | _, None -> Lwt_result.return ()
-    | _, Some descr_v -> add_or_update descr_id descr_v) >>= fun () ->
+     | _, None -> Lwt_result.return ()
+     | _, Some descr_v -> add_or_update descr_id descr_v) >>= fun () ->
+    (match List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) raw_artifacts with
+     | None -> Lwt_result.return ()
+     | Some (_, data) -> add_or_update readme_id data) >>= fun () ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->

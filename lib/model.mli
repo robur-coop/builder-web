@@ -42,8 +42,11 @@ val previous_successful_build : Builder_db.id -> Caqti_lwt.connection ->
 val main_binary : Builder_db.id -> Fpath.t option -> Caqti_lwt.connection ->
   (Builder_db.file option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val job : string -> Caqti_lwt.connection ->
-  ((Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
+val readme : string -> Caqti_lwt.connection ->
+  (string option, [> error ]) result Lwt.t
+
+val job_and_readme : string -> Caqti_lwt.connection ->
+  (string option * (Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
 val job_id : string -> Caqti_lwt.connection ->
   (Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t

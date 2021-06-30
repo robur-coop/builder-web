@@ -1,0 +1,88 @@
+let new_version = 10L and old_version = 9L
+let identifier = "2021-06-30"
+let migrate_doc = "add readme.md tag"
+let rollback_doc = "remove readme.md tag"
+
+let jobs =
+  Caqti_request.collect
+    Caqti_type.unit
+    Builder_db.Rep.id
+    "SELECT id FROM job"
+
+let latest_successful_build =
+  Caqti_request.find
+    Builder_db.Rep.id
+    Builder_db.Rep.id
+    {| SELECT b.id
+       FROM build b
+       WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
+       ORDER BY b.start_d DESC, b.start_ps DESC
+       LIMIT 1
+    |}
+
+let build_artifacts =
+  Caqti_request.collect
+    Builder_db.Rep.id
+    Caqti_type.(tup2 Builder_db.Rep.fpath Builder_db.Rep.fpath)
+    {| SELECT a.filepath, a.localpath
+       FROM build_artifact a
+       WHERE a.build = ?
+    |}
+
+let insert_tag =
+   Caqti_request.exec
+     Caqti_type.string
+     "INSERT INTO tag (tag) VALUES (?)"
+
+let insert_job_tag =
+   Caqti_request.exec
+     Caqti_type.(tup3 Builder_db.Rep.id string Builder_db.Rep.id)
+     "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
+
+let find_tag =
+   Caqti_request.find
+     Caqti_type.string
+     Builder_db.Rep.id
+     "SELECT id FROM tag where tag = ?"
+
+let remove_job_tag =
+   Caqti_request.exec
+     Builder_db.Rep.id
+     "DELETE FROM job_tag where tag = ?"
+
+let remove_tag =
+   Caqti_request.exec
+     Builder_db.Rep.id
+     "DELETE FROM tag where id = ?"
+
+open Rresult.R.Infix
+
+let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
+  Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
+  Db.exec insert_tag "readme.md" >>= fun () ->
+  Db.find find_tag "readme.md" >>= fun readme_id ->
+  Db.collect_list jobs () >>= fun jobs ->
+  Grej.list_iter_result (fun job ->
+    Db.find latest_successful_build job >>= fun build ->
+    Db.collect_list build_artifacts build >>= fun artifacts ->
+    List.fold_left (fun acc (fpath, lpath) ->
+        acc >>= fun acc ->
+        Bos.OS.File.read Fpath.(append datadir lpath) >>= fun data ->
+        Ok ((fpath, data) :: acc))
+      (Ok [])
+      artifacts >>= fun files ->
+    (match List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) files with
+     | None -> Ok ()
+     | Some (_, data) -> Db.exec insert_job_tag (readme_id, data, job)))
+    jobs >>= fun () ->
+  Db.exec (Grej.set_version new_version) ()
+
+let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
+  Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
+  Db.find find_tag "readme.md" >>= fun readme_id ->
+  Db.exec remove_job_tag readme_id >>= fun () ->
+  Db.exec remove_tag readme_id >>= fun () ->
+  Db.exec (Grej.set_version old_version) ()
+
+
+

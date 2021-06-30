@@ -151,9 +151,20 @@ let builder section_job_map =
         section_job_map
         [])
 
-let job name builds =
+let job name readme builds =
   layout ~title:(Printf.sprintf "Job %s" name)
-    [ h1 [txtf "Job %s" name];
+    ((h1 [txtf "Job %s" name] ::
+      (match readme with
+       | None -> []
+       | Some data ->
+         [
+           h2 ~a:[a_id "readme"] [txt "README"];
+           a ~a:[a_href "#builds"] [txt "Skip to builds"];
+           Unsafe.data Omd.(to_html (of_string data))
+         ])) @
+     [
+      h2 ~a:[a_id "builds"] [txt "Builds"];
+      a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [
         txtf "Currently %d builds."
           (List.length builds)
@@ -176,10 +187,11 @@ let job name builds =
               ]))
           builds);
 
-    ]
+    ])
 
 let job_build
   name
+  readme
   { Builder_db.Build.uuid; start; finish; result; console; script; _ }
   artifacts
   latest_uuid
@@ -187,8 +199,19 @@ let job_build
   =
   let delta = Ptime.diff finish start in
   let successful_build = match result with Builder.Exited 0 -> true | _ -> false in
-  layout ~title:(Fmt.strf "Job build %s %a" name pp_ptime start)
-    [ h1 [txtf "Job build %s %a" name pp_ptime start];
+  layout ~title:(Fmt.strf "Job %s %a" name pp_ptime start)
+    ((h1 [txtf "Job %s" name] ::
+      (match readme with
+       | None -> []
+       | Some data ->
+         [
+           h2 ~a:[a_id "readme"] [txt "README"];
+           a ~a:[a_href "#build"] [txt "Skip to build"];
+           Unsafe.data Omd.(to_html (of_string data))
+         ])) @
+    [
+      h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
+      a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
       (match latest_uuid with
@@ -242,7 +265,7 @@ let job_build
                  ])
                 (List.rev console));
         ];
-    ]
+    ])
 
 let packages packages =
   OpamPackage.Set.elements packages

@@ -43,6 +43,7 @@ depends: [
   "cmdliner"
   "uri"
   "fmt"
+  "omd"
 ]
 
 synopsis: "Web interface for builder"
