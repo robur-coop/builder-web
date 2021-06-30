@@ -85,8 +85,10 @@ module Job_tag : sig
     (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val add :
     (id * string * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val update :
+    (id * string * id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_value :
-    (id * id, string, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+    (id * id, string, [< `Many | `One | `Zero > `Zero `One ]) Caqti_request.t
 end
 
 module Build_artifact : sig

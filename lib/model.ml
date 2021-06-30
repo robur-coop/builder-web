@@ -270,15 +270,20 @@ let add_build
                         main_binary = None; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     let sec_syn = infer_section_and_synopsis raw_artifacts in
+    let add_or_update tag_id tag_value =
+      Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
+      | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)
+      | Some _ -> Db.exec Job_tag.update (tag_id, tag_value, job_id)
+    in
     (match fst sec_syn with
     | None -> Lwt_result.return ()
-    | Some section_v -> Db.exec Job_tag.add (section_id, section_v, id)) >>= fun () ->
+    | Some section_v -> add_or_update section_id section_v) >>= fun () ->
     (match snd sec_syn with
     | None, _-> Lwt_result.return ()
-    | Some synopsis_v, _ -> Db.exec Job_tag.add (synopsis_id, synopsis_v, id)) >>= fun () ->
+    | Some synopsis_v, _ -> add_or_update synopsis_id synopsis_v) >>= fun () ->
     (match snd sec_syn with
     | _, None -> Lwt_result.return ()
-    | _, Some descr_v -> Db.exec Job_tag.add (descr_id, descr_v, id)) >>= fun () ->
+    | _, Some descr_v -> add_or_update descr_id descr_v) >>= fun () ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->
