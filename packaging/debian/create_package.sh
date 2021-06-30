@@ -34,3 +34,4 @@ install $basedir/packaging/debian/copyright $debiandir/copyright
 
 dpkg-deb --build $rootdir $basedir/builder-web.deb
 echo 'bin: [ "builder-web.deb" ]' > $basedir/builder-web.install
+echo 'doc: [ "README.md" ]' >> $basedir/builder-web.install
