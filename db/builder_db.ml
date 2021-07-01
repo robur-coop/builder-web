@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 10L
+let current_version = 11L
 
 type id = Rep.id
 
@@ -328,7 +328,7 @@ module Build = struct
            user INTEGER NOT NULL,
            job INTEGER NOT NULL,
 
-           FOREIGN KEY(main_binary) REFERENCES build_artifact(id),
+           FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
            FOREIGN KEY(user) REFERENCES user(id),
            FOREIGN KEY(job) REFERENCES job(id)
          )
