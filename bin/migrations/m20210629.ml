@@ -34,7 +34,7 @@ let jobs =
     "SELECT id FROM job"
 
 let latest_successful_build =
-  Caqti_request.find
+  Caqti_request.find_opt
     Builder_db.Rep.id
     Builder_db.Rep.id
     {| SELECT b.id
@@ -138,18 +138,21 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.find find_tag "description" >>= fun descr_id ->
   Db.collect_list jobs () >>= fun jobs ->
   Grej.list_iter_result (fun job ->
-    Db.find latest_successful_build job >>= fun build ->
-    Db.collect_list build_artifacts build >>= fun artifacts ->
-    List.fold_left (fun acc (fpath, lpath) ->
-        acc >>= fun acc ->
-        Bos.OS.File.read Fpath.(append datadir lpath) >>= fun data ->
-        Ok ((fpath, data) :: acc))
-      (Ok [])
-      artifacts >>= fun files ->
-    let sec_syn = infer_section_and_synopsis files in
-    (match fst sec_syn with None -> Ok () | Some s -> Db.exec insert_job_tag (section_id, s, job)) >>= fun () ->
-    (match snd sec_syn with None, _ -> Ok () | Some s, _ -> Db.exec insert_job_tag (synopsis_id, s, job)) >>= fun () ->
-    (match snd sec_syn with _, None -> Ok () | _, Some s -> Db.exec insert_job_tag (descr_id, s, job)))
+    Db.find_opt latest_successful_build job >>= function
+    | None ->
+      Ok ()
+    | Some build ->
+      Db.collect_list build_artifacts build >>= fun artifacts ->
+      List.fold_left (fun acc (fpath, lpath) ->
+          acc >>= fun acc ->
+          Bos.OS.File.read Fpath.(append datadir lpath) >>= fun data ->
+          Ok ((fpath, data) :: acc))
+        (Ok [])
+        artifacts >>= fun files ->
+      let sec_syn = infer_section_and_synopsis files in
+      (match fst sec_syn with None -> Ok () | Some s -> Db.exec insert_job_tag (section_id, s, job)) >>= fun () ->
+      (match snd sec_syn with None, _ -> Ok () | Some s, _ -> Db.exec insert_job_tag (synopsis_id, s, job)) >>= fun () ->
+      (match snd sec_syn with _, None -> Ok () | _, Some s -> Db.exec insert_job_tag (descr_id, s, job)))
     jobs >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
