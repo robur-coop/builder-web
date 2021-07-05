@@ -3,6 +3,10 @@ let identifier = "2021-07-01"
 let migrate_doc = "build.main_binary deferred foreign key constraint"
 let rollback_doc = "build.main_binary immediate foreign key constraint"
 
+let idx_build_job_start =
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)"
+
 let new_build =
     Caqti_request.exec
       Caqti_type.unit
@@ -76,6 +80,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec copy_build () >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
+  Db.exec idx_build_job_start () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -84,4 +89,5 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec copy_build () >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
+  Db.exec idx_build_job_start () >>= fun () ->
   Db.exec (Grej.set_version old_version) ()
