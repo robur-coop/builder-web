@@ -6,7 +6,7 @@ let application_id = 1234839235l
 (* Please update this when making changes! *)
 let current_version = 11L
 
-type id = Rep.id
+type 'a id = 'a Rep.id
 
 type file = Rep.file = {
   filepath : Fpath.t;
@@ -15,12 +15,7 @@ type file = Rep.file = {
   size : int;
 }
 
-let last_insert_rowid =
-  Caqti_request.find
-    Caqti_type.unit
-    id
-    "SELECT last_insert_rowid()"
-
+let last_insert_rowid = Rep.last_insert_rowid
 
 let get_application_id =
   Caqti_request.find
@@ -61,26 +56,26 @@ module Job = struct
 
   let get =
     Caqti_request.find
-      id
+      (id `job)
       Caqti_type.string
       "SELECT name FROM job WHERE id = ?"
 
   let get_id_by_name =
     Caqti_request.find_opt
       Caqti_type.string
-      id
+      (id `job)
       "SELECT id FROM job WHERE name = ?"
 
   let get_all =
     Caqti_request.collect
       Caqti_type.unit
-      Caqti_type.(tup2 id string)
+      Caqti_type.(tup2 (id `job) string)
       "SELECT id, name FROM job ORDER BY name ASC"
 
   let get_all_with_section_synopsis =
     Caqti_request.collect
       Caqti_type.unit
-      Caqti_type.(tup4 id string (option string) (option string))
+      Caqti_type.(tup4 (id `job) string (option string) (option string))
       {| SELECT j.id, j.name, section.value, synopsis.value
          FROM job j, tag section_tag, tag synopsis_tag
          LEFT JOIN job_tag section ON section.job = j.id AND section.tag = section_tag.id
@@ -96,7 +91,7 @@ module Job = struct
 
   let remove =
     Caqti_request.exec
-      id
+      (id `job)
       "DELETE FROM job WHERE id = ?"
 end
 
@@ -117,14 +112,14 @@ module Tag = struct
 
   let get =
     Caqti_request.find
-      id
+      (id `tag)
       Caqti_type.string
       "SELECT tag FROM tag WHERE id = ?"
 
   let get_id_by_name =
     Caqti_request.find
       Caqti_type.string
-      id
+      (id `tag)
       "SELECT id FROM tag WHERE tag = ?"
 
   let try_add =
@@ -156,17 +151,17 @@ module Job_tag = struct
 
   let add =
     Caqti_request.exec
-      Caqti_type.(tup3 id string id)
+      Caqti_type.(tup3 (id `tag) string (id `job))
       "INSERT INTO job_tag (tag, value, job) VALUES (?1, ?2, ?3)"
 
   let update =
     Caqti_request.exec
-      Caqti_type.(tup3 id string id)
+      Caqti_type.(tup3 (id `tag) string (id `job))
       "UPDATE job_tag SET value = ?2 WHERE tag = ?1 AND job = ?3"
 
   let get_value =
     Caqti_request.find_opt
-      Caqti_type.(tup2 id id)
+      Caqti_type.(tup2 (id `tag) (id `job))
       Caqti_type.string
       "SELECT value FROM job_tag WHERE tag = ? AND job = ?"
 end
@@ -195,8 +190,8 @@ module Build_artifact = struct
 
   let get_by_build =
     Caqti_request.find
-      (Caqti_type.tup2 id fpath)
-      (Caqti_type.tup2 id file)
+      (Caqti_type.tup2 (id `build) fpath)
+      (Caqti_type.tup2 (id `build_artifact) file)
       {| SELECT id, filepath, localpath, sha256, size
          FROM build_artifact
          WHERE build = ? AND filepath = ?
@@ -205,7 +200,7 @@ module Build_artifact = struct
   let get_by_build_uuid =
     Caqti_request.find_opt
       (Caqti_type.tup2 uuid fpath)
-      (Caqti_type.tup2 id file)
+      (Caqti_type.tup2 (id `build_artifact) file)
       {| SELECT build_artifact.id, build_artifact.filepath,
            build_artifact.localpath, build_artifact.sha256, build_artifact.size
          FROM build_artifact
@@ -215,26 +210,26 @@ module Build_artifact = struct
 
   let get_all_by_build =
     Caqti_request.collect
-      id
+      (id `build)
       Caqti_type.(tup2
-                    id
+                    (id `build_artifact)
                     file)
       "SELECT id, filepath, localpath, sha256, size FROM build_artifact WHERE build = ?"
 
   let add =
     Caqti_request.exec
-      Caqti_type.(tup2 file id)
+      Caqti_type.(tup2 file (id `build))
       "INSERT INTO build_artifact (filepath, localpath, sha256, size, build)
         VALUES (?, ?, ?, ?, ?)"
 
   let remove_by_build =
     Caqti_request.exec
-      id
+      (id `build)
       "DELETE FROM build_artifact WHERE build = ?"
 
   let remove =
     Caqti_request.exec
-      id
+      (id `build_artifact)
       "DELETE FROM build_artifact WHERE id = ?"
 end
 
@@ -246,9 +241,9 @@ module Build = struct
     result : Builder.execution_result;
     console : (int * string) list;
     script : string;
-    main_binary : id option;
-    user_id : id;
-    job_id : id;
+    main_binary : [`build_artifact] id option;
+    user_id : [`user] id;
+    job_id : [`job] id;
   }
 
   let t =
@@ -264,9 +259,9 @@ module Build = struct
                           console)
                        (tup2
                           string
-                          (option Rep.id)))
-                    id
-                    id)
+                          (option (Rep.id `build_artifact))))
+                    (id `user)
+                    (id `job))
     in
     let encode { uuid; start; finish; result; console; script; main_binary; user_id; job_id } =
       Ok ((uuid, (start, finish), (result, console), (script, main_binary)), user_id, job_id)
@@ -282,9 +277,9 @@ module Build = struct
       start : Ptime.t;
       finish : Ptime.t;
       result : Builder.execution_result;
-      main_binary : id option;
-      user_id : id;
-      job_id : id;
+      main_binary : [`build_artifact] id option;
+      user_id : [`user] id;
+      job_id : [`job] id;
     }
 
     let t =
@@ -296,9 +291,9 @@ module Build = struct
                           Rep.ptime
                           Rep.ptime)
                        execution_result
-                       (option Rep.id))
-                     id
-                     id)
+                       (option (Rep.id `build_artifact)))
+                     (id `user)
+                     (id `job))
       in
       let encode { uuid; start; finish; result; main_binary; user_id; job_id } =
         Ok ((uuid, (start, finish), result, main_binary), user_id, job_id)
@@ -341,7 +336,7 @@ module Build = struct
 
   let get_opt =
     Caqti_request.find_opt
-      Caqti_type.int64
+      (id `build)
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
                 result_kind, result_code, result_msg,
@@ -353,7 +348,7 @@ module Build = struct
   let get_by_uuid =
     Caqti_request.find_opt
       Rep.uuid
-      (Caqti_type.tup2 id t)
+      (Caqti_type.tup2 (id `build) t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg,
                   console, script, main_binary, user, job
@@ -363,8 +358,8 @@ module Build = struct
 
   let get_all =
     Caqti_request.collect
-      Caqti_type.int64
-      (Caqti_type.tup2 id t)
+      (id `job)
+      (Caqti_type.tup2 (id `build) t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                   result_kind, result_code, result_msg, console,
                   script, main_binary, user, job
@@ -375,9 +370,9 @@ module Build = struct
 
   let get_all_meta =
     Caqti_request.collect
-      Caqti_type.int64
+      (id `job)
       (Caqti_type.tup3
-         id Meta.t file_opt)
+         (id `build) Meta.t file_opt)
       {| SELECT build.id, build.uuid,
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
                 build.result_kind, build.result_code, build.result_msg,
@@ -392,9 +387,9 @@ module Build = struct
 
   let get_latest =
     Caqti_request.find_opt
-      id
+      (id `job)
       Caqti_type.(tup3
-                   id
+                   (id `build)
                    Meta.t
                    file_opt)
       {| SELECT b.id,
@@ -412,8 +407,8 @@ module Build = struct
 
   let get_latest_uuid =
     Caqti_request.find_opt
-      id
-      Caqti_type.(tup2 id Rep.uuid)
+      (id `job)
+      Caqti_type.(tup2 (id `build) Rep.uuid)
       {| SELECT b.id, b.uuid
          FROM build b
          WHERE b.job = ?
@@ -423,7 +418,7 @@ module Build = struct
 
   let get_latest_successful_uuid =
     Caqti_request.find_opt
-      id
+      (id `job)
       Rep.uuid
       {| SELECT b.uuid
          FROM build b
@@ -434,8 +429,8 @@ module Build = struct
 
   let get_previous_successful =
     Caqti_request.find_opt
-      id
-      Caqti_type.(tup2 id Meta.t)
+      (id `build)
+      Caqti_type.(tup2 (id `build) Meta.t)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_kind, b.result_code, b.result_msg,
@@ -478,12 +473,12 @@ module Build = struct
 
   let set_main_binary =
     Caqti_request.exec
-      (Caqti_type.tup2 id id)
+      (Caqti_type.tup2 (id `build) (id `build_artifact))
       "UPDATE build SET main_binary = ?2 WHERE id = ?1"
 
   let remove =
     Caqti_request.exec
-      id
+      (id `build)
       "DELETE FROM build WHERE id = ?"
 end
 
@@ -511,7 +506,7 @@ module User = struct
   let get_user =
     Caqti_request.find_opt
       Caqti_type.string
-      (Caqti_type.tup2 id user_info)
+      (Caqti_type.tup2 (id `user) user_info)
       {| SELECT id, username, password_hash, password_salt,
            scrypt_n, scrypt_r, scrypt_p, restricted
          FROM user
@@ -534,7 +529,7 @@ module User = struct
 
   let remove =
     Caqti_request.exec
-      id
+      (id `user)
       "DELETE FROM user WHERE id = ?"
 
   let remove_user =
@@ -578,18 +573,18 @@ module Access_list = struct
 
   let get =
     Caqti_request.find
-      Caqti_type.(tup2 Rep.id Rep.id)
-      Rep.id
+      Caqti_type.(tup2 (id `user) (id `job))
+      (id `access_list)
       "SELECT id FROM access_list WHERE user = ? AND job = ?"
 
   let add =
     Caqti_request.exec
-      Caqti_type.(tup2 Rep.id Rep.id)
+      Caqti_type.(tup2 (id `user) (id `job))
       "INSERT INTO access_list (user, job) VALUES (?, ?)"
 
   let remove =
     Caqti_request.exec
-      Caqti_type.(tup2 Rep.id Rep.id)
+      Caqti_type.(tup2 (id `user) (id `job))
       "DELETE FROM access_list WHERE user = ? AND job = ?"
 
   let remove_all_by_username =

@@ -20,8 +20,11 @@ module Asn = struct
   let console_of_cs, console_to_cs = projections_of console
 end
 
-type id = int64
-let id = Caqti_type.int64
+type untyped_id = int64
+let untyped_id = Caqti_type.int64
+type 'a id = untyped_id
+let id (_ : 'a) : 'a id Caqti_type.t = untyped_id
+let any_id : 'a id Caqti_type.t = untyped_id
 
 type file = {
   filepath : Fpath.t;
@@ -124,3 +127,10 @@ let user_info =
                       scrypt_r; scrypt_p });
          restricted; }  in
   Caqti_type.custom ~encode ~decode rep
+
+(* this doesn't really belong in this module, but we need access to the type of [id] *)
+let last_insert_rowid =
+  Caqti_request.find
+    Caqti_type.unit
+    any_id
+    "SELECT last_insert_rowid()"

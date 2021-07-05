@@ -68,7 +68,7 @@ let old_build =
 
 let insert_from_old_build =
   Caqti_request.exec ~oneshot:true
-    Builder_db.Rep.id
+    (Builder_db.Rep.id (`user : [`user]))
     {| INSERT INTO new_build (id, uuid, start_d, start_ps, finish_d, finish_ps,
                               result_kind, result_code, result_msg, console,
                               script, main_binary, job, user)

@@ -30,13 +30,13 @@ let job_tag =
 let jobs =
   Caqti_request.collect
     Caqti_type.unit
-    Builder_db.Rep.id
+    Builder_db.Rep.untyped_id
     "SELECT id FROM job"
 
 let latest_successful_build =
   Caqti_request.find_opt
-    Builder_db.Rep.id
-    Builder_db.Rep.id
+    Builder_db.Rep.untyped_id
+    Builder_db.Rep.untyped_id
     {| SELECT b.id
        FROM build b
        WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
@@ -46,7 +46,7 @@ let latest_successful_build =
 
 let build_artifacts =
   Caqti_request.collect
-    Builder_db.Rep.id
+    Builder_db.Rep.untyped_id
     Caqti_type.(tup2 Builder_db.Rep.fpath Builder_db.Rep.fpath)
     {| SELECT a.filepath, a.localpath
        FROM build_artifact a
@@ -115,13 +115,13 @@ let insert_tag =
 
 let insert_job_tag =
    Caqti_request.exec
-     Caqti_type.(tup3 Builder_db.Rep.id string Builder_db.Rep.id)
+     Caqti_type.(tup3 Builder_db.Rep.untyped_id string Builder_db.Rep.untyped_id)
      "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
 
 let find_tag =
    Caqti_request.find
      Caqti_type.string
-     Builder_db.Rep.id
+     Builder_db.Rep.untyped_id
      "SELECT id FROM tag where tag = ?"
 
 open Rresult.R.Infix
