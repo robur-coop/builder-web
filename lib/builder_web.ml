@@ -232,17 +232,32 @@ let add_routes datadir =
      Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->
      Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "opam-switch")) >>=
      Model.build_artifact_data datadir >>= fun switch_left ->
+     Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "build-environment")) >>=
+     Model.build_artifact_data datadir >>= fun build_env_left ->
+     Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "system-packages")) >>=
+     Model.build_artifact_data datadir >>= fun system_packages_left ->
      Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "opam-switch")) >>=
      Model.build_artifact_data datadir >>= fun switch_right ->
+     Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "build-environment")) >>=
+     Model.build_artifact_data datadir >>= fun build_env_right ->
+     Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages")) >>=
+     Model.build_artifact_data datadir >>= fun system_packages_right ->
      Dream.sql req (Model.job_name build_left.job_id) >>= fun job_left ->
      Dream.sql req (Model.job_name build_right.job_id) >|= fun job_right ->
-     (job_left, job_right, build_left, build_right, switch_left, switch_right))
+     (job_left, job_right, build_left, build_right,
+      switch_left, build_env_left, system_packages_left,
+      switch_right, build_env_right, system_packages_right))
     |> if_error "Internal server error"
-    >>= fun (job_left, job_right, build_left, build_right, switch_left, switch_right) ->
+    >>= fun (job_left, job_right, build_left, build_right,
+             switch_left, build_env_left, system_packages_left,
+             switch_right, build_env_right, system_packages_right) ->
+    let env_diff = Utils.compare_env build_env_left build_env_right
+    and pkg_diff = Utils.compare_pkgs system_packages_left system_packages_right
+    in
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
     Opamdiff.compare switch_left switch_right
-    |> Views.compare_opam job_left job_right build_left build_right
+    |> Views.compare_opam job_left job_right build_left build_right env_diff pkg_diff
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 

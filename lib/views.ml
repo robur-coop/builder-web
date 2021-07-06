@@ -226,7 +226,7 @@ let job_build
        | Some previous_build when successful_build ->
          p [
            a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                   Uuidm.pp uuid Uuidm.pp previous_build.Builder_db.Build.Meta.uuid]
+                   Uuidm.pp previous_build.Builder_db.Build.Meta.uuid Uuidm.pp uuid]
              [txt "Compare opam-switch with previous build"];
          ]
        | _ -> txt "");
@@ -267,6 +267,12 @@ let job_build
         ];
     ])
 
+let key_values xs =
+  List.concat_map (fun (k, v) -> [ txtf "%s %s" k v ; br () ]) xs
+
+let key_value_changes xs =
+  List.concat_map (fun (k, v, v') -> [ txtf "%s %s->%s" k v v' ; br () ]) xs
+
 let packages packages =
   OpamPackage.Set.elements packages
   |> List.concat_map (fun p -> [
@@ -281,12 +287,44 @@ let package_diffs diffs =
       ])
     diffs
 
+let opam_diffs diffs =
+  List.concat_map (fun pd ->
+        h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
+        (match pd.Opamdiff.build with None -> [] | Some a ->
+          let l, r = Opamdiff.commands_to_strings a in
+          [
+            h5 [ txt "build instruction (without common prefix) modifications, old:" ] ;
+            code (List.concat_map (fun s -> [ txt s ; br () ]) l) ;
+            h5 [ txt "new" ] ;
+            code (List.concat_map (fun s -> [ txt s ; br () ]) r)
+          ]) @
+        (match pd.Opamdiff.install with None -> [] | Some a ->
+          let l, r = Opamdiff.commands_to_strings a in
+          [
+            h5 [ txt "install instruction (without common prefix) modifications, old:" ] ;
+            code (List.concat_map (fun s -> [ txt s ; br () ]) l) ;
+            h5 [ txt "new" ] ;
+            code (List.concat_map (fun s -> [ txt s ; br () ]) r)
+         ]) @
+      (match pd.Opamdiff.url with None -> [] | Some a ->
+          let l, r = Opamdiff.opt_url_to_string a in
+          [
+            h5 [ txt "URL" ] ;
+            txtf "old: %s" l;
+            br ();
+            txtf "new: %s" r
+          ]) @
+      [ br () ])
+    diffs
+
 let compare_opam job_left job_right
     (build_left : Builder_db.Build.t) (build_right : Builder_db.Build.t)
+    (added_env, removed_env, changed_env)
+    (added_pkgs, removed_pkgs, changed_pkgs)
     (same, opam_diff, version_diff, left, right) =
   layout ~title:(Fmt.strf "Comparing opam switches between builds %a and %a"
                    Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
-    [
+    ([
       h1 [txt "Comparing opam switches"];
       h2 [
         txt "Builds ";
@@ -317,11 +355,35 @@ let compare_opam job_left job_right
         ];
         li [
           a ~a:[a_href "#packages-opam-diff"]
-            [txtf "%d packages with changes in their opam file" (OpamPackage.Set.cardinal opam_diff)]
+            [txtf "%d packages with changes in their opam file" (List.length opam_diff)]
         ];
         li [
           a ~a:[a_href "#packages-unchanged"]
             [txtf "%d packages unchanged" (OpamPackage.Set.cardinal same)]
+        ];
+        li [
+         a ~a:[a_href "#env-added"]
+            [ txtf "%d environment variables added" (List.length added_env)]
+        ];
+        li [
+         a ~a:[a_href "#env-removed"]
+            [ txtf "%d environment variables removed" (List.length removed_env)]
+        ];
+        li [
+         a ~a:[a_href "#env-changed"]
+            [ txtf "%d environment variables changed" (List.length changed_env)]
+        ];
+        li [
+         a ~a:[a_href "#pkgs-added"]
+            [ txtf "%d system packages added" (List.length added_pkgs)]
+        ];
+        li [
+         a ~a:[a_href "#pkgs-removed"]
+            [ txtf "%d system packages removed" (List.length removed_pkgs)]
+        ];
+        li [
+         a ~a:[a_href "#pkgs-changed"]
+            [ txtf "%d system packages changed" (List.length changed_pkgs)]
         ];
       ];
       h3 ~a:[a_id "packages-removed"]
@@ -334,9 +396,21 @@ let compare_opam job_left job_right
         [txt "Packages with version changes"];
       code (package_diffs version_diff);
       h3 ~a:[a_id "packages-opam-diff"]
-        [txt "Packages with changes in their opam file"];
-      code (packages opam_diff);
+        [txt "Packages with changes in their opam file"]] @
+      opam_diffs opam_diff @ [
       h3 ~a:[a_id "packages-unchanged"]
         [txt "Unchanged packages"];
       code (packages same);
-    ]
+      h3 ~a:[a_id "env-added"] [txt "Environment variables added"];
+      code (key_values added_env);
+      h3 ~a:[a_id "env-removed"] [txt "Environment variables removed"];
+      code (key_values removed_env);
+      h3 ~a:[a_id "env-changed"] [txt "Environment variables changed"];
+      code (key_value_changes changed_env);
+      h3 ~a:[a_id "pkgs-added"] [txt "System packages added"];
+      code (key_values added_pkgs);
+      h3 ~a:[a_id "pkgs-removed"] [txt "System packages removed"];
+      code (key_values removed_pkgs);
+      h3 ~a:[a_id "pkgs-changed"] [txt "System packages changed"];
+      code (key_value_changes changed_pkgs);
+    ])
