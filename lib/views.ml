@@ -194,6 +194,7 @@ let job_build
   readme
   { Builder_db.Build.uuid; start; finish; result; console; script; _ }
   artifacts
+  other_builds
   latest_uuid
   previous_build
   =
@@ -214,22 +215,25 @@ let job_build
       a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      (match latest_uuid with
-       | Some latest_uuid when successful_build && not (Uuidm.equal latest_uuid uuid) ->
-         p [
-           a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                   Uuidm.pp uuid Uuidm.pp latest_uuid]
-             [txt "Compare opam-switch with latest build"];
-         ]
-       | _ -> txt "");
-      (match previous_build with
-       | Some previous_build when successful_build ->
-         p [
-           a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                   Uuidm.pp previous_build.Builder_db.Build.Meta.uuid Uuidm.pp uuid]
-             [txt "Compare opam-switch with previous build"];
-         ]
-       | _ -> txt "");
+      h3 [txt "Compare with other builds"];
+      p
+        ((match latest_uuid with
+          | Some latest_uuid when successful_build && not (Uuidm.equal latest_uuid uuid) ->
+            [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                      Uuidm.pp uuid Uuidm.pp latest_uuid]
+                [txt "With latest build"] ; br () ]
+          | _ -> []) @
+          (match previous_build with
+           | Some previous_build when successful_build ->
+             [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                     Uuidm.pp previous_build.Builder_db.Build.Meta.uuid Uuidm.pp uuid]
+                [txt "With previous build"] ; br () ]
+           | _ -> []) @
+         List.concat_map (fun { Builder_db.Build.Meta.start ; uuid = other_uuid ; _ } ->
+             [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                     Uuidm.pp other_uuid Uuidm.pp uuid]
+                [txtf "With build %a (output is identical binary)" pp_ptime start] ; br () ])
+           other_builds);
       h3 [txt "Digests of build artifacts"];
       dl (List.concat_map
             (fun { Builder_db.filepath; localpath=_; sha256; size } ->

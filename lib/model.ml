@@ -70,12 +70,8 @@ let previous_successful_build id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_previous_successful id >|=
   Option.map (fun (_id, meta) -> meta)
 
-let main_binary id main_binary (module Db : CONN) =
-  match main_binary with
-  | None -> Lwt_result.return None
-  | Some main_binary ->
-    Db.find Builder_db.Build_artifact.get_by_build (id, main_binary) >|= fun (_id, file) ->
-    Some file
+let builds_with_same_main_binary id (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_other_builds_with_same_output id
 
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name

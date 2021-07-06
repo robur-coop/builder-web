@@ -443,6 +443,18 @@ module Build = struct
          LIMIT 1
       |}
 
+  let get_other_builds_with_same_output =
+    Caqti_request.collect
+      (id `build)
+      Meta.t
+      {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_kind, b.result_code, b.result_msg,
+           b.main_binary, b.user, b.job
+         FROM build b0, build_artifact a0, build b, build_artifact a
+         WHERE b0.id = ? AND a0.id = b0.main_binary AND a0.sha256 = a.sha256 AND b.main_binary = a.id AND b.id <> b0.id
+         ORDER BY b.start_d DESC, b.start_ps DESC
+      |}
+
   let add =
     Caqti_request.exec
       t

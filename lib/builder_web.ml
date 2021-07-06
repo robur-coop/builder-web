@@ -137,14 +137,15 @@ let add_routes datadir =
     (Dream.sql req (Model.readme job_name) >>= fun readme ->
      Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
      Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
+     Dream.sql req (Model.builds_with_same_main_binary build_id) >>= fun other_builds ->
      Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
      Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
-         (readme, build, artifacts, latest_uuid, previous_build))
+         (readme, build, artifacts, other_builds, latest_uuid, previous_build))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (readme, build, artifacts, latest_uuid, previous_build) ->
-    Views.job_build job_name readme build artifacts latest_uuid previous_build |> string_of_html |> Dream.html
-    |> Lwt_result.ok
+    >>= fun (readme, build, artifacts, other_builds, latest_uuid, previous_build) ->
+    Views.job_build job_name readme build artifacts other_builds latest_uuid previous_build
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_build_file req =
