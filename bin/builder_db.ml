@@ -162,6 +162,46 @@ let job_remove () datadir jobname =
   in
   or_die 1 r
 
+let input_ids =
+   Caqti_request.collect
+     Caqti_type.unit
+     Builder_db.Rep.cstruct
+     "SELECT DISTINCT input_id FROM build WHERE input_id IS NOT NULL"
+
+let main_artifact_hash =
+   Caqti_request.collect
+     Builder_db.Rep.cstruct
+     (Caqti_type.tup3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string)
+     {|
+       SELECT a.sha256, b.uuid, j.name FROM build_artifact a, build b, job j
+       WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
+     |}
+
+let verify_input_id () dbpath =
+  let r =
+    connect
+      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    Db.collect_list input_ids () >>= fun input_ids ->
+    List.fold_left (fun acc input_id ->
+      acc >>= fun () ->
+      Db.collect_list main_artifact_hash input_id >>| fun hashes ->
+      match hashes with
+      | (h, uuid, jobname) :: tl ->
+        List.iter (fun (h', uuid', _) ->
+          if Cstruct.equal h h' then
+            ()
+          else
+            Logs.warn (fun m -> m "job %s input id %a with two different hashes (%a, %a), build %a and %a"
+              jobname Cstruct.hexdump_pp input_id
+              Cstruct.hexdump_pp h Cstruct.hexdump_pp h'
+              Uuidm.pp uuid Uuidm.pp uuid'))
+        tl
+      | [] -> ())
+     (Ok ()) input_ids
+   in
+   or_die 1 r
+
 let help man_format cmds = function
   | None -> `Help (man_format, None)
   | Some cmd ->
@@ -286,6 +326,10 @@ let job_remove_cmd =
   (Cmdliner.Term.(pure job_remove $ setup_log $ datadir $ jobname),
    Cmdliner.Term.info ~doc "job-remove")
 
+let verify_input_id_cmd =
+  let doc = "verify that the main binary hash of all builds with the same input are equal" in
+  (Cmdliner.Term.(pure verify_input_id $ setup_log $ dbpath),
+   Cmdliner.Term.info ~doc "verify-input-id")
 
 let help_cmd =
   let topic =
@@ -307,5 +351,6 @@ let () =
     default_cmd
     [help_cmd; migrate_cmd;
      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
-     access_add_cmd; access_remove_cmd; job_remove_cmd]
+     access_add_cmd; access_remove_cmd; job_remove_cmd;
+     verify_input_id_cmd ]
   |> Cmdliner.Term.exit

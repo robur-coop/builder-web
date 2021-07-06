@@ -171,7 +171,7 @@ sig
       Caqti_request.t
   val get_other_builds_with_same_output :
     ([`build] id, Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val add : (t * Cstruct.t option, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_by_hash :
     (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
   val set_main_binary : ([`build] id * [`build_artifact] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t

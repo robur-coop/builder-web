@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 11L
+let current_version = 12L
 
 type 'a id = 'a Rep.id
 
@@ -322,6 +322,7 @@ module Build = struct
            main_binary INTEGER,
            user INTEGER NOT NULL,
            job INTEGER NOT NULL,
+           input_id BLOB, -- sha256 (sha256<opam-switch> || sha256<build-environment> || sha256<system-packages>)
 
            FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
            FOREIGN KEY(user) REFERENCES user(id),
@@ -457,12 +458,12 @@ module Build = struct
 
   let add =
     Caqti_request.exec
-      t
+      (Caqti_type.tup2 t (Caqti_type.option cstruct))
       {| INSERT INTO build
            (uuid, start_d, start_ps, finish_d, finish_ps,
-           result_kind, result_code, result_msg, console, script, main_binary, user, job)
+           result_kind, result_code, result_msg, console, script, main_binary, user, job, input_id)
            VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
   let get_by_hash =

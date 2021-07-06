@@ -160,9 +160,8 @@ let add_test_build user_id (module Db : CONN) =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-    Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                        main_binary = None; user_id;
-                        job_id } >>= fun () ->
+    Db.exec Build.add ({ Build.uuid; start; finish; result; console; script;
+                         main_binary = None; user_id; job_id }, None) >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
     Db.find last_insert_rowid () >>= fun main_binary_id ->
@@ -229,9 +228,8 @@ let add_second_build (module Db : CONN) =
   Db.find_opt User.get_user username >>= fail_if_none >>= fun (user_id, _) ->
   Db.start () >>= fun () ->
   Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.exec Build.add { Build.uuid; start; finish; result; console; script;
-                      main_binary = None; user_id; job_id;
-                    } >>= fun () ->
+  Db.exec Build.add ({ Build.uuid; start; finish; result; console; script;
+                      main_binary = None; user_id; job_id; }, None) >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
   Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
   Db.find last_insert_rowid () >>= fun main_binary_id ->

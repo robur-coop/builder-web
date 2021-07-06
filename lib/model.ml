@@ -235,6 +235,20 @@ let infer_section_and_synopsis artifacts =
     in
     Some section, infer_synopsis_and_descr opam_switch
 
+let compute_input_id artifacts =
+  let get_hash filename =
+    match List.find_opt (fun b -> Fpath.equal b.Builder_db.filepath filename) artifacts with
+    | None -> None
+    | Some x -> Some x.sha256
+  in
+  match
+    get_hash (Fpath.v "opam-switch"),
+    get_hash (Fpath.v "build-environment"),
+    get_hash (Fpath.v "system-packages")
+  with
+  | Some a, Some b, Some c -> Some (Mirage_crypto.Hash.SHA256.digest (Cstruct.concat [a;b;c]))
+  | _ -> None
+
 let add_build
     datadir
     user_id
@@ -271,9 +285,10 @@ let add_build
     let readme_tag = "readme.md" in
     Db.exec Tag.try_add readme_tag >>= fun () ->
     Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
-    Db.exec Build.add { Build.uuid; start; finish; result;
-                        console; script = job.Builder.script;
-                        main_binary = None; user_id; job_id } >>= fun () ->
+    let input_id = compute_input_id artifacts in
+    Db.exec Build.add ({ Build.uuid; start; finish; result;
+                         console; script = job.Builder.script;
+                         main_binary = None; user_id; job_id }, input_id) >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     let sec_syn = infer_section_and_synopsis raw_artifacts in
     let add_or_update tag_id tag_value =
