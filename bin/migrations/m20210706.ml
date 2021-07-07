@@ -15,7 +15,7 @@ let idx_build_job_start =
 let old_build =
     Caqti_request.exec
       Caqti_type.unit
-      {| CREATE TABLE build (
+      {| CREATE TABLE new_build (
            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
            uuid VARCHAR(36) NOT NULL UNIQUE,
            start_d INTEGER NOT NULL,
