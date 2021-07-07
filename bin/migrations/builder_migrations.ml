@@ -105,6 +105,11 @@ let f20210707c =
   Cmdliner.Term.(const do_database_action $ const M20210707c.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-07-07c"
 
+let f20210707d =
+  let doc = "Remove ./ from filepath." in
+  Cmdliner.Term.(const do_database_action $ const M20210707d.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-07-07d"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -142,5 +147,6 @@ let () =
         [ f20210707a ];
         [ f20210707b ];
         [ f20210707c ];
+        [ f20210707d ];
       ])
   |> Cmdliner.Term.exit
