@@ -90,6 +90,11 @@ let f20210308 =
   Cmdliner.Term.(const do_database_action $ const M20210308.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-03-08"
 
+let f20210707a =
+  let doc = "Remove orb.deb and orb.txz that ended up in the build." in
+  Cmdliner.Term.(const do_database_action $ const M20210707a.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-07-07a"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -124,5 +129,6 @@ let () =
         actions (module M20210630);
         actions (module M20210701);
         actions (module M20210706);
+        [ f20210707a ];
       ])
   |> Cmdliner.Term.exit
