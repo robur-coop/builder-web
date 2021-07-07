@@ -95,6 +95,11 @@ let f20210707a =
   Cmdliner.Term.(const do_database_action $ const M20210707a.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-07-07a"
 
+let f20210707b =
+  let doc = "Move *.deb.debug to bin/*.deb and remove the earlier bin/*.deb. Adjust main_binary of build." in
+  Cmdliner.Term.(const do_database_action $ const M20210707b.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-07-07b"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -130,5 +135,6 @@ let () =
         actions (module M20210701);
         actions (module M20210706);
         [ f20210707a ];
+        [ f20210707b ];
       ])
   |> Cmdliner.Term.exit
