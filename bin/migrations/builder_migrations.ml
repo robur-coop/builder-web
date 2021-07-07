@@ -100,6 +100,11 @@ let f20210707b =
   Cmdliner.Term.(const do_database_action $ const M20210707b.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-07-07b"
 
+let f20210707c =
+  let doc = "Strip bin/*.{hvt,xen} if no *.{hvt,xen} exists. Adjust build_artifact table and main_binary of build." in
+  Cmdliner.Term.(const do_database_action $ const M20210707c.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-07-07c"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -136,5 +141,6 @@ let () =
         actions (module M20210706);
         [ f20210707a ];
         [ f20210707b ];
+        [ f20210707c ];
       ])
   |> Cmdliner.Term.exit
