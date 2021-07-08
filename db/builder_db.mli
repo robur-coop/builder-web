@@ -127,6 +127,7 @@ sig
     console : (int * string) list;
     script : string;
     main_binary : [`build_artifact] id option;
+    input_id : Cstruct.t option;
     user_id : [`user] id;
     job_id : [`job] id;
   }
@@ -138,6 +139,7 @@ sig
       finish : Ptime.t;
       result : Builder.execution_result;
       main_binary : [`build_artifact] id option;
+      input_id : Cstruct.t option;
       user_id : [`user] id;
       job_id : [`job] id;
     }
@@ -157,9 +159,13 @@ sig
     ([`job] id, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_meta :
     ([`job] id, [`build] id * Meta.t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_all_artifact_sha :
+    ([`job] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest :
     ([`job] id, [`build] id * Meta.t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
+  val get_latest_failed :
+    ([`job] id, Meta.t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
   val get_latest_uuid :
     ([`job] id, [`build] id * Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
@@ -169,9 +175,19 @@ sig
   val get_previous_successful :
     ([`build] id, [`build] id * Meta.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
-  val get_other_builds_with_same_output :
+  val get_same_input_same_output_builds :
     ([`build] id, Meta.t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val add : (t * Cstruct.t option, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get_same_input_different_output_hashes :
+    ([`build] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_different_input_same_output_input_ids :
+    ([`build] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_one_by_input_id :
+    (Cstruct.t, Meta.t, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val get_meta_by_hash :
+    (Cstruct.t, Meta.t, [< `Many | `One | `Zero > `One]) Caqti_request.t
+  val get_meta_and_artifact_by_hash :
+    (Cstruct.t, Meta.t * file option, [< `Many | `One | `Zero > `One]) Caqti_request.t
   val get_by_hash :
     (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
   val set_main_binary : ([`build] id * [`build_artifact] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t

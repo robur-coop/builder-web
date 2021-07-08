@@ -70,8 +70,29 @@ let previous_successful_build id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_previous_successful id >|=
   Option.map (fun (_id, meta) -> meta)
 
-let builds_with_same_main_binary id (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_other_builds_with_same_output id
+let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->
+  Lwt_list.fold_left_s (fun acc input_id ->
+     match acc with
+     | Error _ as e -> Lwt.return e
+     | Ok metas ->
+       Db.find Builder_db.Build.get_one_by_input_id input_id >>= fun build ->
+       Lwt.return (Ok (build :: metas)))
+   (Ok []) ids
+
+let builds_with_same_input_and_same_main_binary id (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_same_input_same_output_builds id
+
+let builds_with_same_input_and_different_main_binary id (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_same_input_different_output_hashes id >>= fun hashes ->
+  Lwt_list.fold_left_s (fun acc hash ->
+     match acc with
+     | Error _ as e -> Lwt.return e
+     | Ok metas ->
+       Db.find Builder_db.Build.get_meta_by_hash hash >>= fun build ->
+       Lwt.return (Ok (build :: metas)))
+   (Ok []) hashes
+
 
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
@@ -85,8 +106,19 @@ let job_and_readme job (module Db : CONN) =
   job_id job (module Db) >>= not_found >>= fun job_id ->
   Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
   Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) >>= fun readme ->
-  Db.collect_list Builder_db.Build.get_all_meta job_id >|= fun builds ->
-  readme, List.map (fun (_id, meta, main_binary) -> (meta, main_binary)) builds
+  Db.find_opt Builder_db.Build.get_latest_failed job_id >>= fun failed ->
+  Db.collect_list Builder_db.Build.get_all_artifact_sha job_id >>= fun sha ->
+  Lwt_list.fold_left_s (fun acc hash ->
+     match acc with
+     | Error _ as e -> Lwt.return e
+     | Ok (fail, metas) ->
+       Db.find Builder_db.Build.get_meta_and_artifact_by_hash hash >|= fun (meta, file) ->
+       match fail with
+       | Some f when Ptime.is_later ~than:meta.Builder_db.Build.Meta.start f.Builder_db.Build.Meta.start -> None, (meta, file) :: (f, None) :: metas
+       | x -> x, (meta, file) :: metas)
+    (Ok (failed, [])) sha >|= fun (x, builds) ->
+  let builds = match x with None -> builds | Some f -> (f, None) :: builds in
+  readme, List.rev builds
 
 let jobs (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all ()
@@ -286,9 +318,9 @@ let add_build
     Db.exec Tag.try_add readme_tag >>= fun () ->
     Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
     let input_id = compute_input_id artifacts in
-    Db.exec Build.add ({ Build.uuid; start; finish; result;
-                         console; script = job.Builder.script;
-                         main_binary = None; user_id; job_id }, input_id) >>= fun () ->
+    Db.exec Build.add { Build.uuid; start; finish; result;
+                        console; script = job.Builder.script;
+                        main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     let sec_syn = infer_section_and_synopsis raw_artifacts in
     let add_or_update tag_id tag_value =

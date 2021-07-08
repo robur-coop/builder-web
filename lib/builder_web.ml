@@ -137,14 +137,15 @@ let add_routes datadir =
     (Dream.sql req (Model.readme job_name) >>= fun readme ->
      Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
      Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
-     Dream.sql req (Model.builds_with_same_main_binary build_id) >>= fun other_builds ->
-     Dream.sql req (Model.latest_successful_build_uuid build.job_id) >>= fun latest_uuid ->
-     Dream.sql req (Model.previous_successful_build build_id) >|= fun previous_build ->
-         (readme, build, artifacts, other_builds, latest_uuid, previous_build))
+     Dream.sql req (Model.builds_with_same_input_and_same_main_binary build_id) >>= fun same_input_same_output ->
+     Dream.sql req (Model.builds_with_different_input_and_same_main_binary build_id) >>= fun different_input_same_output ->
+     Dream.sql req (Model.builds_with_same_input_and_different_main_binary build_id) >>= fun same_input_different_output ->
+     Dream.sql req (Model.latest_successful_build_uuid build.job_id) >|= fun latest_uuid ->
+         (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (readme, build, artifacts, other_builds, latest_uuid, previous_build) ->
-    Views.job_build job_name readme build artifacts other_builds latest_uuid previous_build
+    >>= fun (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid) ->
+    Views.job_build job_name readme build artifacts same_input_same_output different_input_same_output same_input_different_output latest_uuid
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 

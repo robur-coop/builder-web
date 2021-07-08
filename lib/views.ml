@@ -194,9 +194,8 @@ let job_build
   readme
   { Builder_db.Build.uuid; start; finish; result; console; script; _ }
   artifacts
-  other_builds
+  same_input_same_output different_input_same_output same_input_different_output
   latest_uuid
-  previous_build
   =
   let delta = Ptime.diff finish start in
   let successful_build = match result with Builder.Exited 0 -> true | _ -> false in
@@ -214,8 +213,15 @@ let job_build
       h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
       a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
-      p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      h3 [txt "Compare with other builds"];
+      p [txtf "Execution result: %a." Builder.pp_execution_result result]; ] @
+      (match same_input_same_output with [] -> [] | xs -> [
+         h3 [ txt "Reproduced by builds"] ;
+         p (List.concat_map (fun { Builder_db.Build.Meta.start ; uuid ; _ } ->
+             [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a" name Uuidm.pp uuid]
+                [txtf "%a" pp_ptime start] ;
+               txt ", " ])
+         xs) ] ) @ [
+      h3 [txt "Comparisons with other builds"];
       p
         ((match latest_uuid with
           | Some latest_uuid when successful_build && not (Uuidm.equal latest_uuid uuid) ->
@@ -223,18 +229,19 @@ let job_build
                       Uuidm.pp uuid Uuidm.pp latest_uuid]
                 [txt "With latest build"] ; br () ]
           | _ -> []) @
-          (match previous_build with
-           | Some previous_build when successful_build ->
+         List.concat_map (fun { Builder_db.Build.Meta.start = other_start ; uuid = other_uuid ; _ } ->
+             let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
              [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                     Uuidm.pp previous_build.Builder_db.Build.Meta.uuid Uuidm.pp uuid]
-                [txt "With previous build"] ; br () ]
-           | _ -> []) @
-         List.concat_map (fun { Builder_db.Build.Meta.start ; uuid = other_uuid ; _ } ->
+                     Uuidm.pp fst Uuidm.pp snd]
+                [txtf "With build %a (output is identical binary)" pp_ptime other_start] ; br () ])
+           different_input_same_output @
+         List.concat_map (fun { Builder_db.Build.Meta.start = other_start ; uuid = other_uuid ; _ } ->
+             let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
              [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                     Uuidm.pp other_uuid Uuidm.pp uuid]
-                [txtf "With build %a (output is identical binary)" pp_ptime start] ; br () ])
-           other_builds);
-      h3 [txt "Digests of build artifacts"];
+                     Uuidm.pp fst Uuidm.pp snd]
+                [txtf "With build %a (same input, different output)" pp_ptime other_start] ; br () ])
+           same_input_different_output);
+      h3 [txt "Build artifacts"];
       dl (List.concat_map
             (fun { Builder_db.filepath; localpath=_; sha256; size } ->
                let (`Hex sha256_hex) = Hex.of_cstruct sha256 in

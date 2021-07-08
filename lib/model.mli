@@ -39,7 +39,13 @@ val latest_successful_build_uuid : [`job] Builder_db.id -> Caqti_lwt.connection 
 val previous_successful_build : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.Meta.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val builds_with_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
+val builds_with_different_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
+val builds_with_same_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
+val builds_with_same_input_and_different_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val readme : string -> Caqti_lwt.connection ->
