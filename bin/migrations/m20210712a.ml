@@ -1,5 +1,5 @@
 let new_version = 13L and old_version = 12L
-and identifier = "2021-07-12"
+and identifier = "2021-07-12a"
 and migrate_doc = "remove result_kind from build, add indexes idx_build_failed and idx_build_artifact_sha256"
 and rollback_doc = "add result_kind to build, remove indexes idx_build_failed and idx_build_artifact_sha256"
 

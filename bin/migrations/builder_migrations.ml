@@ -110,6 +110,11 @@ let f20210707d =
   Cmdliner.Term.(const do_database_action $ const M20210707d.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-07-07d"
 
+let f20210712b =
+  let doc = "Remove build-hashes and README from artifacts." in
+  Cmdliner.Term.(const do_database_action $ const M20210712b.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-07-12b"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -148,6 +153,7 @@ let () =
         [ f20210707b ];
         [ f20210707c ];
         [ f20210707d ];
-        actions (module M20210712);
+        actions (module M20210712a);
+        [ f20210712b ];
       ])
   |> Cmdliner.Term.exit

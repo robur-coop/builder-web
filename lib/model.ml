@@ -182,10 +182,6 @@ let save file data =
           Lwt_result.fail (`Msg (Unix.error_message e))
       | e -> Lwt.fail e)
 
-let save_exec build_dir exec =
-  let cs = Builder.Asn.exec_to_cs exec in
-  save Fpath.(build_dir / "full") (Cstruct.to_string cs)
-
 let save_file dir staging (filepath, data) =
   let size = String.length data in
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
@@ -204,7 +200,7 @@ let save_files dir staging files =
     (Lwt_result.return [])
     files
 
-let save_all staging_dir (((job : Builder.script_job), uuid, _, _, _, _, artifacts) as exec) =
+let save_all staging_dir (job : Builder.script_job) uuid artifacts =
   let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
   let output_dir = Fpath.(build_dir / "output")
   and staging_output_dir = Fpath.(staging_dir / "output") in
@@ -213,7 +209,6 @@ let save_all staging_dir (((job : Builder.script_job), uuid, _, _, _, _, artifac
       then Lwt_result.fail (`Msg "build directory already exists")
       else Lwt_result.return ()) >>= fun () ->
   Lwt.return (Bos.OS.Dir.create staging_output_dir) >>= fun _ ->
-  save_exec staging_dir exec >>= fun () ->
   save_files output_dir staging_output_dir artifacts >>= fun artifacts ->
   Lwt_result.return artifacts
 
@@ -284,7 +279,7 @@ let compute_input_id artifacts =
 let add_build
     datadir
     user_id
-    (((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts) as exec)
+    ((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts)
     (module Db : CONN) =
   let open Builder_db in
   let job_name = job.Builder.name in
@@ -299,7 +294,13 @@ let add_build
         e)
       x
   in
-  or_cleanup (save_all staging_dir exec) >>= fun artifacts ->
+  let artifacts_to_preserve =
+    let not_interesting p =
+      String.equal (Fpath.basename p) "README.md" || String.equal (Fpath.get_ext p) ".build-hashes"
+    in
+    List.filter (fun (p, _) -> not (not_interesting p)) raw_artifacts
+  in
+  or_cleanup (save_all staging_dir job uuid artifacts_to_preserve) >>= fun artifacts ->
   let r =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
