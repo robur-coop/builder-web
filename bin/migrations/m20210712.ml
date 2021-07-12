@@ -166,6 +166,7 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
     results >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
+  Db.exec (Caqti_request.exec Caqti_type.unit "DROP INDEX idx_build_artifact_sha256") () >>= fun () ->
   Db.exec (Caqti_request.exec Caqti_type.unit
       "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)")
     () >>= fun () ->
