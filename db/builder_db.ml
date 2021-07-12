@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 12L
+let current_version = 13L
 
 type 'a id = 'a Rep.id
 
@@ -319,8 +319,7 @@ module Build = struct
            start_ps INTEGER NOT NULL,
            finish_d INTEGER NOT NULL,
            finish_ps INTEGER NOT NULL,
-           result_kind TINYINT NOT NULL,
-           result_code INTEGER,
+           result_code INTEGER NOT NULL,
            result_msg TEXT,
            console BLOB NOT NULL,
            script TEXT NOT NULL,
@@ -345,7 +344,7 @@ module Build = struct
       (id `build)
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                result_kind, result_code, result_msg,
+                result_code, result_msg,
                 console, script, main_binary, input_id, user, job
            FROM build
            WHERE id = ?
@@ -356,7 +355,7 @@ module Build = struct
       Rep.uuid
       (Caqti_type.tup2 (id `build) t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
-                  result_kind, result_code, result_msg,
+                  result_code, result_msg,
                   console, script, main_binary, input_id, user, job
            FROM build
            WHERE uuid = ?
@@ -367,7 +366,7 @@ module Build = struct
       (id `job)
       (Caqti_type.tup2 (id `build) t)
       {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
-                  result_kind, result_code, result_msg, console,
+                  result_code, result_msg, console,
                   script, main_binary, input_id, user, job
            FROM build
            WHERE job = ?
@@ -381,7 +380,7 @@ module Build = struct
          (id `build) Meta.t file_opt)
       {| SELECT build.id, build.uuid,
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
-                build.result_kind, build.result_code, build.result_msg,
+                build.result_code, build.result_msg,
                 build.main_binary, build.input_id, build.user, build.job,
                 build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
            FROM build, job
@@ -406,10 +405,10 @@ module Build = struct
       (id `job)
       Meta.t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                result_kind, result_code, result_msg,
+                result_code, result_msg,
                 main_binary, input_id, user, job
          FROM build
-         WHERE job = ? AND result_kind <> 0 OR result_code <> 0
+         WHERE job = ? AND result_code <> 0
          ORDER BY start_d DESC, start_ps DESC
          LIMIT 1
       |}
@@ -423,7 +422,7 @@ module Build = struct
                    file_opt)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_kind, b.result_code, b.result_msg,
+           b.result_code, b.result_msg,
            b.main_binary, b.input_id, b.user, b.job,
            a.filepath, a.localpath, a.sha256, a.size
          FROM build b
@@ -451,7 +450,7 @@ module Build = struct
       Rep.uuid
       {| SELECT b.uuid
          FROM build b
-         WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
+         WHERE b.job = ? AND b.result_code = 0
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
@@ -462,11 +461,11 @@ module Build = struct
       Caqti_type.(tup2 (id `build) Meta.t)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_kind, b.result_code, b.result_msg,
+           b.result_code, b.result_msg,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b, build b0
          WHERE b0.id = ? AND b0.job = b.job AND
-           b.result_kind = 0 AND b.result_code = 0 AND
+           b.result_code = 0 AND
            (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
@@ -477,7 +476,7 @@ module Build = struct
       (id `build)
       Meta.t
       {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_kind, b.result_code, b.result_msg,
+           b.result_code, b.result_msg,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b0, build_artifact a0, build b, build_artifact a
          WHERE b0.id = ? AND a0.id = b0.main_binary AND a0.sha256 = a.sha256
@@ -511,7 +510,7 @@ module Build = struct
       Rep.cstruct
       Meta.t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-          result_kind, result_code, result_msg,
+          result_code, result_msg,
           main_binary, input_id, user, job
          FROM build
          WHERE input_id = ?
@@ -524,9 +523,9 @@ module Build = struct
       t
       {| INSERT INTO build
            (uuid, start_d, start_ps, finish_d, finish_ps,
-           result_kind, result_code, result_msg, console, script, main_binary, input_id, user, job)
+           result_code, result_msg, console, script, main_binary, input_id, user, job)
            VALUES
-           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+           (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
   let get_meta_by_hash =
@@ -535,7 +534,7 @@ module Build = struct
       Meta.t
       {| SELECT
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_kind, b.result_code, b.result_msg,
+           b.result_code, b.result_msg,
            b.main_binary, b.input_id, b.user, b.job
          FROM build_artifact a
          INNER JOIN build b ON b.id = a.build
@@ -549,7 +548,7 @@ module Build = struct
       Rep.cstruct
       (Caqti_type.tup2 Meta.t file_opt)
       {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-                b.result_kind, b.result_code, b.result_msg,
+                b.result_code, b.result_msg,
                 b.main_binary, b.input_id, b.user, b.job,
                 a.filepath, a.localpath, a.sha256, a.size
            FROM build_artifact a
@@ -567,7 +566,7 @@ module Build = struct
          t)
       {| SELECT job.name,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_kind, b.result_code, b.result_msg,
+           b.result_code, b.result_msg,
            b.console, b.script, b.main_binary, b.input_id, b.user, b.job
          FROM build_artifact a
          INNER JOIN build b ON b.id = a.build
@@ -710,6 +709,14 @@ let migrate = [
   Job_tag.migrate;
   Caqti_request.exec Caqti_type.unit
     "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)";
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE result_code <> 0";
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_input_id ON build(input_id)";
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_main_binary ON build(main_binary)";
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_artifact_sha256 ON build_artifact(sha256)";
   set_current_version;
   set_application_id;
 ]
@@ -722,6 +729,14 @@ let rollback = [
   Build_artifact.rollback;
   Build.rollback;
   Job.rollback;
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX IF EXISTS idx_build_artifact_sha256";
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX IF EXISTS idx_build_failed";
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX IF EXISTS idx_build_input_id";
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX IF EXISTS idx_build_main_binary";
   Caqti_request.exec Caqti_type.unit
     "DROP INDEX IF EXISTS idx_build_job_start";
   Caqti_request.exec Caqti_type.unit

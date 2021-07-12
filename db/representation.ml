@@ -88,20 +88,26 @@ let file_opt =
 
 let execution_result =
   let encode = function
-    | Builder.Exited v -> Ok (0, Some v, None)
-    | Builder.Signalled v -> Ok (1, Some v, None)
-    | Builder.Stopped v -> Ok (2, Some v, None)
-    | Builder.Msg msg -> Ok (3, None, Some msg)
+    | Builder.Exited v -> Ok (v, None)
+    | Builder.Signalled v -> Ok (v lsl 8, None)
+    | Builder.Stopped v -> Ok (v lsl 16, None)
+    | Builder.Msg msg -> Ok (65536, Some msg)
   in
-  let decode (kind, code, msg) =
-    match kind, code, msg with
-    | 0, Some v, None -> Ok (Builder.Exited v)
-    | 1, Some v, None -> Ok (Builder.Signalled v)
-    | 2, Some v, None -> Ok (Builder.Stopped v)
-    | 3, None, Some msg -> Ok (Builder.Msg msg)
-    | _ -> Error "bad encoding"
+  let decode (code, msg) =
+    if code <= 0xFF then
+       Ok (Builder.Exited code)
+    else if code <= 0xFFFF then
+       Ok (Builder.Signalled (code lsr 8))
+    else if code <= 0xFFFFFF then
+       Ok (Builder.Stopped (code lsr 16))
+    else if code = 65536 then
+       match msg with
+       | None -> Error "bad encoding"
+       | Some m -> Ok (Builder.Msg m)
+    else
+      Error "bad encoding (unknown number)"
   in
-  let rep = Caqti_type.(tup3 int (option int) (option string)) in
+  let rep = Caqti_type.(tup2 int (option string)) in
   Caqti_type.custom ~encode ~decode rep
 
 let console =
