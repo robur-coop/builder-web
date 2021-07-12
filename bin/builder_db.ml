@@ -202,6 +202,12 @@ let verify_input_id () dbpath =
    in
    or_die 1 r
 
+let num_build_artifacts =
+  Caqti_request.find
+    Caqti_type.unit
+    Caqti_type.int
+    "SELECT count(*) FROM build_artifact"
+
 let build_artifacts : (unit, (Fpath.t * Fpath.t * Cstruct.t * int64) * [`build] Builder_db.Rep.id, [ `One | `Zero | `Many ]) Caqti_request.t =
   Caqti_request.collect
     Caqti_type.unit
@@ -215,27 +221,31 @@ let verify_data_dir () datadir =
     connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.collect_list build_artifacts () >>= fun build_artifacts ->
-    Logs.info (fun m -> m "total: %d artifacts" (List.length build_artifacts));
-    List.iteri (fun idx ((fpath, lpath, sha, size), _build_id) ->
-      if idx mod 100 = 0 then Logs.info (fun m -> m "%d" idx);
-      (match Fpath.segs lpath with
-       | _job :: _uuid :: output :: tl ->
-         if output = "output" && Fpath.equal (Fpath.v (String.concat "/" tl)) fpath then
-           ()
-         else
-           Logs.err (fun m -> m "lpath (%a) and fpath (%a) do not match" Fpath.pp lpath Fpath.pp lpath)
-       | _ -> Logs.err (fun m -> m "lpath is not of form <job>/<uuid>/<output>/<filename>: %a" Fpath.pp lpath));
-      let abs_path = Fpath.(v datadir // lpath) in
-      (match Bos.OS.File.read abs_path with
-       | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
-       | Ok data ->
+    Db.find num_build_artifacts () >>= fun num_build_artifacts ->
+    Logs.info (fun m -> m "total: %d artifacts" num_build_artifacts);
+    let progress =
+      let idx = ref 0 in
+      fun () -> incr idx; if !idx mod 100 = 0 then Logs.info (fun m -> m "%d" !idx);
+    in
+    Db.iter_s build_artifacts (fun ((fpath, lpath, sha, size), _build_id) ->
+        progress ();
+        (match Fpath.segs lpath with
+         | _job :: _uuid :: "output" :: tl ->
+           if Fpath.equal (Fpath.v (String.concat "/" tl)) fpath then
+             ()
+           else
+             Logs.err (fun m -> m "lpath (%a) and fpath (%a) do not match" Fpath.pp lpath Fpath.pp lpath)
+         | _ -> Logs.err (fun m -> m "lpath is not of form <job>/<uuid>/output/<filename>: %a" Fpath.pp lpath));
+        let abs_path = Fpath.(v datadir // lpath) in
+        (match Bos.OS.File.read abs_path with
+         | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
+         | Ok data ->
            let s = Int64.of_int (String.length data) in
            if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
            let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-           if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh))
-    ) build_artifacts;
-    Ok ()
+           if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh)) ;
+        Ok ()
+      ) ()
   in
   or_die 1 r
 
