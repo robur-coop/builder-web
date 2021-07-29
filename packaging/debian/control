@@ -8,6 +8,6 @@ Homepage: https://git.robur.io/robur/builder-web
 Vcs-Browser: https://git.robur.io/robur/builder-web
 Vcs-Git: https://git.robur.io/robur/builder-web.git
 Architecture: all
-Depends: libgmp10, libsqlite3, libev4
+Depends: libgmp10, libsqlite3-0, libev4
 Description: Web service for storing and presenting builds.
   Builder-web stores builds in a sqlite database and serves them via HTTP.
