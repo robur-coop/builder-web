@@ -6,7 +6,7 @@ After=syslog.target network.target
 Type=simple
 User=builder
 Group=builder
-ExecStart=/usr/bin/builder-web --data-dir /var/lib/builder/
+ExecStart=/usr/bin/builder-web --datadir /var/lib/builder/
 
 [Install]
 WantedBy=multi-user.target
