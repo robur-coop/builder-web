@@ -218,7 +218,7 @@ let commit_files datadir staging_dir job_name uuid =
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Path.move staging_dir dest)
 
-let infer_section_and_synopsis artifacts =
+let infer_section_and_synopsis name artifacts =
   let opam_switch =
     match List.find_opt (fun (p, _) -> String.equal (Fpath.basename p) "opam-switch") artifacts with
     | None -> None
@@ -239,24 +239,27 @@ let infer_section_and_synopsis artifacts =
     if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
          switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
     then
-      "Unikernel (with metrics reported to Influx)"
+      "Unikernels (with metrics reported to Influx)"
     else
-      "Unikernel"
+      "Unikernels"
   in
-  let infer_section_from_extension =
-    match List.find_opt (fun (p, _) -> Fpath.(is_prefix (v "bin/") p)) artifacts with
-     | None -> None
-     | Some (p, _) ->
-       match Fpath.get_ext p with
-       | ".deb" -> Some "Debian Package"
-       | ".txz" -> Some "FreeBSD Package"
-       | _ -> None
+  let infer_section_from_name name =
+    let map = [
+      "-freebsd", "FreeBSD" ;
+      "-debian", "Debian" ;
+      "-ubuntu", "Ubuntu" ;
+    ] in
+    match
+      List.find_opt (fun (affix, _) -> Astring.String.is_infix ~affix name) map
+    with
+    | None -> None
+    | Some (_, os) -> os ^ " Packages"
   in
   match opam_switch with
   | None -> None, (None, None)
   | Some opam_switch ->
     let section =
-      match infer_section_from_extension with
+      match infer_section_from_name name with
       | Some x -> x
       | None -> infer_section_from_packages opam_switch
     in
@@ -323,7 +326,7 @@ let add_build
                         console; script = job.Builder.script;
                         main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
-    let sec_syn = infer_section_and_synopsis raw_artifacts in
+    let sec_syn = infer_section_and_synopsis job_name raw_artifacts in
     let add_or_update tag_id tag_value =
       Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
       | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)
