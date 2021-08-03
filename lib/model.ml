@@ -253,7 +253,7 @@ let infer_section_and_synopsis name artifacts =
       List.find_opt (fun (affix, _) -> Astring.String.is_infix ~affix name) map
     with
     | None -> None
-    | Some (_, os) -> os ^ " Packages"
+    | Some (_, os) -> Some (os ^ " Packages")
   in
   match opam_switch with
   | None -> None, (None, None)
