@@ -17,6 +17,7 @@ build: [
 depends: [
   "builder"
   "dream" {>= "1.0.0~alpha2"}
+  "cstruct" {>= "6.0.0"}
   "bos"
   "hex"
   "caqti"
