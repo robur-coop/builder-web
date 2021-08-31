@@ -425,7 +425,7 @@ module Build = struct
       Caqti_type.(tup2 (id `build) t)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg, console, script,
+           b.result_code, b.result_msg, b.console, b.script,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b, build b0
          WHERE b0.id = ? AND b0.job = b.job AND
