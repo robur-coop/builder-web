@@ -52,7 +52,7 @@ let build_meta job (module Db : CONN) =
   Option.map (fun (_id, meta, file) -> (meta, file))
 
 let build_hash hash (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_by_hash hash
+  Db.find_opt Builder_db.Build.get_with_jobname_by_hash hash
 
 let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
@@ -89,10 +89,9 @@ let builds_with_same_input_and_different_main_binary id (module Db : CONN) =
      match acc with
      | Error _ as e -> Lwt.return e
      | Ok metas ->
-       Db.find Builder_db.Build.get_meta_by_hash hash >>= fun build ->
+       Db.find Builder_db.Build.get_by_hash hash >>= fun build ->
        Lwt.return (Ok (build :: metas)))
    (Ok []) hashes
-
 
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
@@ -112,9 +111,9 @@ let job_and_readme job (module Db : CONN) =
      match acc with
      | Error _ as e -> Lwt.return e
      | Ok (fail, metas) ->
-       Db.find Builder_db.Build.get_meta_and_artifact_by_hash hash >|= fun (meta, file) ->
+       Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun (meta, file) ->
        match fail with
-       | Some f when Ptime.is_later ~than:meta.Builder_db.Build.Meta.start f.Builder_db.Build.Meta.start -> None, (meta, file) :: (f, None) :: metas
+       | Some f when Ptime.is_later ~than:meta.Builder_db.Build.start f.Builder_db.Build.start -> None, (meta, file) :: (f, None) :: metas
        | x -> x, (meta, file) :: metas)
     (Ok (failed, [])) sha >|= fun (x, builds) ->
   let builds = match x with None -> builds | Some f -> (f, None) :: builds in
@@ -279,6 +278,19 @@ let compute_input_id artifacts =
   | Some a, Some b, Some c -> Some (Mirage_crypto.Hash.SHA256.digest (Cstruct.concat [a;b;c]))
   | _ -> None
 
+let save_console_and_script staging_dir datadir job_name uuid console script =
+  let out name = Fpath.(datadir / job_name / Uuidm.to_string uuid / name + "txt") in
+  let out_staging name = Fpath.(staging_dir / name + "txt") in
+  let console_to_string console =
+    List.map (fun (delta, data) ->
+      Printf.sprintf "%.3fs:%s\n" (Duration.to_f (Int64.of_int delta)) data)
+      console
+    |> String.concat ""
+  in
+  save (out_staging "script") script >>= fun () ->
+  save (out_staging "console") (console_to_string console) >|= fun () ->
+  (out "script", out "console")
+
 let add_build
     datadir
     user_id
@@ -303,6 +315,8 @@ let add_build
     in
     List.filter (fun (p, _) -> not (not_interesting p)) raw_artifacts
   in
+  or_cleanup (save_console_and_script staging_dir datadir job_name uuid console job.Builder.script)
+  >>= fun (console, script) ->
   or_cleanup (save_all staging_dir job uuid artifacts_to_preserve) >>= fun artifacts ->
   let r =
     Db.start () >>= fun () ->
@@ -323,7 +337,7 @@ let add_build
     Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
     let input_id = compute_input_id artifacts in
     Db.exec Build.add { Build.uuid; start; finish; result;
-                        console; script = job.Builder.script;
+                        console; script;
                         main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     let sec_syn = infer_section_and_synopsis job_name raw_artifacts in

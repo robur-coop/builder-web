@@ -139,15 +139,15 @@ let job_remove () datadir jobname =
       Db.start () >>= fun () ->
       Db.exec defer_foreign_keys () >>= fun () ->
       let r =
-        Db.collect_list Builder_db.Build.get_all_meta job_id >>= fun builds ->
-        List.fold_left (fun r (build, meta, _) ->
+        Db.collect_list Builder_db.Build.get_all job_id >>= fun builds ->
+        List.fold_left (fun r (build_id, build) ->
             r >>= fun () ->
-            let dir = Fpath.(v datadir / jobname / Uuidm.to_string meta.Builder_db.Build.Meta.uuid) in
+            let dir = Fpath.(v datadir / jobname / Uuidm.to_string build.Builder_db.Build.uuid) in
             (match Bos.OS.Dir.delete ~recurse:true dir with
             | Ok _ -> ()
             | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
-            Db.exec Builder_db.Build_artifact.remove_by_build build >>= fun () ->
-            Db.exec Builder_db.Build.remove build)
+            Db.exec Builder_db.Build_artifact.remove_by_build build_id >>= fun () ->
+            Db.exec Builder_db.Build.remove build_id)
           (Ok ())
           builds >>= fun () ->
         Db.exec Builder_db.Job.remove job_id >>= fun () ->

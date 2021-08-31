@@ -83,7 +83,7 @@ let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath =
   [
     a ~a:[a_href (Fmt.strf "/job/%s/build/%a/f/%a"
                     job_name
-                    Uuidm.pp build.Builder_db.Build.Meta.uuid
+                    Uuidm.pp build.Builder_db.Build.uuid
                     Fpath.pp filepath)]
       [if basename
        then txt (Fpath.basename filepath)
@@ -132,13 +132,13 @@ let builder section_job_map =
                    a ~a:[a_href ("job/" ^ job_name ^ "/")]
                      [txt job_name];
                    txt " ";
-                   check_icon latest_build.Builder_db.Build.Meta.result;
+                   check_icon latest_build.Builder_db.Build.result;
                    br ();
                    txt (Option.value ~default:"" synopsis);
                    br ();
                    a ~a:[a_href (Fmt.strf "job/%s/build/%a/" job_name Uuidm.pp
-                                   latest_build.Builder_db.Build.Meta.uuid)]
-                     [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.Meta.start];
+                                   latest_build.Builder_db.Build.uuid)]
+                     [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
                    txt " ";
                  ] @ match latest_artifact with
                  | Some main_binary ->
@@ -171,9 +171,9 @@ let job name readme builds =
       ];
       ul (List.map (fun (build, main_binary) ->
           li ([
-              a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.Meta.uuid / ""))]
+              a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.uuid / ""))]
                 [
-                  txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.Meta.start;
+                  txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.start;
                 ];
               txt " ";
               check_icon build.result;
@@ -192,7 +192,7 @@ let job name readme builds =
 let job_build
   name
   readme
-  { Builder_db.Build.uuid; start; finish; result; console; script; _ }
+  { Builder_db.Build.uuid; start; finish; result; _ }
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
   latest_uuid
@@ -216,7 +216,7 @@ let job_build
       p [txtf "Execution result: %a." Builder.pp_execution_result result]; ] @
       (match same_input_same_output with [] -> [] | xs -> [
          h3 [ txt "Reproduced by builds"] ;
-         p (List.concat_map (fun { Builder_db.Build.Meta.start ; uuid ; _ } ->
+         p (List.concat_map (fun { Builder_db.Build.start ; uuid ; _ } ->
              [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a" name Uuidm.pp uuid]
                 [txtf "%a" pp_ptime start] ;
                txt ", " ])
@@ -229,13 +229,13 @@ let job_build
                       Uuidm.pp uuid Uuidm.pp latest_uuid]
                 [txt "With latest build"] ; br () ]
           | _ -> []) @
-         List.concat_map (fun { Builder_db.Build.Meta.start = other_start ; uuid = other_uuid ; _ } ->
+         List.concat_map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; _ } ->
              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
              [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
                      Uuidm.pp fst Uuidm.pp snd]
                 [txtf "With build %a (output is identical binary)" pp_ptime other_start] ; br () ])
            different_input_same_output @
-         List.concat_map (fun { Builder_db.Build.Meta.start = other_start ; uuid = other_uuid ; _ } ->
+         List.concat_map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; _ } ->
              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
              [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
                      Uuidm.pp fst Uuidm.pp snd]
@@ -255,6 +255,8 @@ let job_build
                  ];
                ])
             artifacts);
+      (*
+      (* FIXME *)
       h3 [txt "Job script"];
       toggleable "job-script" "Show/hide"
         [ pre [txt script] ];
@@ -276,6 +278,7 @@ let job_build
                  ])
                 (List.rev console));
         ];
+      *)
     ])
 
 let key_values xs =

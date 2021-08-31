@@ -4,7 +4,7 @@ open Rep
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 13L
+let current_version = 14L
 
 type 'a id = 'a Rep.id
 
@@ -239,8 +239,8 @@ module Build = struct
     start : Ptime.t;
     finish : Ptime.t;
     result : Builder.execution_result;
-    console : (int * string) list;
-    script : string;
+    console : Fpath.t;
+    script : Fpath.t;
     main_binary : [`build_artifact] id option;
     input_id : Cstruct.t option;
     user_id : [`user] id;
@@ -257,9 +257,9 @@ module Build = struct
                           Rep.ptime)
                        (tup2
                           execution_result
-                          console)
+                          fpath)
                        (tup3
-                          string
+                          fpath
                           (option (Rep.id `build_artifact))
                           (option Rep.cstruct)))
                     (id `user)
@@ -273,42 +273,6 @@ module Build = struct
     in
     Caqti_type.custom ~encode ~decode rep
 
-  module Meta = struct
-    type t = {
-      uuid : Uuidm.t;
-      start : Ptime.t;
-      finish : Ptime.t;
-      result : Builder.execution_result;
-      main_binary : [`build_artifact] id option;
-      input_id : Cstruct.t option;
-      user_id : [`user] id;
-      job_id : [`job] id;
-    }
-
-    let t =
-      let rep =
-        Caqti_type.(tup3
-                     (tup4
-                       uuid
-                       (tup2
-                          Rep.ptime
-                          Rep.ptime)
-                       execution_result
-                       (tup2
-                          (option (Rep.id `build_artifact))
-                          (option Rep.cstruct)))
-                     (id `user)
-                     (id `job))
-      in
-      let encode { uuid; start; finish; result; main_binary; input_id; user_id; job_id } =
-        Ok ((uuid, (start, finish), result, (main_binary, input_id)), user_id, job_id)
-      in
-      let decode ((uuid, (start, finish), result, (main_binary, input_id)), user_id, job_id) =
-        Ok { uuid; start; finish; result; main_binary; input_id; user_id; job_id }
-      in
-      Caqti_type.custom ~encode ~decode rep
-  end
-
   let migrate =
     Caqti_request.exec
       Caqti_type.unit
@@ -321,7 +285,7 @@ module Build = struct
            finish_ps INTEGER NOT NULL,
            result_code INTEGER NOT NULL,
            result_msg TEXT,
-           console BLOB NOT NULL,
+           console TEXT NOT NULL,
            script TEXT NOT NULL,
            main_binary INTEGER,
            user INTEGER NOT NULL,
@@ -373,14 +337,14 @@ module Build = struct
            ORDER BY start_d DESC, start_ps DESC
         |}
 
-  let get_all_meta =
+  let get_all_with_main_binary =
     Caqti_request.collect
       (id `job)
       (Caqti_type.tup3
-         (id `build) Meta.t file_opt)
+         (id `build) t file_opt)
       {| SELECT build.id, build.uuid,
                 build.start_d, build.start_ps, build.finish_d, build.finish_ps,
-                build.result_code, build.result_msg,
+                build.result_code, build.result_msg, console, script,
                 build.main_binary, build.input_id, build.user, build.job,
                 build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
            FROM build, job
@@ -403,9 +367,9 @@ module Build = struct
   let get_latest_failed =
     Caqti_request.find_opt
       (id `job)
-      Meta.t
+      t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                result_code, result_msg,
+                result_code, result_msg, console, script,
                 main_binary, input_id, user, job
          FROM build
          WHERE job = ? AND result_code <> 0
@@ -418,11 +382,11 @@ module Build = struct
       (id `job)
       Caqti_type.(tup3
                    (id `build)
-                   Meta.t
+                   t
                    file_opt)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg,
+           b.result_code, b.result_msg, b.console, b.script,
            b.main_binary, b.input_id, b.user, b.job,
            a.filepath, a.localpath, a.sha256, a.size
          FROM build b
@@ -458,10 +422,10 @@ module Build = struct
   let get_previous_successful =
     Caqti_request.find_opt
       (id `build)
-      Caqti_type.(tup2 (id `build) Meta.t)
+      Caqti_type.(tup2 (id `build) t)
       {| SELECT b.id,
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg,
+           b.result_code, b.result_msg, console, script,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b, build b0
          WHERE b0.id = ? AND b0.job = b.job AND
@@ -474,9 +438,9 @@ module Build = struct
   let get_same_input_same_output_builds =
     Caqti_request.collect
       (id `build)
-      Meta.t
+      t
       {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg,
+           b.result_code, b.result_msg, b.console, b.script,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b0, build_artifact a0, build b, build_artifact a
          WHERE b0.id = ? AND a0.id = b0.main_binary AND a0.sha256 = a.sha256
@@ -508,9 +472,9 @@ module Build = struct
   let get_one_by_input_id =
     Caqti_request.find
       Rep.cstruct
-      Meta.t
+      t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-          result_code, result_msg,
+          result_code, result_msg, console, script,
           main_binary, input_id, user, job
          FROM build
          WHERE input_id = ?
@@ -528,13 +492,13 @@ module Build = struct
            (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         |}
 
-  let get_meta_by_hash =
+  let get_by_hash =
     Caqti_request.find
       Rep.cstruct
-      Meta.t
+      t
       {| SELECT
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg,
+           b.result_code, b.result_msg, b.console, b.script,
            b.main_binary, b.input_id, b.user, b.job
          FROM build_artifact a
          INNER JOIN build b ON b.id = a.build
@@ -543,12 +507,12 @@ module Build = struct
          LIMIT 1
       |}
 
-  let get_meta_and_artifact_by_hash =
+  let get_with_main_binary_by_hash =
     Caqti_request.find
       Rep.cstruct
-      (Caqti_type.tup2 Meta.t file_opt)
+      (Caqti_type.tup2 t file_opt)
       {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-                b.result_code, b.result_msg,
+                b.result_code, b.result_msg, b.console, b.script,
                 b.main_binary, b.input_id, b.user, b.job,
                 a.filepath, a.localpath, a.sha256, a.size
            FROM build_artifact a
@@ -558,7 +522,7 @@ module Build = struct
            LIMIT 1
         |}
 
-  let get_by_hash =
+  let get_with_jobname_by_hash =
     Caqti_request.find_opt
       Rep.cstruct
       (Caqti_type.tup2

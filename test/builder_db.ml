@@ -134,12 +134,9 @@ let test_user_unauth (module Db : CONN) =
       (Builder_web_auth.verify_password "wrong" auth') false
 
 let job_name = "test-job"
-let script = {|#!/bin/sh
-  echo '#!/bin/sh' > bin/hello.sh
-  echo 'echo Hello, World!' > bin/hello.sh
-  |}
+let script = Fpath.v "/dev/null"
 let uuid = Uuidm.create `V4
-let console = [(0, "Hello, World!")]
+let console = Fpath.v "/dev/null"
 let start = Option.get (Ptime.of_float_s 0.)
 let finish = Option.get (Ptime.of_float_s 1.)
 let result = Builder.Exited 0
@@ -213,9 +210,9 @@ let test_build_get_all (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_all job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
-let test_build_get_all_meta (module Db : CONN) =
+let test_build_get_all_with_main_binary (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.collect_list Builder_db.Build.get_all_meta job_id >>| fun builds ->
+  Db.collect_list Builder_db.Build.get_all_with_main_binary job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
 let uuid' = Uuidm.create `V4
@@ -269,9 +266,9 @@ let test_build_get_previous_none (module Db : CONN) =
   | Some (_id, meta) ->
     Alcotest.failf "Got unexpected result %a" Uuidm.pp meta.uuid
 
-let test_build_get_by_hash (module Db : CONN) =
+let test_build_get_with_jobname_by_hash (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
-  Db.find_opt Builder_db.Build.get_by_hash main_binary.sha256
+  Db.find_opt Builder_db.Build.get_with_jobname_by_hash main_binary.sha256
   >>| get_opt "no build" >>| fun (job_name', build) ->
   Alcotest.(check string) "same job" job_name' job_name;
   Alcotest.(check Testable.uuid) "same uuid" build.uuid uuid'
@@ -326,10 +323,10 @@ let () =
     "build", [
       test_case "Get build" `Quick (with_build_db test_build_get_by_uuid);
       test_case "One build" `Quick (with_build_db test_build_get_all);
-      test_case "One build (meta data)" `Quick (with_build_db test_build_get_all_meta);
+      test_case "One build (meta data)" `Quick (with_build_db test_build_get_all_with_main_binary);
       test_case "Get latest build" `Quick (with_build_db test_build_get_latest);
       test_case "Get latest build uuid" `Quick (with_build_db test_build_get_latest_uuid);
-      test_case "Get build by hash" `Quick (with_build_db test_build_get_by_hash);
+      test_case "Get build by hash" `Quick (with_build_db test_build_get_with_jobname_by_hash);
       test_case "Get previous build" `Quick (with_build_db test_build_get_previous);
       test_case "Get previous build when first" `Quick (with_build_db test_build_get_previous_none);
     ];

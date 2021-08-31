@@ -22,7 +22,7 @@ val build : Uuidm.t -> Caqti_lwt.connection ->
   ([`build] Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
 val build_meta : [`job] Builder_db.id -> Caqti_lwt.connection ->
-  ((Builder_db.Build.Meta.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  ((Builder_db.Build.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_hash : Cstruct.t -> Caqti_lwt.connection ->
   ((string * Builder_db.Build.t) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
@@ -37,22 +37,22 @@ val latest_successful_build_uuid : [`job] Builder_db.id -> Caqti_lwt.connection 
   (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val previous_successful_build : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.Meta.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val builds_with_different_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val builds_with_same_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val builds_with_same_input_and_different_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.Meta.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val readme : string -> Caqti_lwt.connection ->
   (string option, [> error ]) result Lwt.t
 
 val job_and_readme : string -> Caqti_lwt.connection ->
-  (string option * (Builder_db.Build.Meta.t * Builder_db.file option) list, [> error ]) result Lwt.t
+  (string option * (Builder_db.Build.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
 val job_id : string -> Caqti_lwt.connection ->
   ([`job] Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
