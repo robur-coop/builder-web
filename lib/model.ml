@@ -203,10 +203,6 @@ let save_all staging_dir (job : Builder.script_job) uuid artifacts =
   let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
   let output_dir = Fpath.(build_dir / "output")
   and staging_output_dir = Fpath.(staging_dir / "output") in
-  Lwt.return (Bos.OS.Dir.create staging_dir) >>= (fun created ->
-      if not created
-      then Lwt_result.fail (`Msg "build directory already exists")
-      else Lwt_result.return ()) >>= fun () ->
   Lwt.return (Bos.OS.Dir.create staging_output_dir) >>= fun _ ->
   save_files output_dir staging_output_dir artifacts >>= fun artifacts ->
   Lwt_result.return artifacts
@@ -291,6 +287,12 @@ let save_console_and_script staging_dir datadir job_name uuid console script =
   save (out_staging "console") (console_to_string console) >|= fun () ->
   (out "script", out "console")
 
+let prepare_staging staging_dir =
+  Lwt.return (Bos.OS.Dir.create staging_dir) >>= fun created ->
+  if not created
+  then Lwt_result.fail (`Msg "build directory already exists")
+  else Lwt_result.return ()
+
 let add_build
     datadir
     user_id
@@ -315,6 +317,7 @@ let add_build
     in
     List.filter (fun (p, _) -> not (not_interesting p)) raw_artifacts
   in
+  or_cleanup (prepare_staging staging_dir) >>= fun () ->
   or_cleanup (save_console_and_script staging_dir datadir job_name uuid console job.Builder.script)
   >>= fun (console, script) ->
   or_cleanup (save_all staging_dir job uuid artifacts_to_preserve) >>= fun artifacts ->
