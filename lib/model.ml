@@ -110,11 +110,11 @@ let job_and_readme job (module Db : CONN) =
   Lwt_list.fold_left_s (fun acc hash ->
      match acc with
      | Error _ as e -> Lwt.return e
-     | Ok (fail, metas) ->
-       Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun (meta, file) ->
+     | Ok (fail, builds) ->
+       Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun (build, file) ->
        match fail with
-       | Some f when Ptime.is_later ~than:meta.Builder_db.Build.start f.Builder_db.Build.start -> None, (meta, file) :: (f, None) :: metas
-       | x -> x, (meta, file) :: metas)
+       | Some f when Ptime.is_later ~than:build.Builder_db.Build.start f.Builder_db.Build.start -> None, (build, file) :: (f, None) :: builds
+       | x -> x, (build, file) :: builds)
     (Ok (failed, [])) sha >|= fun (x, builds) ->
   let builds = match x with None -> builds | Some f -> (f, None) :: builds in
   readme, List.rev builds
