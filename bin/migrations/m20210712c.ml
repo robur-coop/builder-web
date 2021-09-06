@@ -137,6 +137,12 @@ let console_to_string console =
 
 let console_of_string data =
   let lines = String.split_on_char '\n' data in
+  (* remove last empty line *)
+  let lines =
+    match List.rev lines with
+    | "" :: lines -> List.rev lines
+    | _ -> lines
+  in
   let console = List.map (fun line ->
       match String.split_on_char ':' line with
       | ts :: tail ->
