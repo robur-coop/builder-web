@@ -131,19 +131,19 @@ let rename_build =
 let console_to_string console =
   Asn.console_of_cs console >>| fun console ->
   List.map (fun (delta, data) ->
-    Printf.sprintf "%.3fs:%s\n" (Duration.to_f delta) data)
+      Printf.sprintf "%.3fs:%s\n" (Duration.to_f delta) data)
     console
   |> String.concat ""
 
 let console_of_string data =
   let lines = String.split_on_char '\n' data in
   let console = List.map (fun line ->
-    match String.split_on_char ':' line with
-    | ts :: tail ->
-      let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
-      Duration.of_f delta, String.concat ":" tail
-    | _ -> assert false)
-    lines
+      match String.split_on_char ':' line with
+      | ts :: tail ->
+        let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
+        Duration.of_f delta, String.concat ":" tail
+      | _ -> assert false)
+      lines
   in
   Asn.console_to_cs console
 
@@ -175,8 +175,8 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec copy_from_old_build () >>= fun () ->
   Db.collect_list old_build_console_script () >>= fun console_scripts ->
   Grej.list_iter_result (fun (id, (job_name, uuid), console, script) ->
-    save_console_and_script datadir job_name uuid console script >>= fun (console_file, script_file) ->
-    Db.exec update_new_build_console_script (id, console_file, script_file))
+      save_console_and_script datadir job_name uuid console script >>= fun (console_file, script_file) ->
+      Db.exec update_new_build_console_script (id, console_file, script_file))
     console_scripts >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
@@ -200,8 +200,8 @@ let rollback datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec copy_from_new_build () >>= fun () ->
   Db.collect_list new_build_console_script () >>= fun console_scripts ->
   Grej.list_iter_result (fun (id, console_file, script_file) ->
-    read_console_and_script datadir console_file script_file >>= fun (console, script) ->
-    Db.exec update_old_build_console_script (id, console, script))
+      read_console_and_script datadir console_file script_file >>= fun (console, script) ->
+      Db.exec update_old_build_console_script (id, console, script))
     console_scripts >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
