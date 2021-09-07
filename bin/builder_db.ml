@@ -208,11 +208,13 @@ let num_build_artifacts =
     Caqti_type.int
     "SELECT count(*) FROM build_artifact"
 
-let build_artifacts : (unit, (Fpath.t * Fpath.t * Cstruct.t * int64) * [`build] Builder_db.Rep.id, [ `One | `Zero | `Many ]) Caqti_request.t =
+let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Fpath.t * Cstruct.t * int64), [ `One | `Zero | `Many ]) Caqti_request.t =
   Caqti_request.collect
     Caqti_type.unit
-    Caqti_type.(tup2 (tup4 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct int64) (Builder_db.Rep.id `build))
-    {| SELECT filepath, localpath, sha256, size, build FROM build_artifact |}
+    Caqti_type.(tup3 string Builder_db.Rep.uuid (tup4 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
+    {| SELECT job.name, b.uuid, a.filepath, a.localpath, a.sha256, a.size
+       FROM build_artifact a, build b, job
+       WHERE a.build = b.id AND b.job = job.id |}
 
 let verify_data_dir () datadir =
   let dbpath = datadir ^ "/builder.sqlite3" in
@@ -227,10 +229,12 @@ let verify_data_dir () datadir =
       let idx = ref 0 in
       fun () -> incr idx; if !idx mod 100 = 0 then Logs.info (fun m -> m "%d" !idx);
     in
-    Db.iter_s build_artifacts (fun ((fpath, lpath, sha, size), _build_id) ->
+    Db.iter_s build_artifacts (fun (job, uuid, (fpath, lpath, sha, size)) ->
         progress ();
         (match Fpath.segs lpath with
-         | _job :: _uuid :: "output" :: tl ->
+         | job' :: uuid' :: "output" :: tl ->
+           if String.equal job job' then () else Logs.warn (fun m -> m "job names do not match: %s vs %s" job job');
+           if String.equal (Uuidm.to_string uuid) uuid' then () else Logs.warn (fun m -> m "uuid does not match: %s vs %s" (Uuidm.to_string uuid) uuid');
            if Fpath.equal (Fpath.v (String.concat "/" tl)) fpath then
              ()
            else
