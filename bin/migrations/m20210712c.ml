@@ -3,6 +3,8 @@ and identifier = "2021-07-12c"
 and migrate_doc = "store script, console on disk"
 and rollback_doc = "store script, console in database"
 
+open Rresult.R.Infix
+
 module Asn = struct
   let decode_strict codec cs =
     match Asn.decode codec cs with
@@ -99,7 +101,7 @@ let old_build_console_script =
   Caqti_request.collect
     Caqti_type.unit
     Caqti_type.(tup4 (Builder_db.Rep.id  (`build : [ `build ]))
-                  (tup2 string Builder_db.Rep.uuid) octets string)
+                  (tup2 string Builder_db.Rep.uuid) Builder_db.Rep.cstruct string)
     "SELECT b.id, job.name, b.uuid, b.console, b.script FROM build b, job WHERE b.job = job.id"
 
 let update_new_build_console_script =
@@ -115,7 +117,7 @@ let new_build_console_script =
 
 let update_old_build_console_script =
   Caqti_request.exec
-    Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) octets string)
+    Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) Builder_db.Rep.cstruct string)
     "UPDATE new_build SET console = ?2, script = ?3 WHERE id = ?1"
 
 let drop_build =
@@ -129,9 +131,10 @@ let rename_build =
     "ALTER TABLE new_build RENAME TO build"
 
 let console_to_string console =
-  Asn.console_of_cs console >>| fun console ->
+  Asn.console_of_cs console
+  |> Rresult.R.reword_error (fun s -> `Msg s) >>| fun console ->
   List.map (fun (delta, data) ->
-      Printf.sprintf "%.3fs:%s\n" (Duration.to_f delta) data)
+      Printf.sprintf "%.3fs:%s\n" (Duration.to_f (Int64.of_int delta)) data)
     console
   |> String.concat ""
 
@@ -147,7 +150,7 @@ let console_of_string data =
       match String.split_on_char ':' line with
       | ts :: tail ->
         let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
-        Duration.of_f delta, String.concat ":" tail
+        Int64.to_int (Duration.of_f delta), String.concat ":" tail
       | _ -> assert false)
       lines
   in
@@ -158,7 +161,7 @@ let save_console_and_script datadir job_name uuid console script =
   let script_out = out "script" in
   Bos.OS.File.write script_out script >>= fun () ->
   let console_out = out "console" in
-  let console_data = console_to_string console in
+  console_to_string console >>= fun console_data ->
   Bos.OS.File.write console_out console_data >>= fun () ->
   Ok (console_out, script_out)
 
@@ -167,7 +170,7 @@ let read_console_and_script datadir console_file script_file =
   and script_file = Fpath.append datadir script_file
   in
   Bos.OS.File.read console_file >>= fun console ->
-  Bos.OS.File.read script_fle >>= fun script ->
+  Bos.OS.File.read script_file >>= fun script ->
   let console = console_of_string console in
   Bos.OS.File.delete console_file >>= fun () ->
   Bos.OS.File.delete script_file >>= fun () ->
