@@ -216,6 +216,14 @@ let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Fpath.t * Cstruct.t *
        FROM build_artifact a, build b, job
        WHERE a.build = b.id AND b.job = job.id |}
 
+let script_and_console : (unit, _, [`One | `Zero | `Many ]) Caqti_request.t =
+  Caqti_request.collect
+    Caqti_type.unit
+    Caqti_type.(tup4 string Builder_db.Rep.uuid Builder_db.Rep.fpath Builder_db.Rep.fpath)
+    {| SELECT job.name, b.uuid, b.console, b.script
+       FROM build b, job
+       WHERE job.id = b.job |}
+
 let verify_data_dir () datadir =
   let dbpath = datadir ^ "/builder.sqlite3" in
   Logs.info (fun m -> m "connecting to %s" dbpath);
@@ -229,17 +237,25 @@ let verify_data_dir () datadir =
       let idx = ref 0 in
       fun () -> incr idx; if !idx mod 100 = 0 then Logs.info (fun m -> m "%d" !idx);
     in
+    let verify_job_and_uuid ?fpath job uuid path =
+      match Fpath.segs path with
+      | job' :: uuid' :: tl ->
+        if String.equal job job' then () else Logs.warn (fun m -> m "job names do not match: %s vs %s" job job');
+        if String.equal (Uuidm.to_string uuid) uuid' then () else Logs.warn (fun m -> m "uuid does not match: %s vs %s" (Uuidm.to_string uuid) uuid');
+        (match fpath, tl with
+         | None, _ -> ()
+         | Some f, "output" :: tl ->
+           if Fpath.equal (Fpath.v (String.concat "/" tl)) f then
+            ()
+           else
+            Logs.err (fun m -> m "path (%a) and fpath (%a) do not match" Fpath.pp path Fpath.pp f)
+         | Some _, _ ->
+           Logs.err (fun m -> m "path is not of form <job>/<uuid>/output/<filename>: %a" Fpath.pp path))
+      | _ -> Logs.err (fun m -> m "path is not of form <job>/<uuid>/...: %a" Fpath.pp path)
+    in
     Db.iter_s build_artifacts (fun (job, uuid, (fpath, lpath, sha, size)) ->
         progress ();
-        (match Fpath.segs lpath with
-         | job' :: uuid' :: "output" :: tl ->
-           if String.equal job job' then () else Logs.warn (fun m -> m "job names do not match: %s vs %s" job job');
-           if String.equal (Uuidm.to_string uuid) uuid' then () else Logs.warn (fun m -> m "uuid does not match: %s vs %s" (Uuidm.to_string uuid) uuid');
-           if Fpath.equal (Fpath.v (String.concat "/" tl)) fpath then
-             ()
-           else
-             Logs.err (fun m -> m "lpath (%a) and fpath (%a) do not match" Fpath.pp lpath Fpath.pp lpath)
-         | _ -> Logs.err (fun m -> m "lpath is not of form <job>/<uuid>/output/<filename>: %a" Fpath.pp lpath));
+        verify_job_and_uuid ~fpath job uuid lpath;
         let abs_path = Fpath.(v datadir // lpath) in
         (match Bos.OS.File.read abs_path with
          | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
@@ -249,7 +265,16 @@ let verify_data_dir () datadir =
            let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
            if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh)) ;
         Ok ()
-      ) ()
+      ) () >>= fun () ->
+    Db.iter_s script_and_console (fun (job, uuid, console, script) ->
+       verify_job_and_uuid job uuid console;
+       verify_job_and_uuid job uuid script;
+       let console_file = Fpath.(v datadir // console)
+       and script_file = Fpath.(v datadir // script)
+       in
+       Bos.OS.File.must_exist console_file >>= fun _ ->
+       Bos.OS.File.must_exist script_file >>= fun _ ->
+       Ok ()) ()
   in
   or_die 1 r
 
