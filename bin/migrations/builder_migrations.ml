@@ -155,5 +155,6 @@ let () =
         [ f20210707d ];
         actions (module M20210712a);
         [ f20210712b ];
+        actions (module M20210712c);
       ])
   |> Cmdliner.Term.exit
