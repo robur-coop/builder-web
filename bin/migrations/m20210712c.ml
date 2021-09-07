@@ -157,12 +157,12 @@ let console_of_string data =
   Asn.console_to_cs console
 
 let save_console_and_script datadir job_name uuid console script =
-  let out name = Fpath.(datadir / job_name / Uuidm.to_string uuid / name + "txt") in
+  let out name = Fpath.(v job_name / Uuidm.to_string uuid / name + "txt") in
   let script_out = out "script" in
-  Bos.OS.File.write script_out script >>= fun () ->
+  Bos.OS.File.write Fpath.(datadir // script_out) script >>= fun () ->
   let console_out = out "console" in
   console_to_string console >>= fun console_data ->
-  Bos.OS.File.write console_out console_data >>= fun () ->
+  Bos.OS.File.write Fpath.(datadir // console_out) console_data >>= fun () ->
   Ok (console_out, script_out)
 
 let read_console_and_script datadir console_file script_file =

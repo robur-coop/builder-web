@@ -274,8 +274,8 @@ let compute_input_id artifacts =
   | Some a, Some b, Some c -> Some (Mirage_crypto.Hash.SHA256.digest (Cstruct.concat [a;b;c]))
   | _ -> None
 
-let save_console_and_script staging_dir datadir job_name uuid console script =
-  let out name = Fpath.(datadir / job_name / Uuidm.to_string uuid / name + "txt") in
+let save_console_and_script staging_dir job_name uuid console script =
+  let out name = Fpath.(v job_name / Uuidm.to_string uuid / name + "txt") in
   let out_staging name = Fpath.(staging_dir / name + "txt") in
   let console_to_string console =
     List.rev_map (fun (delta, data) ->
@@ -318,7 +318,7 @@ let add_build
     List.filter (fun (p, _) -> not (not_interesting p)) raw_artifacts
   in
   or_cleanup (prepare_staging staging_dir) >>= fun () ->
-  or_cleanup (save_console_and_script staging_dir datadir job_name uuid console job.Builder.script)
+  or_cleanup (save_console_and_script staging_dir job_name uuid console job.Builder.script)
   >>= fun (console, script) ->
   or_cleanup (save_all staging_dir job uuid artifacts_to_preserve) >>= fun artifacts ->
   let r =
