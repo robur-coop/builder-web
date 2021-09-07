@@ -133,7 +133,7 @@ let rename_build =
 let console_to_string console =
   Asn.console_of_cs console
   |> Rresult.R.reword_error (fun s -> `Msg s) >>| fun console ->
-  List.map (fun (delta, data) ->
+  List.rev_map (fun (delta, data) ->
       Printf.sprintf "%.3fs:%s\n" (Duration.to_f (Int64.of_int delta)) data)
     console
   |> String.concat ""

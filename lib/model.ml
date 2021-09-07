@@ -278,7 +278,7 @@ let save_console_and_script staging_dir datadir job_name uuid console script =
   let out name = Fpath.(datadir / job_name / Uuidm.to_string uuid / name + "txt") in
   let out_staging name = Fpath.(staging_dir / name + "txt") in
   let console_to_string console =
-    List.map (fun (delta, data) ->
+    List.rev_map (fun (delta, data) ->
       Printf.sprintf "%.3fs:%s\n" (Duration.to_f (Int64.of_int delta)) data)
       console
     |> String.concat ""
