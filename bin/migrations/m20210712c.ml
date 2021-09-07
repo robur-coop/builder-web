@@ -81,7 +81,7 @@ let copy_from_old_build =
   Caqti_request.exec
     Caqti_type.unit
     {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
-         result_kind, result_msg, console, script, main_binary, user, job, input_id)
+         result_code, result_msg, console, script, main_binary, user, job, input_id)
        SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
          '', '', main_binary, user, job, input_id
        FROM build
@@ -91,7 +91,7 @@ let copy_from_new_build =
   Caqti_request.exec
     Caqti_type.unit
     {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
-         result_kind, result_msg, console, script, main_binary, user, job, input_id)
+         result_code, result_msg, console, script, main_binary, user, job, input_id)
        SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
          x'', '', main_binary, user, job, input_id
        FROM build
