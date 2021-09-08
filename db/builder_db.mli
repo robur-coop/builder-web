@@ -99,6 +99,7 @@ module Build_artifact : sig
   val rollback :
     (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 
+  val get : ([`build_artifact] id, file, [< `Many | `One | `Zero > `One]) Caqti_request.t
   val get_by_build :
     ([`build] id * Fpath.t, [`build_artifact] id * file,
      [< `Many | `One | `Zero > `One ]) Caqti_request.t

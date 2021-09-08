@@ -188,6 +188,13 @@ module Build_artifact = struct
       Caqti_type.unit
       "DROP TABLE IF EXISTS build_artifact"
 
+  let get =
+    Caqti_request.find
+      (id `build_artifact)
+      file
+      {| SELECT filepath, localpath, sha256, size
+         FROM build_artifact WHERE id = ? |}
+
   let get_by_build =
     Caqti_request.find
       (Caqti_type.tup2 (id `build) fpath)

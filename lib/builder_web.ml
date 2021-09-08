@@ -130,6 +130,25 @@ let add_routes datadir =
     |> Lwt_result.ok
   in
 
+  let redirect_main_binary req =
+    let job_name = Dream.param "job" req
+    and build = Dream.param "build" req in
+    get_uuid build >>= fun uuid ->
+    Dream.sql req (Model.build uuid)
+    |> if_error "Error getting job build"
+     ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+    >>= fun (_id, build) ->
+    match build.Builder_db.Build.main_binary with
+    | None -> Lwt_result.fail ("Resource not found", `Not_Found)
+    | Some main_binary ->
+      Dream.sql req (Model.build_artifact_by_id main_binary)
+      |> if_error "Error getting main binary" >>= fun main_binary ->
+      Dream.redirect req
+        (Fmt.strf "/job/%s/build/%a/f/%a" job_name Uuidm.pp uuid
+          Fpath.pp main_binary.Builder_db.filepath)
+      |> Lwt_result.ok
+  in
+
   let job_build req =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
@@ -302,6 +321,7 @@ let add_routes datadir =
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
+    Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
     Dream.post "/upload" (Authorization.authenticate (w upload));

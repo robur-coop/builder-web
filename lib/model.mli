@@ -12,6 +12,9 @@ val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
 val build_artifact : Uuidm.t -> Fpath.t -> Caqti_lwt.connection ->
   (Builder_db.file, [> error ]) result Lwt.t
 
+val build_artifact_by_id : [`build_artifact] Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.file, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
 val build_artifact_data : Fpath.t -> Builder_db.file ->
   (string, [> error ]) result Lwt.t
 

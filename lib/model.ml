@@ -36,6 +36,9 @@ let build_artifact build filepath (module Db : CONN) =
   Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
   >>= not_found >|= snd
 
+let build_artifact_by_id id (module Db : CONN) =
+  Db.find Builder_db.Build_artifact.get id
+
 let build_artifact_data datadir file =
   read_file datadir file.Builder_db.localpath
 
