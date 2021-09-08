@@ -9,7 +9,7 @@ module Asn = struct
   let decode_strict codec cs =
     match Asn.decode codec cs with
     | Ok (a, cs) ->
-      if Cstruct.len cs = 0
+      if Cstruct.length cs = 0
       then Ok a
       else Error "trailing bytes"
     | Error (`Parse msg) -> Error ("parse error: " ^ msg)
