@@ -221,6 +221,15 @@ let job_build
                 [txtf "%a" pp_ptime start] ;
                txt ", " ])
          xs) ] ) @ [
+      h3 [txt "Build info"];
+      ul [
+        li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]
+               [txt "Console output"];
+           ];
+        li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp uuid]
+               [txt "Build script"];
+           ]
+      ];
       h3 [txt "Comparisons with other builds"];
       p
         ((match latest_uuid with

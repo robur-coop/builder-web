@@ -96,6 +96,14 @@ let builds_with_same_input_and_different_main_binary id (module Db : CONN) =
        Lwt.return (Ok (build :: metas)))
    (Ok []) hashes
 
+let build_console_by_uuid datadir uuid (module Db : CONN) =
+  build uuid (module Db) >>= fun (_id, { Builder_db.Build.console; _ })->
+  read_file datadir console
+
+let build_script_by_uuid datadir uuid (module Db : CONN) =
+  build uuid (module Db) >>= fun (_id, { Builder_db.Build.script; _ })->
+  read_file datadir script
+
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
 

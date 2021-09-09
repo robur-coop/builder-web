@@ -199,6 +199,23 @@ let add_routes datadir =
       Dream.respond ~headers data |> Lwt_result.ok
   in
 
+  let job_build_static_file (file : [< `Console | `Script ]) req =
+    let datadir = Dream.global datadir_global req in
+    let _job_name = Dream.param "job" req
+    and build = Dream.param "build" req in
+    get_uuid build >>= fun build ->
+    (match file with
+    | `Console ->
+      Dream.sql req (Model.build_console_by_uuid datadir build)
+    | `Script ->
+      Dream.sql req (Model.build_script_by_uuid datadir build))
+    |> if_error "Error getting data"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting script or console data for build %a: %a"
+                                  Uuidm.pp build pp_error e)) >>= fun data ->
+    let headers = [ "Content-Type", "text/plain" ] in
+    Dream.respond ~headers data |> Lwt_result.ok
+  in
+
   let upload req =
     let* body = Dream.body req in
     Builder.Asn.exec_of_cs (Cstruct.of_string body) |> Lwt.return
@@ -322,6 +339,8 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
+    Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
+    Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
     Dream.post "/upload" (Authorization.authenticate (w upload));

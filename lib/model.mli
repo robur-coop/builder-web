@@ -51,6 +51,12 @@ val builds_with_same_input_and_same_main_binary : [`build] Builder_db.id -> Caqt
 val builds_with_same_input_and_different_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val build_console_by_uuid : Fpath.t -> Uuidm.t -> Caqti_lwt.connection ->
+  (string, [> error ]) result Lwt.t
+
+val build_script_by_uuid : Fpath.t -> Uuidm.t -> Caqti_lwt.connection ->
+  (string, [> error ]) result Lwt.t
+
 val readme : string -> Caqti_lwt.connection ->
   (string option, [> error ]) result Lwt.t
 
