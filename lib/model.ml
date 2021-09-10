@@ -296,7 +296,7 @@ let save_console_and_script staging_dir job_name uuid console script =
   in
   save (out_staging "script") script >>= fun () ->
   save (out_staging "console") (console_to_string console) >|= fun () ->
-  (out "script", out "console")
+  (out "console", out "script")
 
 let prepare_staging staging_dir =
   Lwt.return (Bos.OS.Dir.create staging_dir) >>= fun created ->

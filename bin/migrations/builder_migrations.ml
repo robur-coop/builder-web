@@ -115,6 +115,11 @@ let f20210712b =
   Cmdliner.Term.(const do_database_action $ const M20210712b.fixup $ setup_log $ datadir),
   Cmdliner.Term.info ~doc "fixup-2021-07-12b"
 
+let f20210910 =
+  let doc = "Undo builds with script and console mixed up." in
+  Cmdliner.Term.(const do_database_action $ const M20210910.fixup $ setup_log $ datadir),
+  Cmdliner.Term.info ~doc "fixup-2021-09-10"
+
 let help_cmd =
   let topic =
     let doc = "Migration to get help on" in
@@ -156,5 +161,6 @@ let () =
         actions (module M20210712a);
         [ f20210712b ];
         actions (module M20210712c);
+        [ f20210910 ];
       ])
   |> Cmdliner.Term.exit
