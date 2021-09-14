@@ -293,7 +293,7 @@ let verify_data_dir () datadir =
   in
   let files_untracked = FpathSet.diff files_in_filesystem !files_tracked in
   FpathSet.iter (fun f ->
-      Logs.err (fun m -> m "untracked file in filesystem: %a" Fpath.pp f))
+      Logs.warn (fun m -> m "untracked file in filesystem: %a" Fpath.pp f))
     files_untracked;
   or_die 1 r
 
