@@ -224,7 +224,20 @@ let script_and_console : (unit, _, [`One | `Zero | `Many ]) Caqti_request.t =
        FROM build b, job
        WHERE job.id = b.job |}
 
+module FpathSet = Set.Make(Fpath)
+
+let files_in_dir dir =
+  Bos.OS.Dir.fold_contents ~elements:`Files ~dotfiles:true
+    (fun f acc ->
+       let f = Option.get (Fpath.rem_prefix dir f) in
+       FpathSet.add f acc)
+    FpathSet.empty
+    dir
+
 let verify_data_dir () datadir =
+  let files_in_filesystem = or_die 1 (files_in_dir (Fpath.v datadir)) in
+  Logs.info (fun m -> m "files in filesystem: %d" (FpathSet.cardinal files_in_filesystem));
+  let files_tracked = ref (FpathSet.singleton (Fpath.v "builder.sqlite3")) in
   let dbpath = datadir ^ "/builder.sqlite3" in
   Logs.info (fun m -> m "connecting to %s" dbpath);
   let r =
@@ -260,6 +273,7 @@ let verify_data_dir () datadir =
         (match Bos.OS.File.read abs_path with
          | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
          | Ok data ->
+           files_tracked := FpathSet.add lpath !files_tracked;
            let s = Int64.of_int (String.length data) in
            if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
            let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
@@ -274,8 +288,13 @@ let verify_data_dir () datadir =
        in
        Bos.OS.File.must_exist console_file >>= fun _ ->
        Bos.OS.File.must_exist script_file >>= fun _ ->
+       files_tracked := FpathSet.add console (FpathSet.add script !files_tracked);
        Ok ()) ()
   in
+  let files_untracked = FpathSet.diff files_in_filesystem !files_tracked in
+  FpathSet.iter (fun f ->
+      Logs.err (fun m -> m "untracked file in filesystem: %a" Fpath.pp f))
+    files_untracked;
   or_die 1 r
 
 let help man_format cmds = function
