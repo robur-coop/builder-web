@@ -1,3 +1,3 @@
 (library
  (name builder_web)
- (libraries builder builder_db dream tyxml bos duration hex caqti-lwt opamdiff ptime.clock.os omd))
+ (libraries builder builder_db dream tyxml bos duration hex caqti-lwt opamdiff ptime.clock.os omd tar))
