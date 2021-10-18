@@ -2,8 +2,8 @@ open Tyxml.Html
 
 let pp_ptime = Ptime.pp_human ()
 
-let txtf fmt = Fmt.kstrf txt fmt
-let a_titlef fmt = Fmt.kstrf a_title fmt
+let txtf fmt = Fmt.kstr txt fmt
+let a_titlef fmt = Fmt.kstr a_title fmt
 
 let check_icon result =
   match result with
@@ -81,7 +81,7 @@ let toggleable ?(hidden=true) id description content =
 
 let artifact ?(basename=false) job_name build { Builder_db.filepath; localpath = _; sha256; size } =
   [
-    a ~a:[a_href (Fmt.strf "/job/%s/build/%a/f/%a"
+    a ~a:[a_href (Fmt.str "/job/%s/build/%a/f/%a"
                     job_name
                     Uuidm.pp build.Builder_db.Build.uuid
                     Fpath.pp filepath)]
@@ -136,7 +136,7 @@ let builder section_job_map =
                    br ();
                    txt (Option.value ~default:"" synopsis);
                    br ();
-                   a ~a:[a_href (Fmt.strf "job/%s/build/%a/" job_name Uuidm.pp
+                   a ~a:[a_href (Fmt.str "job/%s/build/%a/" job_name Uuidm.pp
                                    latest_build.Builder_db.Build.uuid)]
                      [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
                    txt " ";
@@ -199,7 +199,7 @@ let job_build
   =
   let delta = Ptime.diff finish start in
   let successful_build = match result with Builder.Exited 0 -> true | _ -> false in
-  layout ~title:(Fmt.strf "Job %s %a" name pp_ptime start)
+  layout ~title:(Fmt.str "Job %s %a" name pp_ptime start)
     ((h1 [txtf "Job %s" name] ::
       (match readme with
        | None -> []
@@ -345,20 +345,20 @@ let compare_opam job_left job_right
     (added_env, removed_env, changed_env)
     (added_pkgs, removed_pkgs, changed_pkgs)
     (same, opam_diff, version_diff, left, right) =
-  layout ~title:(Fmt.strf "Comparing opam switches between builds %a and %a"
+  layout ~title:(Fmt.str "Comparing opam switches between builds %a and %a"
                    Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
       h1 [txt "Comparing opam switches"];
       h2 [
         txt "Builds ";
         a ~a:[a_href
-               (Fmt.strf "/job/%s/build/%a/"
+               (Fmt.str "/job/%s/build/%a/"
                   job_left
                   Uuidm.pp build_left.uuid)]
           [txtf "%a" pp_ptime build_left.start];
         txt " and ";
         a ~a:[a_href
-               (Fmt.strf "/job/%s/build/%a/"
+               (Fmt.str "/job/%s/build/%a/"
                   job_right
                   Uuidm.pp build_right.uuid)]
           [txtf "%a" pp_ptime build_right.start];

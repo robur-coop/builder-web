@@ -1,0 +1,14 @@
+lib: [
+  "_build/install/default/lib/builder-web/META"
+  "_build/install/default/lib/builder-web/dune-package"
+  "_build/install/default/lib/builder-web/opam"
+]
+bin: [
+  "_build/install/default/bin/builder-db"
+  "_build/install/default/bin/builder-migrations"
+  "_build/install/default/bin/builder-web"
+]
+doc: [
+  "_build/install/default/doc/builder-web/LICENSE.md"
+  "_build/install/default/doc/builder-web/README.md"
+]

@@ -126,7 +126,7 @@ let add_routes datadir =
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
     Dream.redirect req
-      (Fmt.strf "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+      (Fmt.str "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
     |> Lwt_result.ok
   in
 
@@ -144,7 +144,7 @@ let add_routes datadir =
       Dream.sql req (Model.build_artifact_by_id main_binary)
       |> if_error "Error getting main binary" >>= fun main_binary ->
       Dream.redirect req
-        (Fmt.strf "/job/%s/build/%a/f/%a" job_name Uuidm.pp uuid
+        (Fmt.str "/job/%s/build/%a/f/%a" job_name Uuidm.pp uuid
           Fpath.pp main_binary.Builder_db.filepath)
       |> Lwt_result.ok
   in
@@ -234,7 +234,7 @@ let add_routes datadir =
     | true ->
       Log.warn (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
       Dream.respond ~status:`Conflict
-        (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
+        (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
       |> Lwt_result.ok
     | false ->
       let datadir = Dream.global datadir_global req in
@@ -256,7 +256,7 @@ let add_routes datadir =
     Dream.sql req (Model.build_hash hash) >>= Model.not_found
     |> if_error "Internal server error" >>= fun (job_name, build) ->
     Dream.redirect req
-      (Fmt.strf "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid)
+      (Fmt.str "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid)
     |> Lwt_result.ok
   in
 
@@ -313,7 +313,7 @@ let add_routes datadir =
     | true ->
       Log.warn (fun m -> m "Build %S with same uuid exists: %a" job Uuidm.pp uuid);
       Dream.respond ~status:`Conflict
-        (Fmt.strf "Build with same uuid exists: %a\n" Uuidm.pp uuid)
+        (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
       |> Lwt_result.ok
     | false ->
       let datadir = Dream.global datadir_global req in
