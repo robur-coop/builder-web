@@ -24,7 +24,11 @@ let read_file datadir filepath =
   let filepath = Fpath.(datadir // filepath) in
   Lwt.try_bind
     (fun () -> Lwt_io.open_file ~mode:Lwt_io.Input (Fpath.to_string filepath))
-    (fun ic -> Lwt_result.ok (Lwt_io.read ic))
+    (fun ic ->
+       let open Lwt.Infix in
+       Lwt_io.read ic >>= fun data ->
+       Lwt_io.close ic >>= fun () ->
+       Lwt_result.return data)
     (function
       | Unix.Unix_error (e, _, _) ->
         Logs.warn (fun m -> m "Error reading local file %a: %s"
