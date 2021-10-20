@@ -37,7 +37,6 @@ depends: [
   "tyxml"
   "ptime"
   "duration"
-  "rresult"
   "mirage-crypto"
   "asn1-combinators"
   "logs"

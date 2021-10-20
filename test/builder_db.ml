@@ -1,4 +1,5 @@
-open Rresult.R.Infix
+let ( >>= ) = Result.bind
+let ( >>| ) x f = Result.map f x
 
 module type CONN = Caqti_blocking.CONNECTION
 
@@ -165,8 +166,7 @@ let add_test_build user_id (module Db : CONN) =
     Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
     Db.commit ()
   in
-  Rresult.R.kignore_error
-    ~use:(fun _ -> Db.rollback ())
+  Result.fold ~ok:Result.ok ~error:(fun _ -> Db.rollback ())
     r
 
 let with_build_db f () =

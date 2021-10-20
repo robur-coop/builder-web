@@ -12,7 +12,7 @@ let all_build_artifacts_like_readme : (unit, [`build_artifact] Builder_db.Rep.id
     "SELECT id, localpath FROM build_artifact WHERE filepath LIKE '%README.md'"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:13L (module Db) >>= fun () ->
   Db.rev_collect_list all_build_artifacts_like_hashes () >>= fun build_artifacts_build_hashes ->
   Db.rev_collect_list all_build_artifacts_like_readme () >>= fun build_artifacts_readme ->

@@ -1,5 +1,15 @@
 (* Grej is utilities *)
-open Rresult.R.Infix
+module Syntax = struct
+  let ( let* ) = Result.bind
+  let ( let+ ) x f = Result.map f x
+end
+
+module Infix = struct
+  let ( >>= ) = Result.bind
+  let ( >>| ) x f = Result.map f x
+end
+
+open Syntax
 
 let set_version version =
   Caqti_request.exec ~oneshot:true
@@ -10,15 +20,15 @@ let check_version
     ?application_id:(desired_application_id=Builder_db.application_id)
     ~user_version:desired_user_version
     (module Db : Caqti_blocking.CONNECTION) =
-  Db.find Builder_db.get_application_id () >>= fun application_id ->
-  Db.find Builder_db.get_version () >>= fun user_version ->
+  let* application_id = Db.find Builder_db.get_application_id () in
+  let* user_version = Db.find Builder_db.get_version () in
   if application_id <> desired_application_id || user_version <> desired_user_version
   then Error (`Wrong_version (application_id, user_version))
   else Ok ()
 
 let list_iter_result f xs =
   List.fold_left
-    (fun r x -> r >>= fun () -> f x)
+    (fun r x -> let* () = r in f x)
     (Ok ())
     xs
 

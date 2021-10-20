@@ -11,7 +11,7 @@ let update_path : ([`build_artifact] Builder_db.Rep.id * Fpath.t, unit, [< `Zero
     "UPDATE build_artifact SET filepath = ?2 WHERE id = ?1"
 
 let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list all_build_artifacts_with_dot_slash () >>= fun build_artifacts ->
   Grej.list_iter_result

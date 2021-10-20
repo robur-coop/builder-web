@@ -1,5 +1,3 @@
-open Rresult.R.Infix
-
 type action = Fpath.t -> Caqti_blocking.connection ->
   (unit, [ Caqti_error.call_or_retrieve | `Wrong_version of int32 * int64 | `Msg of string ]) result
 
@@ -12,6 +10,7 @@ module type MIGRATION = sig
   val migrate : action
   val rollback : action
 end
+
 
 let pp_error ppf = function
   | #Caqti_error.load_or_connect | #Caqti_error.call_or_retrieve as e ->
@@ -29,6 +28,7 @@ let or_die exit_code = function
     exit exit_code
 
 let do_database_action action () datadir =
+  let ( let* ) = Result.bind in
   let datadir = Fpath.v datadir in
   let dbpath = Fpath.(datadir / "builder.sqlite3") in
   Logs.debug (fun m -> m "Connecting to database...");
@@ -39,7 +39,7 @@ let do_database_action action () datadir =
   in
   Logs.debug (fun m -> m "Connected!");
   let r =
-    Db.start () >>= fun () ->
+    let* () = Db.start () in
     Logs.debug (fun m -> m "Started database transaction");
     match action datadir conn with
     | Ok () ->
@@ -47,7 +47,7 @@ let do_database_action action () datadir =
       Db.commit ()
     | Error _ as e ->
       Logs.debug (fun m -> m "Rolling back database transaction");
-      Db.rollback () >>= fun () ->
+      let* () = Db.rollback () in
       e
   in
   or_die 2 r

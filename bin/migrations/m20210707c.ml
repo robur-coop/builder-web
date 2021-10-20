@@ -22,7 +22,7 @@ let add_artifact : ((Fpath.t * Fpath.t * Cstruct.t) * (int64 * [`build] Builder_
     {| INSERT INTO build_artifact (filepath, localpath, sha256, size, build) VALUES (?, ?, ?, ?, ?) |}
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list all_builds_with_binary () >>= fun builds ->
   Grej.list_iter_result

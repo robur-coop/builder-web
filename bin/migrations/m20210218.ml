@@ -83,7 +83,7 @@ let rename_build_file =
     "ALTER TABLE new_build_file RENAME TO build_file"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec new_build_artifact () >>= fun () ->
   Db.rev_collect_list collect_build_artifact () >>= fun build_artifacts ->
@@ -150,7 +150,7 @@ let copy_build_file =
     "INSERT INTO new_build_file SELECT id, filepath, localpath, sha256, build FROM build_file"
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec old_build_artifact () >>= fun () ->
   Db.exec copy_build_artifact () >>= fun () ->

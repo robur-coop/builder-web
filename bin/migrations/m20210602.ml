@@ -113,7 +113,7 @@ let insert_old_build =
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) |}
 
 let migrate _ (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec new_build () >>= fun () ->
   Db.rev_collect_list collect_old_build () >>= fun builds ->
@@ -133,7 +133,7 @@ let migrate _ (module Db : Caqti_blocking.CONNECTION) =
 
  
 let rollback _ (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec old_build () >>= fun () ->
   Db.rev_collect_list collect_new_build () >>= fun builds ->

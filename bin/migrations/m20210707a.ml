@@ -7,7 +7,7 @@ let orb_left_in_builds =
     |}
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list orb_left_in_builds () >>= fun leftover_orb ->
   Grej.list_iter_result

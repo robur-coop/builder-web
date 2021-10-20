@@ -3,7 +3,7 @@ let identifier = "2021-04-27"
 let migrate_doc = "add index idx_build_job_start on build"
 let rollback_doc = "rollback index idx_build_job_start on build"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let idx_build_job_start =

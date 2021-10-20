@@ -1,4 +1,5 @@
-open Rresult.R.Infix
+let ( let* ) = Result.bind
+let ( let+ ) x f = Result.map f x
 
 let or_die exit_code = function
   | Ok r -> r
@@ -20,17 +21,18 @@ let defer_foreign_keys =
     "PRAGMA defer_foreign_keys = ON"
 
 let connect uri =
-  Caqti_blocking.connect uri >>= fun (module Db : Caqti_blocking.CONNECTION) ->
-  Db.exec foreign_keys () >>= fun () ->
-  Db.exec defer_foreign_keys () >>= fun () ->
+  let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect uri in
+  let* () = Db.exec foreign_keys () in
+  let* () = Db.exec defer_foreign_keys () in
   Ok (module Db : Caqti_blocking.CONNECTION)
 
 let do_migrate dbpath =
-  connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
-  >>= fun (module Db : Caqti_blocking.CONNECTION) ->
+  let* (module Db : Caqti_blocking.CONNECTION) =
+    connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
+  in
   List.fold_left
     (fun r migrate ->
-       r >>= fun () ->
+       let* () = r in
        Logs.debug (fun m -> m "Executing migration query: %a" Caqti_request.pp migrate);
        Db.exec migrate ())
     (Ok ())
@@ -42,9 +44,9 @@ let migrate () dbpath =
 let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
   let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
     print_string "Password: ";
     flush stdout;
     (* FIXME: getpass *)
@@ -65,9 +67,9 @@ let user_update () dbpath = user_mod `Update dbpath
 
 let user_list () dbpath =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION) ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
     Db.iter_s Builder_db.User.get_all
       (fun username -> Ok (print_endline username))
       ()
@@ -76,21 +78,22 @@ let user_list () dbpath =
 
 let user_remove () dbpath username =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.exec Builder_db.Access_list.remove_all_by_username username >>= fun () ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* () = Db.exec Builder_db.Access_list.remove_all_by_username username in
     Db.exec Builder_db.User.remove_user username
   in
   or_die 1 r
 
 let user_disable () dbpath username =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.exec Builder_db.Access_list.remove_all_by_username username >>= fun () ->
-    Db.find_opt Builder_db.User.get_user username >>= function
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* () = Db.exec Builder_db.Access_list.remove_all_by_username username in
+    let* user = Db.find_opt Builder_db.User.get_user username in
+    match user with
     | None -> Error (`Msg "user not found")
     | Some (_, user_info) ->
       let password_hash = `Scrypt (Cstruct.empty, Cstruct.empty, Builder_web_auth.scrypt_params ()) in
@@ -101,26 +104,34 @@ let user_disable () dbpath username =
 
 let access_add () dbpath username jobname =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find_opt Builder_db.User.get_user username >>=
-    Option.to_result ~none:(`Msg "unknown user") >>= fun (user_id, _) ->
-    Db.find_opt Builder_db.Job.get_id_by_name jobname >>=
-    Option.to_result ~none:(`Msg "job not found") >>= fun job_id ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* (user_id, _) =
+      Result.bind (Db.find_opt Builder_db.User.get_user username)
+        (Option.to_result ~none:(`Msg "unknown user"))
+    in
+    let* job_id =
+      Result.bind (Db.find_opt Builder_db.Job.get_id_by_name jobname)
+        (Option.to_result ~none:(`Msg "job not found"))
+    in
     Db.exec Builder_db.Access_list.add (user_id, job_id)
    in
    or_die 1 r
 
 let access_remove () dbpath username jobname =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find_opt Builder_db.User.get_user username >>=
-    Option.to_result ~none:(`Msg "unknown user") >>= fun (user_id, _) ->
-    Db.find_opt Builder_db.Job.get_id_by_name jobname >>=
-    Option.to_result ~none:(`Msg "job not found") >>= fun job_id ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* (user_id, _) =
+      Result.bind (Db.find_opt Builder_db.User.get_user username)
+        (Option.to_result ~none:(`Msg "unknown user"))
+    in
+    let* (job_id) =
+      Result.bind (Db.find_opt Builder_db.Job.get_id_by_name jobname)
+        (Option.to_result ~none:(`Msg "job not found"))
+    in
     Db.exec Builder_db.Access_list.remove (user_id, job_id)
    in
    or_die 1 r
@@ -128,36 +139,39 @@ let access_remove () dbpath username jobname =
 let job_remove () datadir jobname =
   let dbpath = datadir ^ "/builder.sqlite3" in
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find_opt Builder_db.Job.get_id_by_name jobname >>= function
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* job_id_opt = Db.find_opt Builder_db.Job.get_id_by_name jobname in
+    match job_id_opt with
     | None ->
       Logs.info (fun m -> m "Job %S doesn't exist or has already been removed." jobname);
       Ok ()
     | Some job_id ->
-      Db.start () >>= fun () ->
-      Db.exec defer_foreign_keys () >>= fun () ->
+      let* () = Db.start () in
+      let* () = Db.exec defer_foreign_keys () in
       let r =
-        Db.collect_list Builder_db.Build.get_all job_id >>= fun builds ->
-        List.fold_left (fun r (build_id, build) ->
-            r >>= fun () ->
-            let dir = Fpath.(v datadir / jobname / Uuidm.to_string build.Builder_db.Build.uuid) in
-            (match Bos.OS.Dir.delete ~recurse:true dir with
-            | Ok _ -> ()
-            | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
-            Db.exec Builder_db.Build_artifact.remove_by_build build_id >>= fun () ->
-            Db.exec Builder_db.Build.remove build_id)
-          (Ok ())
-          builds >>= fun () ->
-        Db.exec Builder_db.Job.remove job_id >>= fun () ->
+        let* builds = Db.collect_list Builder_db.Build.get_all job_id in
+        let* () =
+          List.fold_left (fun r (build_id, build) ->
+              let* () = r in
+              let dir = Fpath.(v datadir / jobname / Uuidm.to_string build.Builder_db.Build.uuid) in
+              (match Bos.OS.Dir.delete ~recurse:true dir with
+               | Ok _ -> ()
+               | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
+              let* () = Db.exec Builder_db.Build_artifact.remove_by_build build_id in
+              Db.exec Builder_db.Build.remove build_id)
+            (Ok ())
+            builds
+        in
+        let* () = Db.exec Builder_db.Job.remove job_id in
         Db.commit ()
       in
       match r with
       | Ok () -> Ok ()
       | Error _ as e ->
         Logs.warn (fun m -> m "Error: rolling back...");
-        Db.rollback () >>= fun () ->
+        let* () = Db.rollback () in
         e
   in
   or_die 1 r
@@ -179,28 +193,28 @@ let main_artifact_hash =
 
 let verify_input_id () dbpath =
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.collect_list input_ids () >>= fun input_ids ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* input_ids = Db.collect_list input_ids () in
     List.fold_left (fun acc input_id ->
-      acc >>= fun () ->
-      Db.collect_list main_artifact_hash input_id >>| fun hashes ->
-      match hashes with
-      | (h, uuid, jobname) :: tl ->
-        List.iter (fun (h', uuid', _) ->
-          if Cstruct.equal h h' then
-            ()
-          else
-            Logs.warn (fun m -> m "job %s input id %a with two different hashes (%a, %a), build %a and %a"
-              jobname Cstruct.hexdump_pp input_id
-              Cstruct.hexdump_pp h Cstruct.hexdump_pp h'
-              Uuidm.pp uuid Uuidm.pp uuid'))
-        tl
-      | [] -> ())
-     (Ok ()) input_ids
-   in
-   or_die 1 r
+        let* () = acc in
+        let+ hashes = Db.collect_list main_artifact_hash input_id in
+        match hashes with
+        | (h, uuid, jobname) :: tl ->
+          List.iter (fun (h', uuid', _) ->
+              if Cstruct.equal h h' then
+                ()
+              else
+                Logs.warn (fun m -> m "job %s input id %a with two different hashes (%a, %a), build %a and %a"
+                              jobname Cstruct.hexdump_pp input_id
+                              Cstruct.hexdump_pp h Cstruct.hexdump_pp h'
+                              Uuidm.pp uuid Uuidm.pp uuid'))
+            tl
+        | [] -> ())
+      (Ok ()) input_ids
+  in
+  or_die 1 r
 
 let num_build_artifacts =
   Caqti_request.find
@@ -241,10 +255,10 @@ let verify_data_dir () datadir =
   let dbpath = datadir ^ "/builder.sqlite3" in
   Logs.info (fun m -> m "connecting to %s" dbpath);
   let r =
-    connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_blocking.CONNECTION)  ->
-    Db.find num_build_artifacts () >>= fun num_build_artifacts ->
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* num_build_artifacts = Db.find num_build_artifacts () in
     Logs.info (fun m -> m "total: %d artifacts" num_build_artifacts);
     let progress =
       let idx = ref 0 in
@@ -266,28 +280,30 @@ let verify_data_dir () datadir =
            Logs.err (fun m -> m "path is not of form <job>/<uuid>/output/<filename>: %a" Fpath.pp path))
       | _ -> Logs.err (fun m -> m "path is not of form <job>/<uuid>/...: %a" Fpath.pp path)
     in
-    Db.iter_s build_artifacts (fun (job, uuid, (fpath, lpath, sha, size)) ->
-        progress ();
-        verify_job_and_uuid ~fpath job uuid lpath;
-        let abs_path = Fpath.(v datadir // lpath) in
-        (match Bos.OS.File.read abs_path with
-         | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
-         | Ok data ->
-           files_tracked := FpathSet.add lpath !files_tracked;
-           let s = Int64.of_int (String.length data) in
-           if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
-           let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-           if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh)) ;
-        Ok ()
-      ) () >>= fun () ->
+    let* () =
+      Db.iter_s build_artifacts (fun (job, uuid, (fpath, lpath, sha, size)) ->
+          progress ();
+          verify_job_and_uuid ~fpath job uuid lpath;
+          let abs_path = Fpath.(v datadir // lpath) in
+          (match Bos.OS.File.read abs_path with
+           | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
+           | Ok data ->
+             files_tracked := FpathSet.add lpath !files_tracked;
+             let s = Int64.of_int (String.length data) in
+             if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
+             let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+             if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh)) ;
+          Ok ()
+        ) ()
+    in
     Db.iter_s script_and_console (fun (job, uuid, console, script) ->
        verify_job_and_uuid job uuid console;
        verify_job_and_uuid job uuid script;
        let console_file = Fpath.(v datadir // console)
        and script_file = Fpath.(v datadir // script)
        in
-       Bos.OS.File.must_exist console_file >>= fun _ ->
-       Bos.OS.File.must_exist script_file >>= fun _ ->
+       let* _ = Bos.OS.File.must_exist console_file in
+       let* _ = Bos.OS.File.must_exist script_file in
        files_tracked := FpathSet.add console (FpathSet.add script !files_tracked);
        Ok ()) ()
   in

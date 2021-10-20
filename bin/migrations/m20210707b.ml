@@ -24,7 +24,7 @@ let update_paths =
     "UPDATE build_artifact SET localpath = ?2, filepath = ?3 WHERE id = ?1"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list deb_debug_left_in_builds () >>= fun leftover_debug ->
   Grej.list_iter_result
@@ -45,7 +45,7 @@ let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
        Db.exec update_paths (id, new_path path, new_path fpath) >>= fun () ->
        let o = Fpath.append datadir path and n = Fpath.append datadir (new_path path) in
        Logs.info (fun m -> m "renaming %a to %a" Fpath.pp o Fpath.pp n);
-       Rresult.R.error_to_msg ~pp_error:Bos.OS.U.pp_error
+       Result.map_error (fun e -> `Msg (Fmt.str "%a" Bos.OS.U.pp_error e))
          (Bos.OS.U.rename o n) >>= fun () ->
        later ())
     leftover_debug

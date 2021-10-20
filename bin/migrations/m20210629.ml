@@ -124,7 +124,7 @@ let find_tag =
      Builder_db.Rep.untyped_id
      "SELECT id FROM tag where tag = ?"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

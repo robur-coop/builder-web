@@ -3,7 +3,7 @@ and identifier = "2021-07-12c"
 and migrate_doc = "store script, console on disk"
 and rollback_doc = "store script, console in database"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 module Asn = struct
   let decode_strict codec cs =
@@ -132,7 +132,7 @@ let rename_build =
 
 let console_to_string console =
   Asn.console_of_cs console
-  |> Rresult.R.reword_error (fun s -> `Msg s) >>| fun console ->
+  |> Result.map_error (fun s -> `Msg s) >>| fun console ->
   List.rev_map (fun (delta, data) ->
       Printf.sprintf "%.3fs:%s\n" (Duration.to_f (Int64.of_int delta)) data)
     console
@@ -175,8 +175,6 @@ let read_console_and_script datadir console_file script_file =
   Bos.OS.File.delete console_file >>= fun () ->
   Bos.OS.File.delete script_file >>= fun () ->
   Ok (console, script)
-
-open Rresult.R.Infix
 
 let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

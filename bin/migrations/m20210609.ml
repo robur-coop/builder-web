@@ -96,7 +96,7 @@ let rename_build =
     Caqti_type.unit
     "ALTER TABLE new_build RENAME TO build"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

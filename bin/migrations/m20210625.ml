@@ -24,7 +24,7 @@ let drop_build_file =
     Caqti_type.unit
     "DROP TABLE build_file"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

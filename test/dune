@@ -1,3 +1,3 @@
 (test
  (name builder_db)
- (libraries builder_db caqti.blocking alcotest mirage-crypto-rng.unix rresult))
+ (libraries builder_db caqti.blocking alcotest mirage-crypto-rng.unix))

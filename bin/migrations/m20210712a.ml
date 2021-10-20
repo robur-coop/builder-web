@@ -125,9 +125,8 @@ let execution_old_of_new code =
   then Ok (3, None)
   else Error (`Msg "bad encoding")
 
-open Rresult.R.Infix
-
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
+  let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec new_build () >>= fun () ->
   Db.exec copy_old_build () >>= fun () ->
@@ -156,6 +155,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
+  let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec old_build () >>= fun () ->
   Db.exec copy_new_build () >>= fun () ->

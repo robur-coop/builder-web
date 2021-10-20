@@ -13,15 +13,18 @@ let pp_error ppf = function
     else Format.fprintf ppf "Wrong database application id: %ld" application_id
 
 let init_datadir datadir =
-  let open Rresult.R.Infix in
-  Bos.OS.Dir.exists datadir >>= (fun exists ->
-      if exists
-      then Ok ()
-      else Error (`Msg "Datadir does not exist")) >>= fun () ->
-  Bos.OS.Dir.create ~path:false (Model.staging datadir) >>| fun _ -> ()
+  let ( let* ) = Result.bind and ( let+ ) x f = Result.map f x in
+  let* exists = Bos.OS.Dir.exists datadir in
+  let* () =
+    if exists
+    then Ok ()
+    else Error (`Msg "Datadir does not exist")
+  in
+  let+ _ = Bos.OS.Dir.create ~path:false (Model.staging datadir) in
+  ()
 
 let init dbpath datadir =
-  Rresult.R.bind (init_datadir datadir) @@ fun () ->
+  Result.bind (init_datadir datadir) @@ fun () ->
   Lwt_main.run (
     Caqti_lwt.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
@@ -40,7 +43,7 @@ let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
 let safe_seg path =
   if Fpath.is_seg path && not (Fpath.is_rel_seg path)
   then Ok (Fpath.v path)
-  else Rresult.R.error_msgf "unsafe path %S" path
+  else Fmt.kstr (fun s -> Error (`Msg s)) "unsafe path %S" path
 
 (* mime lookup with orb knowledge *)
 let mime_lookup path =
@@ -178,7 +181,7 @@ let add_routes datadir =
      * we don't use [file] for the filesystem but is instead used as a key for
      * lookup in the data table of the 'full' file. *)
     get_uuid build >>= fun build ->
-    Fpath.of_string filepath |> Rresult.R.open_error_msg |> Lwt_result.lift
+    Fpath.of_string filepath |> Lwt_result.lift
     |> if_error ~status:`Not_Found "File not found" >>= fun filepath ->
     Dream.sql req (Model.build_artifact build filepath)
     |> if_error "Error getting build artifact" >>= fun file ->

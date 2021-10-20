@@ -36,14 +36,14 @@ let old_user =
     |}
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.exec drop_user () >>= fun () ->
   Db.exec new_user () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.exec drop_user () >>= fun () ->
   Db.exec old_user () >>= fun () ->

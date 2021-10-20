@@ -55,7 +55,7 @@ let remove_tag =
      Builder_db.Rep.untyped_id
      "DELETE FROM tag where id = ?"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

@@ -18,7 +18,7 @@ let build_artifact_update_localpath =
 (* We are not migrating build_file because it is unused *)
 
 let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.collect_list build_artifacts () >>= fun artifacts ->
   Grej.list_iter_result (fun (id, localpath) ->
@@ -29,7 +29,7 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec (Grej.set_version new_version) ()
 
 let rollback datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
    Db.collect_list build_artifacts () >>= fun artifacts ->
   Grej.list_iter_result (fun (id, localpath) ->

@@ -77,7 +77,7 @@ let set_input_id =
     (Caqti_type.tup2 Builder_db.Rep.untyped_id Builder_db.Rep.cstruct)
     "UPDATE build SET input_id = ?2 WHERE id = ?1"
 
-open Rresult.R.Infix
+open Grej.Infix
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

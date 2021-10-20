@@ -10,7 +10,7 @@ let fixup =
     "UPDATE build SET console = ?2, script = ?3 WHERE id = ?1"
 
 let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Rresult.R.Infix in
+  let open Grej.Infix in
   Grej.check_version ~user_version:14L (module Db) >>= fun () ->
   Db.collect_list mixups () >>= fun mixups ->
   Grej.list_iter_result (fun (id, console, script) ->
