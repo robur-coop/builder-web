@@ -301,6 +301,13 @@ let add_routes datadir =
 
   let upload_binary req =
     let job = Dream.param "job" req in
+    let binary_name =
+      Dream.query "binary_name" req
+      |> Option.map Fpath.of_string
+      |> Option.value ~default:(Ok Fpath.(v job + "bin"))
+    in
+    if_error "Bad request" ~status:`Bad_Request (Lwt.return binary_name) >>=
+    fun binary_name ->
     let* body = Dream.body req in
     Authorization.authorized req job
     |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->
@@ -320,7 +327,7 @@ let add_routes datadir =
       let exec =
         let now = Ptime_clock.now () in
         ({ Builder.name = job ; script = "" }, uuid, [], now, now, Builder.Exited 0,
-         [ (Fpath.(v "bin" / job + "bin"), body) ])
+         [ (Fpath.(v "bin" // binary_name), body) ])
       in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
