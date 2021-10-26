@@ -666,7 +666,14 @@ module Access_list = struct
   let remove_all_by_username =
     Caqti_request.exec
       Caqti_type.string
-      "DELETE FROM access_list, user WHERE access_list.user = user.id AND user.username = ?"
+      {| DELETE FROM access_list
+         WHERE access_list.id IN (
+           SELECT access_list.id
+           FROM access_list
+           INNER JOIN user ON access_list.user = user.id
+           WHERE user.username = ?
+         )
+      |}
 
 end
 
