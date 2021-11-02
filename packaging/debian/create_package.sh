@@ -25,12 +25,12 @@ install $bdir/builder-migrations $bindir/builder-migrations
 install $bdir/builder-db $bindir/builder-db
 
 # service script
-install $basedir/packaging/debian/builder-web.service $systemddir/builder-web.service
+install -m 0644 $basedir/packaging/debian/builder-web.service $systemddir/builder-web.service
 
 # install debian metadata
-install $basedir/packaging/debian/control $debiandir/control
-install $basedir/packaging/debian/changelog $debiandir/changelog
-install $basedir/packaging/debian/copyright $debiandir/copyright
+install -m 0644 $basedir/packaging/debian/control $debiandir/control
+install -m 0644 $basedir/packaging/debian/changelog $debiandir/changelog
+install -m 0644 $basedir/packaging/debian/copyright $debiandir/copyright
 
 dpkg-deb --build $rootdir $basedir/builder-web.deb
 echo 'bin: [ "builder-web.deb" ]' > $basedir/builder-web.install
