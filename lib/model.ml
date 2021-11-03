@@ -228,7 +228,7 @@ let commit_files datadir staging_dir job_name uuid =
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Path.move staging_dir dest)
 
-let infer_section_and_synopsis name artifacts =
+let infer_section_and_synopsis platform name artifacts =
   let opam_switch =
     match List.find_opt (fun (p, _) -> String.equal (Fpath.basename p) "opam-switch") artifacts with
     | None -> None
@@ -245,35 +245,47 @@ let infer_section_and_synopsis name artifacts =
       | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
   in
   let infer_section_from_packages switch =
-    let influx = OpamPackage.Name.of_string "metrics-influx" in
-    if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
-         switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
-    then
-      "Unikernels (with metrics reported to Influx)"
+    let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
+    if OpamPackage.Set.cardinal root <> 1 then
+      None
     else
-      "Unikernels"
+      let root = OpamPackage.Set.choose root in
+      let root_pkg_name = OpamPackage.Name.to_string root.OpamPackage.name in
+      if Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
+        let influx = OpamPackage.Name.of_string "metrics-influx" in
+        if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
+             switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
+        then
+          Some "Unikernels (with metrics reported to Influx)"
+        else
+          Some "Unikernels"
+      else
+        None
   in
-  let infer_section_from_name name =
-    let map = [
-      "-freebsd", "FreeBSD" ;
-      "-debian", "Debian" ;
-      "-ubuntu", "Ubuntu" ;
-    ] in
-    match
-      List.find_opt (fun (affix, _) -> Astring.String.is_infix ~affix name) map
-    with
-    | None -> None
-    | Some (_, os) -> Some (os ^ " Packages")
+  let infer_section_from_platform_or_name =
+    if String.equal platform "no-platform" then
+      let map = [
+        "-freebsd", "FreeBSD" ;
+        "-debian", "Debian" ;
+        "-ubuntu", "Ubuntu" ;
+      ] in
+      match
+        List.find_opt (fun (affix, _) -> Astring.String.is_infix ~affix name) map
+      with
+      | None -> None
+      | Some (_, os) -> Some (os ^ " Packages")
+    else
+      Some (platform ^ " Packages")
   in
   match opam_switch with
   | None -> None, (None, None)
   | Some opam_switch ->
     let section =
-      match infer_section_from_name name with
-      | Some x -> x
-      | None -> infer_section_from_packages opam_switch
+      match infer_section_from_packages opam_switch with
+      | None -> infer_section_from_platform_or_name
+      | Some x -> Some x
     in
-    Some section, infer_synopsis_and_descr opam_switch
+    section, infer_synopsis_and_descr opam_switch
 
 let compute_input_id artifacts =
   let get_hash filename =
@@ -358,7 +370,7 @@ let add_build
                         console; script;
                         main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
-    let sec_syn = infer_section_and_synopsis job_name raw_artifacts in
+    let sec_syn = infer_section_and_synopsis job.Builder.platform job_name raw_artifacts in
     let add_or_update tag_id tag_value =
       Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
       | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)

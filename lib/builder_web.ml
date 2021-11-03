@@ -301,6 +301,7 @@ let add_routes datadir =
 
   let upload_binary req =
     let job = Dream.param "job" req in
+    let platform = Dream.param "platform" req in
     let binary_name =
       Dream.query "binary_name" req
       |> Option.map Fpath.of_string
@@ -326,7 +327,7 @@ let add_routes datadir =
       let datadir = Dream.global datadir_global req in
       let exec =
         let now = Ptime_clock.now () in
-        ({ Builder.name = job ; script = "" }, uuid, [], now, now, Builder.Exited 0,
+        ({ Builder.name = job ; platform ; script = "" }, uuid, [], now, now, Builder.Exited 0,
          [ (Fpath.(v "bin" // binary_name), body) ])
       in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
@@ -351,5 +352,5 @@ let add_routes datadir =
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
     Dream.post "/upload" (Authorization.authenticate (w upload));
-    Dream.post "/job/:job/upload" (Authorization.authenticate (w upload_binary));
+    Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
   ]
