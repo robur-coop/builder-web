@@ -148,6 +148,7 @@ let main_binary =
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let size = String.length data in
   { Builder_db.Rep.filepath; localpath; sha256; size }
+let platform = "exotic-os"
 
 let fail_if_none a =
   Option.to_result ~none:(`Msg "Failed to retrieve") a
@@ -158,7 +159,7 @@ let add_test_build user_id (module Db : CONN) =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
     Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-    Db.exec Build.add { Build.uuid; start; finish; result; console; script;
+    Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
                         main_binary = None; input_id = None; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
     Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
@@ -225,7 +226,7 @@ let add_second_build (module Db : CONN) =
   Db.find_opt User.get_user username >>= fail_if_none >>= fun (user_id, _) ->
   Db.start () >>= fun () ->
   Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.exec Build.add { Build.uuid; start; finish; result; console; script;
+  Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
                      main_binary = None; input_id = None; user_id; job_id; } >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
   Db.exec Build_artifact.add (main_binary, id) >>= fun () ->

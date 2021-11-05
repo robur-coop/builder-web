@@ -127,6 +127,7 @@ sig
     result : Builder.execution_result;
     console : Fpath.t;
     script : Fpath.t;
+    platform : string;
     main_binary : [`build_artifact] id option;
     input_id : Cstruct.t option;
     user_id : [`user] id;

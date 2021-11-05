@@ -366,11 +366,12 @@ let add_build
     Db.exec Tag.try_add readme_tag >>= fun () ->
     Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
     let input_id = compute_input_id artifacts in
+    let platform = job.Builder.platform in
     Db.exec Build.add { Build.uuid; start; finish; result;
-                        console; script;
+                        console; script; platform;
                         main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
-    let sec_syn = infer_section_and_synopsis job.Builder.platform job_name raw_artifacts in
+    let sec_syn = infer_section_and_synopsis platform job_name raw_artifacts in
     let add_or_update tag_id tag_value =
       Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
       | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)
