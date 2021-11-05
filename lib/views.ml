@@ -192,7 +192,7 @@ let job name readme builds =
 let job_build
   name
   readme
-  { Builder_db.Build.uuid; start; finish; result; _ }
+  { Builder_db.Build.uuid; start; finish; result; platform; _ }
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
   latest_uuid
@@ -212,6 +212,7 @@ let job_build
     [
       h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
       a ~a:[a_href "#readme"] [txt "Back to readme"];
+      p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result]; ] @
       (match same_input_same_output with [] -> [] | xs -> [
