@@ -108,16 +108,6 @@ let test_user_update (module Db : CONN) =
   let auth_opt = Option.map snd res in
   Alcotest.(check (option Testable.builder_web_auth)) "update user" auth_opt (Some auth')
 
-let test_user_remove (module Db : CONN) =
-  Db.find_opt Builder_db.User.get_user username >>= function
-  | None ->
-    Alcotest.fail "user not found"
-  | Some (id, _auth') ->
-    Db.exec Builder_db.User.remove id >>= fun () ->
-    Db.find_opt Builder_db.User.get_user username >>| fun res ->
-    let auth_opt = Option.map snd res in
-    Alcotest.(check (option Testable.builder_web_auth)) "remove user" auth_opt None
-
 let test_user_auth (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username >>| function
   | None ->
@@ -177,10 +167,6 @@ let with_build_db f () =
      add_test_build user_id conn >>= fun () ->
      f conn)
 
-let test_job_get_all (module Db : CONN) =
-  Db.collect_list Builder_db.Job.get_all () >>| fun jobs ->
-  Alcotest.(check int) "one job" (List.length jobs) 1
-
 let test_job_get_id_by_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>| fun _id ->
   ()
@@ -196,8 +182,9 @@ let test_job_remove () =
     Db.exec Builder_db.Job.try_add "test-job" >>= fun () ->
     Db.find_opt Builder_db.Job.get_id_by_name "test-job" >>= fail_if_none >>= fun id ->
     Db.exec Builder_db.Job.remove id >>= fun () ->
-    Db.collect_list Builder_db.Job.get_all () >>| fun jobs ->
-    Alcotest.(check int) "no jobs" (List.length jobs) 0
+    match Db.find Builder_db.Job.get id with
+    | Error #Caqti_error.call_or_retrieve -> Ok ()
+    | Ok _ -> Alcotest.fail "expected no job"
   in
   or_fail r
 
@@ -209,11 +196,6 @@ let test_build_get_by_uuid (module Db : CONN) =
 let test_build_get_all (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_all job_id >>| fun builds ->
-  Alcotest.(check int) "one build" (List.length builds) 1
-
-let test_build_get_all_with_main_binary (module Db : CONN) =
-  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.collect_list Builder_db.Build.get_all_with_main_binary job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
 let uuid' = Uuidm.create `V4
@@ -242,14 +224,6 @@ let test_build_get_latest (module Db : CONN) =
   >>| get_opt "no latest build" >>| fun (_id, meta, main_binary') ->
   Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'
-
-let test_build_get_latest_uuid (module Db : CONN) =
-  add_second_build (module Db) >>= fun () ->
-  (* Test *)
-  Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.find_opt Builder_db.Build.get_latest_uuid job_id
-  >>| get_opt "no latest build" >>| fun (_id, latest_uuid) ->
-  Alcotest.(check Testable.uuid) "same uuid" latest_uuid uuid'
 
 let test_build_get_previous (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
@@ -286,13 +260,6 @@ let test_artifact_get_by_build_uuid (module Db : CONN) =
   get_opt "no build" >>| fun (_id, file) ->
   Alcotest.(check Testable.file) "same file" file main_binary
 
-let test_artifact_get_by_build (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_by_uuid uuid >>|
-  get_opt "no build" >>= fun (id, _build) ->
-  Db.find Builder_db.Build_artifact.get_by_build
-    (id, main_binary.filepath)>>| fun (_id, file) ->
-  Alcotest.(check Testable.file) "same file" file main_binary
-
 (* XXX: This test should fail because main_binary on the corresponding build
  * references its main_binary. This is not the case now due to foreign key. *)
 let test_artifact_remove_by_build (module Db : CONN) =
@@ -308,7 +275,6 @@ let () =
       test_case "Get user" `Quick (with_user_db test_user_get_user);
       test_case "Remove user by name" `Quick (with_user_db test_user_remove_user);
       test_case "Update user" `Quick (with_user_db test_user_update);
-      test_case "Remove user" `Quick (with_user_db test_user_remove);
     ];
     "user-auth", [
       test_case "User auth success" `Quick (with_user_db test_user_auth);
@@ -316,7 +282,6 @@ let () =
     ];
     "job", [
       test_case "Add build" `Quick (with_build_db (fun _ -> Ok ()));
-      test_case "One job" `Quick (with_build_db test_job_get_all);
       test_case "Get job id" `Quick (with_build_db test_job_get_id_by_name);
       test_case "Get job" `Quick (with_build_db test_job_get);
       test_case "Remove job" `Quick test_job_remove;
@@ -324,9 +289,7 @@ let () =
     "build", [
       test_case "Get build" `Quick (with_build_db test_build_get_by_uuid);
       test_case "One build" `Quick (with_build_db test_build_get_all);
-      test_case "One build (meta data)" `Quick (with_build_db test_build_get_all_with_main_binary);
       test_case "Get latest build" `Quick (with_build_db test_build_get_latest);
-      test_case "Get latest build uuid" `Quick (with_build_db test_build_get_latest_uuid);
       test_case "Get build by hash" `Quick (with_build_db test_build_get_with_jobname_by_hash);
       test_case "Get previous build" `Quick (with_build_db test_build_get_previous);
       test_case "Get previous build when first" `Quick (with_build_db test_build_get_previous_none);
@@ -334,7 +297,6 @@ let () =
     "build-artifact", [
       test_case "Get all by build" `Quick (with_build_db test_artifact_get_all_by_build);
       test_case "Get by build uuid" `Quick (with_build_db test_artifact_get_by_build_uuid);
-      test_case "Get by build" `Quick (with_build_db test_artifact_get_by_build);
       test_case "Remove by build" `Quick (with_build_db test_artifact_remove_by_build);
     ];
   ]

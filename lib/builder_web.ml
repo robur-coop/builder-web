@@ -96,7 +96,7 @@ let add_routes datadir =
     List.fold_right
       (fun (job_id, job_name, section, synopsis) r ->
          r >>= fun acc ->
-         Dream.sql req (Model.build_meta job_id) >>= function
+         Dream.sql req (Model.build_with_main_binary job_id) >>= function
          | Some (latest_build, latest_artifact) ->
            let v = (job_name, synopsis, latest_build, latest_artifact) in
            let section = Option.value ~default:"Failed" section in

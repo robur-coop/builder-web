@@ -54,9 +54,9 @@ let build uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >>=
   not_found
 
-let build_meta job (module Db : CONN) =
+let build_with_main_binary job (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_latest job >|=
-  Option.map (fun (_id, meta, file) -> (meta, file))
+  Option.map (fun (_id, build, file) -> (build, file))
 
 let build_hash hash (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_with_jobname_by_hash hash
@@ -64,11 +64,6 @@ let build_hash hash (module Db : CONN) =
 let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
-
-let latest_build_uuid job_id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest_uuid job_id >>=
-  (* We know there's at least one job when this is called, probably. *)
-  not_found >|= snd
 
 let latest_successful_build_uuid job_id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_latest_successful_uuid job_id
@@ -133,9 +128,6 @@ let job_and_readme job (module Db : CONN) =
     (Ok (failed, [])) sha >|= fun (x, builds) ->
   let builds = match x with None -> builds | Some f -> (f, None) :: builds in
   readme, List.rev builds
-
-let jobs (module Db : CONN) =
-  Db.collect_list Builder_db.Job.get_all ()
 
 let jobs_with_section_synopsis (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()

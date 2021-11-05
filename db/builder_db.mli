@@ -47,18 +47,11 @@ val last_insert_rowid :
   (unit, 'a id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
 
 module Job : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-
   val get :
     ([`job] id, string, [< `Many | `One | `Zero > `One ])
       Caqti_request.t
   val get_id_by_name :
     (string, [`job] id, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
-  val get_all :
-    (unit, [`job] id * string, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_with_section_synopsis :
     (unit, [`job] id * string * string option * string option, [ `Many | `One | `Zero ]) Caqti_request.t
   val try_add :
@@ -68,12 +61,6 @@ module Job : sig
 end
 
 module Tag : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val get :
-    ([`tag] id, string, [< `Many | `One | `Zero > `One ]) Caqti_request.t
   val get_id_by_name :
     (string, [`tag] id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
   val try_add :
@@ -81,10 +68,6 @@ module Tag : sig
 end
 
 module Job_tag : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val add :
     ([`tag] id * string * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val update :
@@ -94,16 +77,7 @@ module Job_tag : sig
 end
 
 module Build_artifact : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-
   val get : ([`build_artifact] id, file, [< `Many | `One | `Zero > `One]) Caqti_request.t
-  val get_by_build :
-    ([`build] id * Fpath.t, [`build_artifact] id * file,
-     [< `Many | `One | `Zero > `One ]) Caqti_request.t
-
   val get_by_build_uuid :
     (Uuidm.t * Fpath.t, [`build_artifact] id * file,
      [< `Many | `One | `Zero > `One `Zero ])
@@ -134,20 +108,11 @@ sig
     job_id : [`job] id;
   }
 
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-
-  val get_opt :
-    ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
   val get_by_uuid :
     (Uuidm.t, [`build] id * t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_all :
     ([`job] id, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_all_with_main_binary :
-    ([`job] id, [`build] id * t * file option, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_artifact_sha :
     ([`job] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest :
@@ -155,9 +120,6 @@ sig
       Caqti_request.t
   val get_latest_failed :
     ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
-  val get_latest_uuid :
-    ([`job] id, [`build] id * Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
-      Caqti_request.t
   val get_latest_successful_uuid :
     ([`job] id, Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
@@ -184,10 +146,6 @@ sig
 end
 
 module User : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_user :
     (string, [`user] id * Builder_web_auth.scrypt Builder_web_auth.user_info,
      [< `Many | `One | `Zero > `One `Zero ])
@@ -197,7 +155,6 @@ module User : sig
   val add :
     (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
     Caqti_request.t
-  val remove : ([`user] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove_user :
     (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val update_user :
@@ -206,10 +163,6 @@ module User : sig
 end
 
 module Access_list : sig
-  val migrate :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val rollback :
-    (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get :
     ([`user] id * [`job] id, [`access_list] id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
   val add :

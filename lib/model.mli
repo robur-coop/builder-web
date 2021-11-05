@@ -24,7 +24,7 @@ val build_artifacts : [`build] Builder_db.id -> Caqti_lwt.connection ->
 val build : Uuidm.t -> Caqti_lwt.connection ->
   ([`build] Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
-val build_meta : [`job] Builder_db.id -> Caqti_lwt.connection ->
+val build_with_main_binary : [`job] Builder_db.id -> Caqti_lwt.connection ->
   ((Builder_db.Build.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_hash : Cstruct.t -> Caqti_lwt.connection ->
@@ -32,9 +32,6 @@ val build_hash : Cstruct.t -> Caqti_lwt.connection ->
 
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
   (bool, [> Caqti_error.call_or_retrieve ]) result Lwt.t
-
-val latest_build_uuid : [`job] Builder_db.id -> Caqti_lwt.connection ->
-  (Uuidm.t, [> error ]) result Lwt.t
 
 val latest_successful_build_uuid : [`job] Builder_db.id -> Caqti_lwt.connection ->
   (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
@@ -65,9 +62,6 @@ val job_and_readme : string -> Caqti_lwt.connection ->
 
 val job_id : string -> Caqti_lwt.connection ->
   ([`job] Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
-
-val jobs : Caqti_lwt.connection ->
-  (([`job] Builder_db.id * string) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val jobs_with_section_synopsis : Caqti_lwt.connection ->
   (([`job] Builder_db.id * string * string option * string option) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t

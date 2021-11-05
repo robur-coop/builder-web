@@ -66,12 +66,6 @@ module Job = struct
       (id `job)
       "SELECT id FROM job WHERE name = ?"
 
-  let get_all =
-    Caqti_request.collect
-      Caqti_type.unit
-      Caqti_type.(tup2 (id `job) string)
-      "SELECT id, name FROM job ORDER BY name ASC"
-
   let get_all_with_section_synopsis =
     Caqti_request.collect
       Caqti_type.unit
@@ -109,12 +103,6 @@ module Tag = struct
     Caqti_request.exec
       Caqti_type.unit
       "DROP TABLE IF EXISTS tag"
-
-  let get =
-    Caqti_request.find
-      (id `tag)
-      Caqti_type.string
-      "SELECT tag FROM tag WHERE id = ?"
 
   let get_id_by_name =
     Caqti_request.find
@@ -194,15 +182,6 @@ module Build_artifact = struct
       file
       {| SELECT filepath, localpath, sha256, size
          FROM build_artifact WHERE id = ? |}
-
-  let get_by_build =
-    Caqti_request.find
-      (Caqti_type.tup2 (id `build) fpath)
-      (Caqti_type.tup2 (id `build_artifact) file)
-      {| SELECT id, filepath, localpath, sha256, size
-         FROM build_artifact
-         WHERE build = ? AND filepath = ?
-      |}
 
   let get_by_build_uuid =
     Caqti_request.find_opt
@@ -313,17 +292,6 @@ module Build = struct
       Caqti_type.unit
       {| DROP TABLE IF EXISTS build |}
 
-  let get_opt =
-    Caqti_request.find_opt
-      (id `build)
-      t
-      {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                result_code, result_msg,
-                console, script, platform, main_binary, input_id, user, job
-           FROM build
-           WHERE id = ?
-        |}
-
   let get_by_uuid =
     Caqti_request.find_opt
       Rep.uuid
@@ -345,23 +313,6 @@ module Build = struct
            FROM build
            WHERE job = ?
            ORDER BY start_d DESC, start_ps DESC
-        |}
-
-  let get_all_with_main_binary =
-    Caqti_request.collect
-      (id `job)
-      (Caqti_type.tup3
-         (id `build) t file_opt)
-      {| SELECT build.id, build.uuid,
-                build.start_d, build.start_ps, build.finish_d, build.finish_ps,
-                build.result_code, build.result_msg, build.console, build.script,
-                build.platform, build.main_binary, build.input_id, build.user, build.job,
-                build_artifact.filepath, build_artifact.localpath, build_artifact.sha256, build_artifact.size
-           FROM build, job
-           LEFT JOIN build_artifact ON
-             build.main_binary = build_artifact.id
-           WHERE job.id = ? AND build.job = job.id
-           ORDER BY build.start_d DESC, build.start_ps DESC
         |}
 
   let get_all_artifact_sha =
@@ -402,17 +353,6 @@ module Build = struct
          FROM build b
          LEFT JOIN build_artifact a ON
            b.main_binary = a.id
-         WHERE b.job = ?
-         ORDER BY b.start_d DESC, b.start_ps DESC
-         LIMIT 1
-      |}
-
-  let get_latest_uuid =
-    Caqti_request.find_opt
-      (id `job)
-      Caqti_type.(tup2 (id `build) Rep.uuid)
-      {| SELECT b.id, b.uuid
-         FROM build b
          WHERE b.job = ?
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
@@ -605,11 +545,6 @@ module User = struct
            scrypt_n, scrypt_r, scrypt_p, restricted)
          VALUES (?, ?, ?, ?, ?, ?, ?)
       |}
-
-  let remove =
-    Caqti_request.exec
-      (id `user)
-      "DELETE FROM user WHERE id = ?"
 
   let remove_user =
     Caqti_request.exec
