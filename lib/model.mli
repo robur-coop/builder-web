@@ -21,10 +21,13 @@ val build_artifact_data : Fpath.t -> Builder_db.file ->
 val build_artifacts : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.file list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val platforms_of_job : [`job] Builder_db.id -> Caqti_lwt.connection ->
+  (string list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
 val build : Uuidm.t -> Caqti_lwt.connection ->
   ([`build] Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
-val build_with_main_binary : [`job] Builder_db.id -> Caqti_lwt.connection ->
+val build_with_main_binary : [`job] Builder_db.id -> string -> Caqti_lwt.connection ->
   ((Builder_db.Build.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_hash : Cstruct.t -> Caqti_lwt.connection ->
@@ -33,11 +36,14 @@ val build_hash : Cstruct.t -> Caqti_lwt.connection ->
 val build_exists : Uuidm.t -> Caqti_lwt.connection ->
   (bool, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val latest_successful_build_uuid : [`job] Builder_db.id -> Caqti_lwt.connection ->
+val latest_successful_build_uuid : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
   (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val previous_successful_build : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+val previous_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
+val next_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val builds_with_different_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
@@ -58,7 +64,10 @@ val readme : string -> Caqti_lwt.connection ->
   (string option, [> error ]) result Lwt.t
 
 val job_and_readme : string -> Caqti_lwt.connection ->
-  (string option * (Builder_db.Build.t * Builder_db.file option) list, [> error ]) result Lwt.t
+  ([`job] Builder_db.id * string option, [> error ]) result Lwt.t
+
+val builds_grouped_by_output : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
+  ((Builder_db.Build.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
 val job_id : string -> Caqti_lwt.connection ->
   ([`job] Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t

@@ -50,12 +50,15 @@ let build_artifacts build (module Db : CONN) =
   Db.collect_list Builder_db.Build_artifact.get_all_by_build build >|=
   List.map snd
 
+let platforms_of_job id (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_platforms_for_job id
+
 let build uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >>=
   not_found
 
-let build_with_main_binary job (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest job >|=
+let build_with_main_binary job platform (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest (job, platform) >|=
   Option.map (fun (_id, build, file) -> (build, file))
 
 let build_hash hash (module Db : CONN) =
@@ -65,12 +68,18 @@ let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
 
-let latest_successful_build_uuid job_id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest_successful_uuid job_id
+let latest_successful_build_uuid job_id platform (module Db : CONN) =
+  match platform with
+  | None ->
+    Db.find_opt Builder_db.Build.get_latest_successful_uuid job_id
+  | Some platform ->
+    Db.find_opt Builder_db.Build.get_latest_successful_uuid_by_platform (job_id, platform)
 
-let previous_successful_build id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_previous_successful id >|=
-  Option.map (fun (_id, meta) -> meta)
+let previous_successful_build_uuid id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_previous_successful_uuid id
+
+let next_successful_build_uuid id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_next_successful_uuid id
 
 let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->
@@ -114,9 +123,19 @@ let readme job (module Db : CONN) =
 let job_and_readme job (module Db : CONN) =
   job_id job (module Db) >>= not_found >>= fun job_id ->
   Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
-  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) >>= fun readme ->
-  Db.find_opt Builder_db.Build.get_latest_failed job_id >>= fun failed ->
-  Db.collect_list Builder_db.Build.get_all_artifact_sha job_id >>= fun sha ->
+  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) >|= fun readme ->
+  job_id, readme
+
+let builds_grouped_by_output job_id platform (module Db : CONN) =
+  (match platform with
+   | None ->
+     Db.find_opt Builder_db.Build.get_latest_failed job_id >>= fun failed ->
+     Db.collect_list Builder_db.Build.get_all_artifact_sha job_id >|= fun sha ->
+     (failed, sha)
+   | Some p ->
+     Db.find_opt Builder_db.Build.get_latest_failed_by_platform (job_id, p) >>= fun failed ->
+     Db.collect_list Builder_db.Build.get_all_artifact_sha_by_platform (job_id, p) >|= fun sha ->
+     (failed, sha)) >>= fun (failed, sha) ->
   Lwt_list.fold_left_s (fun acc hash ->
      match acc with
      | Error _ as e -> Lwt.return e
@@ -126,8 +145,7 @@ let job_and_readme job (module Db : CONN) =
        | Some f when Ptime.is_later ~than:build.Builder_db.Build.start f.Builder_db.Build.start -> None, (build, file) :: (f, None) :: builds
        | x -> x, (build, file) :: builds)
     (Ok (failed, [])) sha >|= fun (x, builds) ->
-  let builds = match x with None -> builds | Some f -> (f, None) :: builds in
-  readme, List.rev builds
+  (match x with None -> builds | Some f -> (f, None) :: builds) |> List.rev
 
 let jobs_with_section_synopsis (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
@@ -220,64 +238,35 @@ let commit_files datadir staging_dir job_name uuid =
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
   Lwt.return (Bos.OS.Path.move staging_dir dest)
 
-let infer_section_and_synopsis platform name artifacts =
-  let opam_switch =
-    match List.find_opt (fun (p, _) -> String.equal (Fpath.basename p) "opam-switch") artifacts with
-    | None -> None
-    | Some (_, data) -> Some (OpamFile.SwitchExport.read_from_string data)
+let infer_section_and_synopsis artifacts =
+  let infer_synopsis_and_descr switch root =
+    match OpamPackage.Name.Map.find_opt root.OpamPackage.name switch.OpamFile.SwitchExport.overlays with
+    | None -> None, None
+    | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
   in
-  let infer_synopsis_and_descr switch =
-    let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
-    if OpamPackage.Set.cardinal root <> 1 then
-      None, None
-    else
-      let root = OpamPackage.Set.choose root in
-      match OpamPackage.Name.Map.find_opt root.OpamPackage.name switch.OpamFile.SwitchExport.overlays with
-      | None -> None, None
-      | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
-  in
-  let infer_section_from_packages switch =
-    let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
-    if OpamPackage.Set.cardinal root <> 1 then
-      None
-    else
-      let root = OpamPackage.Set.choose root in
-      let root_pkg_name = OpamPackage.Name.to_string root.OpamPackage.name in
-      if Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
-        let influx = OpamPackage.Name.of_string "metrics-influx" in
-        if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
-             switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
-        then
-          Some "Unikernels (with metrics reported to Influx)"
-        else
-          Some "Unikernels"
+  let infer_section switch root =
+    let root_pkg_name = OpamPackage.Name.to_string root.OpamPackage.name in
+    if Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
+      let influx = OpamPackage.Name.of_string "metrics-influx" in
+      if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
+           switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
+      then
+        "Unikernels (with metrics reported to Influx)"
       else
-        None
-  in
-  let infer_section_from_platform_or_name =
-    if String.equal platform "no-platform" then
-      let map = [
-        "-freebsd", "FreeBSD" ;
-        "-debian", "Debian" ;
-        "-ubuntu", "Ubuntu" ;
-      ] in
-      match
-        List.find_opt (fun (affix, _) -> Astring.String.is_infix ~affix name) map
-      with
-      | None -> None
-      | Some (_, os) -> Some (os ^ " Packages")
+        "Unikernels"
     else
-      Some (platform ^ " Packages")
+      "Packages"
   in
-  match opam_switch with
+  match List.find_opt (fun (p, _) -> String.equal (Fpath.basename p) "opam-switch") artifacts with
   | None -> None, (None, None)
-  | Some opam_switch ->
-    let section =
-      match infer_section_from_packages opam_switch with
-      | None -> infer_section_from_platform_or_name
-      | Some x -> Some x
-    in
-    section, infer_synopsis_and_descr opam_switch
+  | Some (_, data) ->
+    try
+      let switch = OpamFile.SwitchExport.read_from_string data in
+      let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
+      assert (OpamPackage.Set.cardinal root = 1);
+      let root = OpamPackage.Set.choose root in
+      Some (infer_section switch root), infer_synopsis_and_descr switch root
+    with _ -> None, (None, None)
 
 let compute_input_id artifacts =
   let get_hash filename =
@@ -363,7 +352,7 @@ let add_build
                         console; script; platform;
                         main_binary = None; input_id; user_id; job_id } >>= fun () ->
     Db.find last_insert_rowid () >>= fun id ->
-    let sec_syn = infer_section_and_synopsis platform job_name raw_artifacts in
+    let sec_syn = infer_section_and_synopsis raw_artifacts in
     let add_or_update tag_id tag_value =
       Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
       | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)

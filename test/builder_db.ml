@@ -220,7 +220,7 @@ let test_build_get_latest (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   (* Test *)
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.find_opt Builder_db.Build.get_latest job_id
+  Db.find_opt Builder_db.Build.get_latest (job_id, platform)
   >>| get_opt "no latest build" >>| fun (_id, meta, main_binary') ->
   Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'
@@ -229,17 +229,17 @@ let test_build_get_previous (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_by_uuid uuid'
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous_successful id
-  >>| get_opt "no previous build" >>| fun (_id, meta) ->
-  Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid
+  Db.find_opt Builder_db.Build.get_previous_successful_uuid id
+  >>| get_opt "no previous build" >>| fun uuid' ->
+  Alcotest.(check Testable.uuid) "same uuid" uuid' uuid
 
 let test_build_get_previous_none (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous_successful id >>| function
+  Db.find_opt Builder_db.Build.get_previous_successful_uuid id >>| function
   | None -> ()
-  | Some (_id, meta) ->
-    Alcotest.failf "Got unexpected result %a" Uuidm.pp meta.uuid
+  | Some uuid ->
+    Alcotest.failf "Got unexpected result %a" Uuidm.pp uuid
 
 let test_build_get_with_jobname_by_hash (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->

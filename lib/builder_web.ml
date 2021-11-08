@@ -96,14 +96,19 @@ let add_routes datadir =
     List.fold_right
       (fun (job_id, job_name, section, synopsis) r ->
          r >>= fun acc ->
-         Dream.sql req (Model.build_with_main_binary job_id) >>= function
-         | Some (latest_build, latest_artifact) ->
-           let v = (job_name, synopsis, latest_build, latest_artifact) in
-           let section = Option.value ~default:"Failed" section in
-           Lwt_result.return (Utils.String_map.add_or_create section v acc)
-         | None ->
-           Log.warn (fun m -> m "Job without builds: %s" job_name);
-           Lwt_result.return acc)
+         Dream.sql req (Model.platforms_of_job job_id) >>= fun ps ->
+         List.fold_right (fun platform r ->
+           r >>= fun acc ->
+           Dream.sql req (Model.build_with_main_binary job_id platform) >>= function
+           | Some (build, artifact) ->
+             Lwt_result.return ((platform, build, artifact) :: acc)
+           | None ->
+             Log.warn (fun m -> m "Job without builds: %s" job_name);
+             Lwt_result.return acc)
+           ps (Lwt_result.return []) >>= fun platform_builds ->
+         let v = (job_name, synopsis, platform_builds) in
+         let section = Option.value ~default:"Uncategorized" section in
+         Lwt_result.return (Utils.String_map.add_or_create section v acc))
       jobs
       (Lwt_result.return Utils.String_map.empty)
     |> if_error "Error getting jobs"
@@ -114,7 +119,10 @@ let add_routes datadir =
 
   let job req =
     let job_name = Dream.param "job" req in
-    Dream.sql req (Model.job_and_readme job_name)
+    let platform = Dream.query "platform" req in
+    (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
+     Dream.sql req (Model.builds_grouped_by_output job_id platform) >|= fun builds ->
+     (readme, builds))
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
@@ -123,9 +131,10 @@ let add_routes datadir =
 
   let redirect_latest req =
     let job_name = Dream.param "job" req in
+    let platform = Dream.query "platform" req in
     let path = Dream.path req |> String.concat "/" in
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
-     Dream.sql req (Model.latest_successful_build_uuid job_id))
+     Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
     Dream.redirect req
@@ -162,12 +171,14 @@ let add_routes datadir =
      Dream.sql req (Model.builds_with_same_input_and_same_main_binary build_id) >>= fun same_input_same_output ->
      Dream.sql req (Model.builds_with_different_input_and_same_main_binary build_id) >>= fun different_input_same_output ->
      Dream.sql req (Model.builds_with_same_input_and_different_main_binary build_id) >>= fun same_input_different_output ->
-     Dream.sql req (Model.latest_successful_build_uuid build.job_id) >|= fun latest_uuid ->
-         (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid))
+     Dream.sql req (Model.latest_successful_build_uuid build.job_id (Some build.Builder_db.Build.platform)) >>= fun latest_uuid ->
+     Dream.sql req (Model.next_successful_build_uuid build_id) >>= fun next_uuid ->
+     Dream.sql req (Model.previous_successful_build_uuid build_id) >|= fun previous_uuid ->
+         (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid, next_uuid, previous_uuid))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid) ->
-    Views.job_build job_name readme build artifacts same_input_same_output different_input_same_output same_input_different_output latest_uuid
+    >>= fun (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest_uuid, next_uuid, previous_uuid) ->
+    Views.job_build job_name readme build artifacts same_input_same_output different_input_same_output same_input_different_output latest_uuid next_uuid previous_uuid
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
@@ -342,6 +353,12 @@ let add_routes datadir =
   in
 
   let w f req = or_error_response (f req) in
+
+  (*
+  /developer <- front page with failed builds (indication)
+  /job/:job/developer(?platform=XX) <- job list with failed builds
+  /failed-builds(?platform=XX) <- all failed builds across all jobs (limit by the most recent 10)
+  *)
 
   Dream.router [
     Dream.get "/" (w builder);

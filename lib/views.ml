@@ -127,27 +127,35 @@ let builder section_job_map =
        Utils.String_map.fold (fun section jobs acc ->
          acc @ [
            h2 [ txt section ];
-           ul (List.map (fun (job_name, synopsis, latest_build, latest_artifact) ->
+           ul (List.map (fun (job_name, synopsis, platform_builds) ->
                li ([
-                   a ~a:[a_href ("job/" ^ job_name ^ "/")]
-                     [txt job_name];
-                   txt " ";
-                   check_icon latest_build.Builder_db.Build.result;
+                   a ~a:[a_href ("job/" ^ job_name ^ "/")] [txt job_name];
                    br ();
                    txt (Option.value ~default:"" synopsis);
-                   br ();
-                   a ~a:[a_href (Fmt.str "job/%s/build/%a/" job_name Uuidm.pp
-                                   latest_build.Builder_db.Build.uuid)]
-                     [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
-                   txt " ";
-                 ] @ match latest_artifact with
-                 | Some main_binary ->
-                   artifact ~basename:true job_name latest_build main_binary
-                 | None ->
-                   [
-                     txtf "Build failed";
-                   ])) jobs)
-        ])
+                   br ()
+                   ] @
+                   List.flatten
+                     (List.map (fun (platform, latest_build, latest_artifact) ->
+                       [
+                         check_icon latest_build.Builder_db.Build.result;
+                         txt " ";
+                         a ~a:[a_href (Fmt.str "job/%s/?platform=%s" job_name platform)][txt platform];
+                         txt " ";
+                         a ~a:[a_href (Fmt.str "job/%s/build/%a/" job_name Uuidm.pp
+                                         latest_build.Builder_db.Build.uuid)]
+                           [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
+                         txt " ";
+                       ] @ (match latest_artifact with
+                            | Some main_binary ->
+                              artifact ~basename:true job_name latest_build main_binary
+                            | None ->
+                              [ txtf "Build failure: %a" Builder.pp_execution_result
+                                  latest_build.Builder_db.Build.result ]
+                       ) @ [ br () ])
+                      platform_builds)
+                ))
+               jobs)
+         ])
         section_job_map
         [])
 
@@ -165,26 +173,21 @@ let job name readme builds =
      [
       h2 ~a:[a_id "builds"] [txt "Builds"];
       a ~a:[a_href "#readme"] [txt "Back to readme"];
-      p [
-        txtf "Currently %d builds."
-          (List.length builds)
-      ];
       ul (List.map (fun (build, main_binary) ->
           li ([
+              check_icon build.Builder_db.Build.result;
+              txtf " %s " build.platform;
               a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.uuid / ""))]
                 [
                   txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.start;
                 ];
               txt " ";
-              check_icon build.result;
-              br ();
             ] @ match main_binary with
             | Some main_binary ->
               artifact ~basename:true name build main_binary
             | None ->
-              [
-                txtf "Build failed";
-              ]))
+              [ txtf "Build failure: %a" Builder.pp_execution_result
+                  build.Builder_db.Build.result ]))
           builds);
 
     ])
@@ -195,10 +198,9 @@ let job_build
   { Builder_db.Build.uuid; start; finish; result; platform; _ }
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
-  latest_uuid
+  latest_uuid next_uuid previous_uuid
   =
   let delta = Ptime.diff finish start in
-  let successful_build = match result with Builder.Exited 0 -> true | _ -> false in
   layout ~title:(Fmt.str "Job %s %a" name pp_ptime start)
     ((h1 [txtf "Job %s" name] ::
       (match readme with
@@ -214,14 +216,7 @@ let job_build
       a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
-      p [txtf "Execution result: %a." Builder.pp_execution_result result]; ] @
-      (match same_input_same_output with [] -> [] | xs -> [
-         h3 [ txt "Reproduced by builds"] ;
-         p (List.concat_map (fun { Builder_db.Build.start ; uuid ; _ } ->
-             [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a" name Uuidm.pp uuid]
-                [txtf "%a" pp_ptime start] ;
-               txt ", " ])
-         xs) ] ) @ [
+      p [txtf "Execution result: %a." Builder.pp_execution_result result];
       h3 [txt "Build info"];
       ul [
         li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]
@@ -231,26 +226,6 @@ let job_build
                [txt "Build script"];
            ]
       ];
-      h3 [txt "Comparisons with other builds"];
-      p
-        ((match latest_uuid with
-          | Some latest_uuid when successful_build && not (Uuidm.equal latest_uuid uuid) ->
-            [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                      Uuidm.pp uuid Uuidm.pp latest_uuid]
-                [txt "With latest build"] ; br () ]
-          | _ -> []) @
-         List.concat_map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; _ } ->
-             let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
-             [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                     Uuidm.pp fst Uuidm.pp snd]
-                [txtf "With build %a (output is identical binary)" pp_ptime other_start] ; br () ])
-           different_input_same_output @
-         List.concat_map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; _ } ->
-             let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
-             [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                     Uuidm.pp fst Uuidm.pp snd]
-                [txtf "With build %a (same input, different output)" pp_ptime other_start] ; br () ])
-           same_input_different_output);
       h3 [txt "Build artifacts"];
       dl (List.concat_map
             (fun { Builder_db.filepath; localpath=_; sha256; size } ->
@@ -265,30 +240,51 @@ let job_build
                  ];
                ])
             artifacts);
-      (*
-      (* FIXME *)
-      h3 [txt "Job script"];
-      toggleable "job-script" "Show/hide"
-        [ pre [txt script] ];
-      h3 [txt "Build log"];
-      toggleable ~hidden:false "build-log" "Show/hide build log"
-        [
-          table
-            (List.mapi (fun idx (ts, line) ->
-                 let ts_id = "L" ^ string_of_int idx in
-                 tr [
-                   td ~a:[
-                     a_class ["output-ts"];
-                     a_id ts_id;
-                   ]
-                     [a ~a:[a_href ("#"^ts_id); a_class ["output-ts-anchor"]]
-                        [code [txtf "%#d ms" (Duration.to_ms (Int64.of_int ts))]]];
-                   td ~a:[a_class ["output-code"]]
-                     [code [txt line]];
-                 ])
-                (List.rev console));
-        ];
-      *)
+      h3 [ txtf "Reproduced by %d builds" (List.length (same_input_same_output @ different_input_same_output))] ;
+      ul
+        ((List.map (fun { Builder_db.Build.start ; uuid ; platform ; _ } ->
+            li [
+              txtf "on %s, same input, " platform;
+              a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp uuid]
+                  [txtf "%a" pp_ptime start]
+            ])
+            same_input_same_output) @
+            List.map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; platform ; _ } ->
+              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
+              li [
+                txtf "on %s, different input, " platform;
+                a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                      Uuidm.pp fst Uuidm.pp snd]
+                 [txtf "%a" pp_ptime other_start]
+              ])
+            different_input_same_output)
+      ] @
+      (if same_input_different_output = [] then
+        []
+      else
+        [ h3 [txt "Same input, different output (not reproducible!)"];
+          ul (
+            List.map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; platform ; _ } ->
+              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
+              li [
+                txtf "on %s, " platform ;
+                a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch" Uuidm.pp fst Uuidm.pp snd]
+                  [txtf "%a" pp_ptime other_start]
+              ])
+              same_input_different_output)
+          ]) @
+       [ h3 [txt "Comparisons with other builds on the same platform"];
+       let opt_build (ctx, uu) =
+         match uu with
+         | Some uu when not (Uuidm.equal uuid uu) ->
+            [ li [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
+                      Uuidm.pp uuid Uuidm.pp uu]
+                   [txtf "With %s build" ctx]]
+            ]
+          | _ -> []
+        in
+        ul
+          (List.concat_map opt_build [ ("latest", latest_uuid) ; ("next", next_uuid) ; ("previous", previous_uuid) ])
     ])
 
 let key_values xs =
