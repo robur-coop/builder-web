@@ -71,7 +71,7 @@ let user_list () dbpath =
       connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     in
     Db.iter_s Builder_db.User.get_all
-      (fun username -> Ok (print_endline username))
+      (fun (_id, username) -> Ok (print_endline username))
       ()
   in
   or_die 1 r
@@ -135,6 +135,17 @@ let access_remove () dbpath username jobname =
     Db.exec Builder_db.Access_list.remove (user_id, job_id)
    in
    or_die 1 r
+
+let access_list () dbpath =
+  let r =
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    Db.iter_s Builder_db.Access_list.get_all_names
+      (fun (username, job) -> Ok (Printf.printf "%s:%s\n" username job))
+      ()
+  in
+  or_die 1 r
 
 let job_remove () datadir jobname =
   let dbpath = datadir ^ "/builder.sqlite3" in
@@ -432,6 +443,11 @@ let access_remove_cmd =
   (Cmdliner.Term.(pure access_remove $ setup_log $ dbpath $ username $ job),
    Cmdliner.Term.info ~doc "access-remove")
 
+let access_list_cmd =
+  let doc = "list user access" in
+  (Cmdliner.Term.(pure access_list $ setup_log $ dbpath),
+   Cmdliner.Term.info ~doc "access-list")
+
 let job_remove_cmd =
   let doc = "remove job and its associated builds and artifacts" in
   (Cmdliner.Term.(pure job_remove $ setup_log $ datadir $ jobname),
@@ -467,6 +483,6 @@ let () =
     default_cmd
     [help_cmd; migrate_cmd;
      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
-     access_add_cmd; access_remove_cmd; job_remove_cmd;
+     access_add_cmd; access_remove_cmd; access_list_cmd; job_remove_cmd;
      verify_input_id_cmd; verify_data_dir_cmd ]
   |> Cmdliner.Term.exit

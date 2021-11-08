@@ -163,7 +163,7 @@ module User : sig
      [< `Many | `One | `Zero > `One `Zero ])
     Caqti_request.t
   val get_all :
-    (unit, string, [ `Many | `One | `Zero ]) Caqti_request.t
+    (unit, [`user] id * string, [ `Many | `One | `Zero ]) Caqti_request.t
   val add :
     (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
     Caqti_request.t
@@ -177,6 +177,8 @@ end
 module Access_list : sig
   val get :
     ([`user] id * [`job] id, [`access_list] id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  val get_all_names :
+    (unit, string * string, [ `Many | `One | `Zero ]) Caqti_request.t
   val add :
     ([`user] id * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove :

@@ -588,8 +588,8 @@ module User = struct
   let get_all =
     Caqti_request.collect
       Caqti_type.unit
-      Caqti_type.string
-      "SELECT username FROM user"
+      Caqti_type.(tup2 (id `user) string)
+      "SELECT id, username FROM user"
 
   let add =
     Caqti_request.exec
@@ -643,6 +643,12 @@ module Access_list = struct
       Caqti_type.(tup2 (id `user) (id `job))
       (id `access_list)
       "SELECT id FROM access_list WHERE user = ? AND job = ?"
+
+  let get_all_names =
+    Caqti_request.collect
+      Caqti_type.unit
+      Caqti_type.(tup2 string string)
+      "SELECT username, name FROM access_list acl LEFT JOIN user, job ON user.id = acl.user AND job.id = acl.job"
 
   let add =
     Caqti_request.exec
