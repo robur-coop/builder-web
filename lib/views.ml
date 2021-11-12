@@ -20,7 +20,45 @@ let check_icon result =
     ]
       [txt "☒"]
 
-let layout ~title:title_ body_ =
+type nav = [
+  | `Default
+  | `Job of string * string option
+  | `Build of string * Builder_db.Build.t
+  | `Comparison of (string * Builder_db.Build.t) * (string * Builder_db.Build.t)
+]
+
+let pp_platform = Fmt.(option ~none:(any "") (append (any "on ") string))
+let pp_platform_query = Fmt.(option ~none:(any "") (append (any "?platform=") string))
+
+let layout ?nav:(nav_=`Default) ~title:title_ body_ =
+  let breadcrumb =
+    let to_nav kvs =
+      nav [ ul (List.map (fun (desc, href) ->
+          li [a ~a:[a_href href] [desc]])
+          kvs) ]
+    in
+    match nav_ with
+    | `Default ->
+      to_nav [txt "Home", "/"]
+    | `Job (job_name, platform) ->
+      to_nav [txt "Home", "/"; txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name ; txtf "%a" pp_platform platform, Fmt.str "/job/%s/%a" job_name pp_platform_query platform ]
+    | `Build (job_name, build) ->
+      to_nav [
+        txt "Home", "/";
+        txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name;
+        txtf "%a" pp_platform (Some build.Builder_db.Build.platform), Fmt.str "/job/%s/%a" job_name pp_platform_query (Some build.Builder_db.Build.platform);
+        txtf "Build %a" pp_ptime build.Builder_db.Build.start,
+        Fmt.str "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid;
+      ]
+    | `Comparison ((job_left, build_left), (job_right, build_right)) ->
+      to_nav [
+        txt "Home", "/";
+        txtf "Comparison between %s@%a and %s@%a"
+          job_left pp_ptime build_left.Builder_db.Build.start
+          job_right pp_ptime build_right.Builder_db.Build.start,
+        Fmt.str "/compare/%a/%a/opam-switch" Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid;
+      ]
+  in
   html
     (head (title (txt title_))
        [style ~a:[a_mime_type "text/css"]
@@ -30,6 +68,21 @@ let layout ~title:title_ body_ =
                  line-height: 1.6;\
                  color: #444;\
                  padding: 0 10px;\
+                 }";
+            txt "nav ul {\
+                 display: flex;\
+                 list-style: none;\
+                 }";
+            Tyxml.Html.Unsafe.data
+              "nav ul li::before {\
+               content: \"→\";\
+               }";
+            Tyxml.Html.Unsafe.data
+              "nav ul li:first-child::before {\
+               content: \"\";\
+               }";
+            txt "nav a {\
+                 padding: .5em 1em;\
                  }";
             txt "h1,h2,h3{line-height:1.2}";
             txt ".output-ts {\
@@ -55,7 +108,11 @@ let layout ~title:title_ body_ =
                  display: block;\
                  }";
           ]])
-    (body body_)
+
+    (body [
+        breadcrumb;
+        main body_
+      ])
 
 let toggleable ?(hidden=true) id description content =
   let checked = if hidden then [] else [a_checked ()] in
@@ -139,10 +196,10 @@ let builder section_job_map =
                        [
                          check_icon latest_build.Builder_db.Build.result;
                          txt " ";
-                         a ~a:[a_href (Fmt.str "job/%s/?platform=%s" job_name platform)][txt platform];
+                         a ~a:[Fmt.kstr a_href "job/%s/%a" job_name pp_platform_query (Some platform)][txt platform];
                          txt " ";
-                         a ~a:[a_href (Fmt.str "job/%s/build/%a/" job_name Uuidm.pp
-                                         latest_build.Builder_db.Build.uuid)]
+                         a ~a:[Fmt.kstr a_href "job/%s/build/%a/" job_name Uuidm.pp
+                                         latest_build.Builder_db.Build.uuid]
                            [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
                          txt " ";
                        ] @ (match latest_artifact with
@@ -159,9 +216,9 @@ let builder section_job_map =
         section_job_map
         [])
 
-let job name readme builds =
-  layout ~title:(Printf.sprintf "Job %s" name)
-    ((h1 [txtf "Job %s" name] ::
+let job name platform readme builds =
+  layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
+    ((h1 [txtf "Job %s %a" name pp_platform platform] ::
       (match readme with
        | None -> []
        | Some data ->
@@ -177,7 +234,7 @@ let job name readme builds =
           li ([
               check_icon build.Builder_db.Build.result;
               txtf " %s " build.platform;
-              a ~a:[a_href Fpath.(to_string (v "build" / Uuidm.to_string build.Builder_db.Build.uuid / ""))]
+              a ~a:[Fmt.kstr a_href "build/%a/" Uuidm.pp build.Builder_db.Build.uuid]
                 [
                   txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.start;
                 ];
@@ -195,13 +252,13 @@ let job name readme builds =
 let job_build
   name
   readme
-  { Builder_db.Build.uuid; start; finish; result; platform; _ }
+  ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
   latest_uuid next_uuid previous_uuid
   =
   let delta = Ptime.diff finish start in
-  layout ~title:(Fmt.str "Job %s %a" name pp_ptime start)
+  layout ~nav:(`Build (name, build)) ~title:(Fmt.str "Job %s %a" name pp_ptime start)
     ((h1 [txtf "Job %s" name] ::
       (match readme with
        | None -> []
@@ -342,8 +399,10 @@ let compare_opam job_left job_right
     (added_env, removed_env, changed_env)
     (added_pkgs, removed_pkgs, changed_pkgs)
     (same, opam_diff, version_diff, left, right) =
-  layout ~title:(Fmt.str "Comparing opam switches between builds %a and %a"
-                   Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
+  layout
+    ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
+    ~title:(Fmt.str "Comparing opam switches between builds %a and %a"
+              Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
       h1 [txt "Comparing opam switches"];
       h2 [

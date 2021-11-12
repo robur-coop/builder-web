@@ -126,7 +126,7 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.job job_name readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.job job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
