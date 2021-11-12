@@ -1,0 +1,17 @@
+#!/bin/sh
+set -e
+BUILDER_WEB_USER=builder
+
+if ! getent passwd "$BUILDER_WEB_USER" >/dev/null; then
+	groupadd -g 497 $BUILDER_WEB_USER
+fi
+if ! getent group "$BUILDER_WEB_USER" >/dev/null; then
+	useradd -g 497 -u 497 -d /nonexistent -s /usr/sbin/nologin $BUILDER_WEB_USER
+fi
+
+mkdir -p /var/lib/builder-web
+chown "$BUILDER_WEB_USER:$BUILDER_WEB_USER" /var/lib/builder-web
+
+if [ -d /run/systemd/system ]; then
+	systemctl --system daemon-reload >/dev/null || true
+fi

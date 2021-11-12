@@ -31,6 +31,7 @@ install -m 0644 $basedir/packaging/debian/builder-web.service $systemddir/builde
 install -m 0644 $basedir/packaging/debian/control $debiandir/control
 install -m 0644 $basedir/packaging/debian/changelog $debiandir/changelog
 install -m 0644 $basedir/packaging/debian/copyright $debiandir/copyright
+install $basedir/packaging/debian/postinst $debiandir/postinst
 
 dpkg-deb --build $rootdir $basedir/builder-web.deb
 echo 'bin: [ "builder-web.deb" ]' > $basedir/builder-web.install
