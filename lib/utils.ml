@@ -10,7 +10,7 @@ let diff_map a b =
   let diff a b =
     String_map.fold (fun k v acc ->
       if not (String_map.mem k b) then (k, v) :: acc else acc)
-      a []
+      a [] |> List.rev
   in
   let added = diff b a
   and removed = diff a b
@@ -19,7 +19,7 @@ let diff_map a b =
       match String_map.find_opt k b with
       | None -> acc
       | Some v' -> if String.equal v v' then acc else (k, v, v') :: acc)
-    a []
+    a [] |> List.rev
   in
   (added, removed, changed)
 

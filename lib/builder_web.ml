@@ -274,7 +274,7 @@ let add_routes datadir =
     |> Lwt_result.ok
   in
 
-  let compare_opam req =
+  let compare_builds req =
     let datadir = Dream.global datadir_global req in
     let build_left = Dream.param "build_left" req in
     let build_right = Dream.param "build_right" req in
@@ -309,7 +309,7 @@ let add_routes datadir =
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
     Opamdiff.compare switch_left switch_right
-    |> Views.compare_opam job_left job_right build_left build_right env_diff pkg_diff
+    |> Views.compare_builds job_left job_right build_left build_right env_diff pkg_diff
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
@@ -370,7 +370,7 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/hash" (w hash);
-    Dream.get "/compare/:build_left/:build_right/opam-switch" (w compare_opam);
+    Dream.get "/compare/:build_left/:build_right/" (w compare_builds);
     Dream.post "/upload" (Authorization.authenticate (w upload));
     Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
   ]

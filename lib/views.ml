@@ -56,7 +56,7 @@ let layout ?nav:(nav_=`Default) ~title:title_ body_ =
         txtf "Comparison between %s@%a and %s@%a"
           job_left pp_ptime build_left.Builder_db.Build.start
           job_right pp_ptime build_right.Builder_db.Build.start,
-        Fmt.str "/compare/%a/%a/opam-switch" Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid;
+        Fmt.str "/compare/%a/%a/" Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid;
       ]
   in
   html
@@ -306,13 +306,12 @@ let job_build
                   [txtf "%a" pp_ptime start]
             ])
             same_input_same_output) @
-            List.map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; platform ; _ } ->
-              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
+            List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
               li [
                 txtf "on %s, different input, " platform;
-                a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                      Uuidm.pp fst Uuidm.pp snd]
-                 [txtf "%a" pp_ptime other_start]
+                a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                      Uuidm.pp other_uuid Uuidm.pp uuid]
+                 [txtf "%a" pp_ptime start]
               ])
             different_input_same_output)
       ] @
@@ -321,12 +320,11 @@ let job_build
       else
         [ h3 [txt "Same input, different output (not reproducible!)"];
           ul (
-            List.map (fun { Builder_db.Build.start = other_start ; uuid = other_uuid ; platform ; _ } ->
-              let fst, snd = if Ptime.is_later ~than:start other_start then uuid, other_uuid else other_uuid, uuid in
+            List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
               li [
                 txtf "on %s, " platform ;
-                a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch" Uuidm.pp fst Uuidm.pp snd]
-                  [txtf "%a" pp_ptime other_start]
+                a ~a:[Fmt.kstr a_href "/compare/%a/%a/" Uuidm.pp other_uuid Uuidm.pp uuid]
+                  [txtf "%a" pp_ptime start]
               ])
               same_input_different_output)
           ]) @
@@ -334,8 +332,8 @@ let job_build
        let opt_build (ctx, uu) =
          match uu with
          | Some uu when not (Uuidm.equal uuid uu) ->
-            [ li [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/opam-switch"
-                      Uuidm.pp uuid Uuidm.pp uu]
+            [ li [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                      Uuidm.pp uu Uuidm.pp uuid]
                    [txtf "With %s build" ctx]]
             ]
           | _ -> []
@@ -394,51 +392,53 @@ let opam_diffs diffs =
       [ br () ])
     diffs
 
-let compare_opam job_left job_right
+let compare_builds job_left job_right
     (build_left : Builder_db.Build.t) (build_right : Builder_db.Build.t)
     (added_env, removed_env, changed_env)
     (added_pkgs, removed_pkgs, changed_pkgs)
     (same, opam_diff, version_diff, left, right) =
   layout
     ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
-    ~title:(Fmt.str "Comparing opam switches between builds %a and %a"
+    ~title:(Fmt.str "Comparing builds %a and %a"
               Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
-      h1 [txt "Comparing opam switches"];
+      h1 [txt "Comparing builds"];
       h2 [
         txt "Builds ";
         a ~a:[a_href
                (Fmt.str "/job/%s/build/%a/"
                   job_left
                   Uuidm.pp build_left.uuid)]
-          [txtf "%a" pp_ptime build_left.start];
+          [txtf "%s@%a %a" job_left pp_ptime build_left.start pp_platform (Some build_left.platform)];
         txt " and ";
         a ~a:[a_href
                (Fmt.str "/job/%s/build/%a/"
                   job_right
                   Uuidm.pp build_right.uuid)]
-          [txtf "%a" pp_ptime build_right.start];
+          [txtf "%s@%a %a" job_right pp_ptime build_right.start pp_platform (Some build_right.platform)];
       ];
+      h3 [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/" Uuidm.pp build_right.uuid Uuidm.pp build_left.uuid]
+           [txt "Compare in reverse direction"]] ;
       ul [
         li [
-          a ~a:[a_href "#packages-removed"]
-            [txtf "%d packages removed" (OpamPackage.Set.cardinal left)]
+          a ~a:[a_href "#opam-packages-removed"]
+            [txtf "%d opam packages removed" (OpamPackage.Set.cardinal left)]
         ];
         li [
-          a ~a:[a_href "#packages-installed"]
-            [txtf "%d new packages installed" (OpamPackage.Set.cardinal right)]
+          a ~a:[a_href "#opam-packages-installed"]
+            [txtf "%d new opam packages installed" (OpamPackage.Set.cardinal right)]
         ];
         li [
-          a ~a:[a_href "#packages-version-diff"]
-            [txtf "%d packages with version changes" (List.length version_diff)]
+          a ~a:[a_href "#opam-packages-version-diff"]
+            [txtf "%d opam packages with version changes" (List.length version_diff)]
         ];
         li [
-          a ~a:[a_href "#packages-opam-diff"]
-            [txtf "%d packages with changes in their opam file" (List.length opam_diff)]
+          a ~a:[a_href "#opam-packages-opam-diff"]
+            [txtf "%d opam packages with changes in their opam file" (List.length opam_diff)]
         ];
         li [
-          a ~a:[a_href "#packages-unchanged"]
-            [txtf "%d packages unchanged" (OpamPackage.Set.cardinal same)]
+          a ~a:[a_href "#opam-packages-unchanged"]
+            [txtf "%d opam packages unchanged" (OpamPackage.Set.cardinal same)]
         ];
         li [
          a ~a:[a_href "#env-added"]
@@ -465,20 +465,20 @@ let compare_opam job_left job_right
             [ txtf "%d system packages changed" (List.length changed_pkgs)]
         ];
       ];
-      h3 ~a:[a_id "packages-removed"]
-        [txt "Packages removed"];
+      h3 ~a:[a_id "opam-packages-removed"]
+        [txt "Opam packages removed"];
       code (packages left);
-      h3 ~a:[a_id "packages-installed"]
-        [txt "New packages installed"];
+      h3 ~a:[a_id "opam-packages-installed"]
+        [txt "New opam packages installed"];
       code (packages right);
-      h3 ~a:[a_id "packages-version-diff"]
-        [txt "Packages with version changes"];
+      h3 ~a:[a_id "opam-packages-version-diff"]
+        [txt "Opam packages with version changes"];
       code (package_diffs version_diff);
-      h3 ~a:[a_id "packages-opam-diff"]
-        [txt "Packages with changes in their opam file"]] @
+      h3 ~a:[a_id "opam-packages-opam-diff"]
+        [txt "Opam packages with changes in their opam file"]] @
       opam_diffs opam_diff @ [
-      h3 ~a:[a_id "packages-unchanged"]
-        [txt "Unchanged packages"];
+      h3 ~a:[a_id "opam-packages-unchanged"]
+        [txt "Unchanged opam packages"];
       code (packages same);
       h3 ~a:[a_id "env-added"] [txt "Environment variables added"];
       code (key_values added_env);
