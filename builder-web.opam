@@ -15,7 +15,9 @@ build: [
 ]
 
 depends: [
-  "builder"
+  "ocaml" {>= "4.10.0"}
+  "dune" {>= "2.7.0"}
+  "builder" {>= "0.2.0"}
   "dream" {>= "1.0.0~alpha2"}
   "cstruct" {>= "6.0.0"}
   "bos"
@@ -47,3 +49,8 @@ depends: [
 ]
 
 synopsis: "Web interface for builder"
+description: """
+Builder-web takes in submissions of builds, typically from [builder](https://github.com/roburio/builder/), and displays the produced artifacts in a way that makes it easy to compare checksums and build status.
+Produced binaries can be downloaded and executed.
+[builds.robur.coop](https://builds.robur.coop/) itself runs builder-web.
+"""
