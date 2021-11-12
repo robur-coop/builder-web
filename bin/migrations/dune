@@ -1,4 +1,4 @@
 (executable
  (public_name builder-migrations)
  (name builder_migrations)
- (libraries builder_db caqti caqti-driver-sqlite3 caqti.blocking cmdliner logs logs.cli logs.fmt opam-format bos duration))
+ (libraries builder_system builder_db caqti caqti-driver-sqlite3 caqti.blocking cmdliner logs logs.cli logs.fmt opam-format bos duration))
