@@ -24,7 +24,7 @@ let pp_error ppf = function
 let or_die exit_code = function
   | Ok r -> r
   | Error e ->
-    Format.eprintf "Database error: %a" pp_error e;
+    Format.eprintf "Database error: %a\n" pp_error e;
     exit exit_code
 
 let do_database_action action () datadir =
@@ -59,10 +59,23 @@ let help man_format migrations = function
     then `Help (man_format, Some migration)
     else `Error (true, "Unknown migration: " ^ migration)
 
+let uname =
+  let cmd = Bos.Cmd.(v "uname" % "-s") in
+  lazy (match Bos.OS.Cmd.(run_out cmd |> out_string |> success) with
+      | Ok s when s = "FreeBSD" -> `FreeBSD
+      | Ok s when s = "Linux" -> `Linux
+      | Ok s -> invalid_arg (Printf.sprintf "OS %s not supported" s)
+      | Error (`Msg m) -> invalid_arg m)
+
+let default_datadir =
+  match Lazy.force uname with
+  | `FreeBSD -> "/var/db/builder-web"
+  | `Linux -> "/var/lib/builder-web"
+
 let datadir =
   let doc = "data directory containing builder.sqlite3 and data files" in
   Cmdliner.Arg.(value &
-                opt dir "/var/db/builder-web/" &
+                opt dir default_datadir &
                 info ~doc ["datadir"])
 
 let setup_log =

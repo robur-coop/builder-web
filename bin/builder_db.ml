@@ -4,10 +4,10 @@ let ( let+ ) x f = Result.map f x
 let or_die exit_code = function
   | Ok r -> r
   | Error (`Msg msg) ->
-    Format.eprintf "Error: %s" msg;
+    Format.eprintf "Error: %s\n" msg;
     exit exit_code
   | Error (#Caqti_error.t as e) ->
-    Format.eprintf "Database error: %a" Caqti_error.pp e;
+    Format.eprintf "Database error: %a\n" Caqti_error.pp e;
     exit exit_code
 
 let foreign_keys =
@@ -320,22 +320,35 @@ let help man_format cmds = function
     then `Help (man_format, Some cmd)
     else `Error (true, "Unknown command: " ^ cmd)
 
+let uname =
+  let cmd = Bos.Cmd.(v "uname" % "-s") in
+  lazy (match Bos.OS.Cmd.(run_out cmd |> out_string |> success) with
+      | Ok s when s = "FreeBSD" -> `FreeBSD
+      | Ok s when s = "Linux" -> `Linux
+      | Ok s -> invalid_arg (Printf.sprintf "OS %s not supported\n" s)
+      | Error (`Msg m) -> invalid_arg m)
+
+let default_datadir =
+  match Lazy.force uname with
+  | `FreeBSD -> "/var/db/builder-web"
+  | `Linux -> "/var/lib/builder-web"
+
 let dbpath =
   let doc = "sqlite3 database path" in
   Cmdliner.Arg.(value &
-                opt non_dir_file "/var/db/builder-web/builder.sqlite3" &
+                opt non_dir_file (default_datadir ^ "/builder.sqlite3") &
                 info ~doc ["dbpath"])
 
 let dbpath_new =
   let doc = "sqlite3 database path" in
   Cmdliner.Arg.(value &
-                opt string "/var/db/builder-web/builder.sqlite3" &
+                opt string (default_datadir ^ "/builder.sqlite3") &
                 info ~doc ["dbpath"])
 
 let datadir =
   let doc = "data directory" in
   Cmdliner.Arg.(value &
-                opt dir "/var/db/builder-web/" &
+                opt dir default_datadir &
                 info ~doc ["datadir"])
 
 let jobname =

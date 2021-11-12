@@ -120,9 +120,22 @@ let ip_port : (Ipaddr.V4.t * int) Arg.converter =
   in
   parse, fun ppf (ip, port) -> Format.fprintf ppf "%a:%d" Ipaddr.V4.pp ip port
 
+let uname =
+  let cmd = Bos.Cmd.(v "uname" % "-s") in
+  lazy (match Bos.OS.Cmd.(run_out cmd |> out_string |> success) with
+      | Ok s when s = "FreeBSD" -> `FreeBSD
+      | Ok s when s = "Linux" -> `Linux
+      | Ok s -> invalid_arg (Printf.sprintf "OS %s not supported" s)
+      | Error (`Msg m) -> invalid_arg m)
+
+let default_datadir =
+  match Lazy.force uname with
+  | `FreeBSD -> "/var/db/builder-web"
+  | `Linux -> "/var/lib/builder-web"
+
 let datadir =
   let doc = "data directory" in
-  Arg.(value & opt dir "/var/db/builder-web/" & info [ "d"; "datadir" ] ~doc)
+  Arg.(value & opt dir default_datadir & info [ "d"; "datadir" ] ~doc)
 
 let port =
   let doc = "port" in

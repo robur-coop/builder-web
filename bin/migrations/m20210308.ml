@@ -10,13 +10,13 @@ let broken_builds =
           WHERE a.build = b.id and a.filepath = b.main_binary) = 0
     |}
 
-let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
+let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
   Grej.check_version ~user_version:3L (module Db) >>= fun () ->
   Db.rev_collect_list broken_builds () >>= fun broken_builds ->
   Grej.list_iter_result
     (fun ((build, uuid, job_name) : [`build] Rep.id * Uuidm.t * string) ->
-       Format.printf "Removing job %a.\nPlease clean up data files in /var/db/builder-web/%s/%a\n"
-         Uuidm.pp uuid job_name Uuidm.pp uuid;
+       Format.printf "Removing job %a.\nPlease clean up data files in %a/%s/%a\n"
+         Uuidm.pp uuid Fpath.pp datadir job_name Uuidm.pp uuid;
        Db.exec Builder_db.Build.remove build)
     broken_builds
