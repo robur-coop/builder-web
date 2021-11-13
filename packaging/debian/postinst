@@ -2,10 +2,10 @@
 set -e
 BUILDER_WEB_USER=builder
 
-if ! getent passwd "$BUILDER_WEB_USER" >/dev/null; then
+if ! getent group "$BUILDER_WEB_USER" >/dev/null; then
 	groupadd -g 497 $BUILDER_WEB_USER
 fi
-if ! getent group "$BUILDER_WEB_USER" >/dev/null; then
+if ! getent passwd "$BUILDER_WEB_USER" >/dev/null; then
 	useradd -g 497 -u 497 -d /nonexistent -s /usr/sbin/nologin $BUILDER_WEB_USER
 fi
 
