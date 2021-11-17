@@ -1,6 +1,8 @@
 open Tyxml.Html
 
-let pp_ptime = Ptime.pp_human ()
+let pp_ptime ppf ptime =
+  let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time ptime in
+  Fmt.pf ppf "%04d-%02d-%02d %02d:%02d:%02dZ" y m d hh mm ss
 
 let txtf fmt = Fmt.kstr txt fmt
 let a_titlef fmt = Fmt.kstr a_title fmt
@@ -236,7 +238,7 @@ let job name platform readme builds =
               txtf " %s " build.platform;
               a ~a:[Fmt.kstr a_href "build/%a/" Uuidm.pp build.Builder_db.Build.uuid]
                 [
-                  txtf "%a" (Ptime.pp_human ()) build.Builder_db.Build.start;
+                  txtf "%a" pp_ptime build.Builder_db.Build.start;
                 ];
               txt " ";
             ] @ match main_binary with
