@@ -200,7 +200,7 @@ let builder section_job_map =
                          txt " ";
                          a ~a:[Fmt.kstr a_href "job/%s/build/%a/" job_name Uuidm.pp
                                          latest_build.Builder_db.Build.uuid]
-                           [txtf "%a" (Ptime.pp_human ()) latest_build.Builder_db.Build.start];
+                           [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
                          txt " ";
                        ] @ (match latest_artifact with
                             | Some main_binary ->
@@ -495,9 +495,13 @@ let compare_builds job_left job_right
     ])
 
 let failed_builds builds =
-  let build build =
-    let _ = build in
-    li [txt "build info here"]
+  let build (job_name, build) =
+    li [
+      txtf "%s %a " job_name pp_platform (Some build.Builder_db.Build.platform);
+      a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" job_name Uuidm.pp build.uuid]
+        [txtf "%a" pp_ptime build.start];
+      txtf " %a" Builder.pp_execution_result build.result;
+    ]
   in
   layout ~title:"Failed builds"
     ([ h1 [txt "Failed builds"];
