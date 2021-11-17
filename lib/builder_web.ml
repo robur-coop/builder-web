@@ -366,7 +366,6 @@ let add_routes datadir =
   (*
   /developer <- front page with failed builds (indication)
   /job/:job/developer(?platform=XX) <- job list with failed builds
-  /failed-builds(?platform=XX) <- all failed builds across all jobs (limit by the most recent 10)
   *)
 
   Dream.router [
