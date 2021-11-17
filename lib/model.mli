@@ -45,6 +45,9 @@ val previous_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connect
 val next_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val failed_builds : string option -> Caqti_lwt.connection ->
+  (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
 val builds_with_different_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.t list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 

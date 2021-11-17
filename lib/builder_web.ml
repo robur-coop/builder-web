@@ -230,6 +230,15 @@ let add_routes datadir =
     Dream.respond ~headers data |> Lwt_result.ok
   in
 
+  let failed_builds req =
+    let platform = Dream.query "platform" req in
+    Dream.sql req (Model.failed_builds platform)
+    |> if_error "Error getting data"
+       ~log:(fun e -> Log.warn (fun m -> m "Error getting failed builds: %a"
+                                  pp_error e)) >>= fun builds ->
+    Views.failed_builds builds |> string_of_html |> Dream.html |> Lwt_result.ok
+  in
+
   let upload req =
     let* body = Dream.body req in
     Builder.Asn.exec_of_cs (Cstruct.of_string body) |> Lwt.return
@@ -369,6 +378,7 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
+    Dream.get "/failed-builds/" (w failed_builds);
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right/" (w compare_builds);
     Dream.post "/upload" (Authorization.authenticate (w upload));

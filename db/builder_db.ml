@@ -315,6 +315,19 @@ module Build = struct
            ORDER BY start_d DESC, start_ps DESC
         |}
 
+  (* XXX: caqti doesn't like this *)
+  let get_all_failed =
+    Caqti_request.collect
+      Caqti_type.(option string)
+      (Caqti_type.tup2 (id `build) t)
+      {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
+           result_code, result_msg, console, script, platform,
+           main_binary, input_id, user, job
+         FROM build
+         WHERE ?1 IS NULL OR ?1 = build.platform
+         ORDER BY start_d DESC, start_ps DESC
+      |}
+
   let get_all_artifact_sha =
     Caqti_request.collect
       (id `job)

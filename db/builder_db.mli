@@ -113,6 +113,8 @@ sig
       Caqti_request.t
   val get_all :
     ([`job] id, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_all_failed :
+    (string option, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_artifact_sha :
     ([`job] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_artifact_sha_by_platform :

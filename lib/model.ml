@@ -81,6 +81,9 @@ let previous_successful_build_uuid id (module Db : CONN) =
 let next_successful_build_uuid id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_next_successful_uuid id
 
+let failed_builds platform (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_all_failed platform >|= List.map snd
+
 let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->
   Lwt_list.fold_left_s (fun acc input_id ->

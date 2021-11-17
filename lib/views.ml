@@ -493,3 +493,13 @@ let compare_builds job_left job_right
       h3 ~a:[a_id "pkgs-changed"] [txt "System packages changed"];
       code (key_value_changes changed_pkgs);
     ])
+
+let failed_builds builds =
+  let build build =
+    let _ = build in
+    li [txt "build info here"]
+  in
+  layout ~title:"Failed builds"
+    ([ h1 [txt "Failed builds"];
+       ul (List.map build builds) ])
+       
