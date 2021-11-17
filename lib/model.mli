@@ -48,7 +48,7 @@ val previous_successful_build_different_output : [`build] Builder_db.id -> Caqti
 val next_successful_build_different_output : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val failed_builds : string option -> Caqti_lwt.connection ->
+val failed_builds : start:int -> count:int -> string option -> Caqti_lwt.connection ->
   ((string * Builder_db.Build.t) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val builds_with_different_input_and_same_main_binary : [`build] Builder_db.id -> Caqti_lwt.connection ->

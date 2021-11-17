@@ -317,7 +317,7 @@ module Build = struct
 
   let get_all_failed =
     Caqti_request.collect
-      Caqti_type.unit
+      Caqti_type.(tup2 int int)
       (Caqti_type.tup2 Caqti_type.string t)
       {| SELECT job.name, b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_code, b.result_msg, b.console, b.script, b.platform,
@@ -326,19 +326,23 @@ module Build = struct
          INNER JOIN job ON job.id = b.job
          WHERE b.result_code <> 0
          ORDER BY start_d DESC, start_ps DESC
+         LIMIT ?2
+         OFFSET ?1
       |}
 
   let get_all_failed_by_platform =
     Caqti_request.collect
-      Caqti_type.string
+      Caqti_type.(tup3 int int string)
       (Caqti_type.tup2 Caqti_type.string t)
       {| SELECT job.name, b.id, b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_code, b.result_msg, b.console, b.script, b.platform,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b
          INNER JOIN job ON job.id = b.job
-         WHERE b.result_code <> 0 AND b.platform = ?
+         WHERE b.result_code <> 0 AND b.platform = ?3
          ORDER BY start_d DESC, start_ps DESC
+         LIMIT ?2
+         OFFSET ?1
       |}
 
   let get_all_artifact_sha =

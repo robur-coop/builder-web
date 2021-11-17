@@ -216,7 +216,13 @@ let builder section_job_map =
                jobs)
          ])
         section_job_map
-        [])
+        [] @
+       [ p [
+             txt "View the latest failed builds ";
+             a ~a:[a_href "/failed-builds/"]
+               [txt "here"];
+             txt "."
+       ]])
 
 let job name platform readme builds =
   layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
@@ -500,7 +506,7 @@ let compare_builds job_left job_right
       code (key_value_changes changed_pkgs);
     ])
 
-let failed_builds builds =
+let failed_builds ~start ~count builds =
   let build (job_name, build) =
     li [
       txtf "%s %a " job_name pp_platform (Some build.Builder_db.Build.platform);
@@ -511,5 +517,11 @@ let failed_builds builds =
   in
   layout ~title:"Failed builds"
     ([ h1 [txt "Failed builds"];
-       ul (List.map build builds) ])
+       ul (List.map build builds);
+       p [ txtf "View the next %d failed builds " count;
+           a ~a:[Fmt.kstr a_href "/failed-builds/?count=%d&start=%d" count (start + count)]
+             [ txt "here"];
+           txt ".";
+       ]
+    ])
        

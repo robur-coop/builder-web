@@ -85,10 +85,10 @@ let previous_successful_build_different_output id (module Db : CONN) =
 let next_successful_build_different_output id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_next_successful_different_output id
 
-let failed_builds platform (module Db : CONN) =
+let failed_builds ~start ~count platform (module Db : CONN) =
   match platform with
-  | None -> Db.collect_list Builder_db.Build.get_all_failed ()
-  | Some p -> Db.collect_list Builder_db.Build.get_all_failed_by_platform p
+  | None -> Db.collect_list Builder_db.Build.get_all_failed (start, count)
+  | Some p -> Db.collect_list Builder_db.Build.get_all_failed_by_platform (start, count, p)
 
 let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->

@@ -232,11 +232,14 @@ let add_routes datadir =
 
   let failed_builds req =
     let platform = Dream.query "platform" req in
-    Dream.sql req (Model.failed_builds platform)
+    let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
+    let start = to_int 0 (Dream.query "start" req) in
+    let count = to_int 10 (Dream.query "count" req) in
+    Dream.sql req (Model.failed_builds ~start ~count platform)
     |> if_error "Error getting data"
        ~log:(fun e -> Log.warn (fun m -> m "Error getting failed builds: %a"
                                   pp_error e)) >>= fun builds ->
-    Views.failed_builds builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.failed_builds ~start ~count builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let upload req =
@@ -364,8 +367,9 @@ let add_routes datadir =
   let w f req = or_error_response (f req) in
 
   (*
-  /developer <- front page with failed builds (indication)
   /job/:job/developer(?platform=XX) <- job list with failed builds
+  /job/:job/?platform=...&failed=true
+  /job/:job/failed(?platform=...)
   *)
 
   Dream.router [
