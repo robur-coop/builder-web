@@ -257,7 +257,7 @@ let job_build
   ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
-  latest_uuid next_uuid previous_uuid
+  latest next previous
   =
   let delta = Ptime.diff finish start in
   layout ~nav:(`Build (name, build)) ~title:(Fmt.str "Job %s %a" name pp_ptime start)
@@ -331,17 +331,21 @@ let job_build
               same_input_different_output)
           ]) @
        [ h3 [txt "Comparisons with other builds on the same platform"];
-       let opt_build (ctx, uu) =
-         match uu with
-         | Some uu when not (Uuidm.equal uuid uu) ->
-            [ li [ a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
-                      Uuidm.pp uu Uuidm.pp uuid]
-                   [txtf "With %s build" ctx]]
+       let opt_build (ctx, build) =
+         match build with
+         | Some b when not (Uuidm.equal uuid b.Builder_db.Build.uuid) ->
+             [ li [ txt ctx;
+                    a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                        Uuidm.pp b.uuid Uuidm.pp uuid]
+                   [txtf "%a" pp_ptime b.start]]
             ]
           | _ -> []
         in
         ul
-          (List.concat_map opt_build [ ("latest", latest_uuid) ; ("next", next_uuid) ; ("previous", previous_uuid) ])
+          (List.concat_map opt_build
+            [ ("Latest build ", latest) ;
+              ("Later build with different output ", next) ;
+              ("Earlier build with different output ", previous) ])
     ])
 
 let key_values xs =

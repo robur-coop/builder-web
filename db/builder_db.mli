@@ -128,17 +128,17 @@ sig
     ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
   val get_latest_failed_by_platform :
     ([`job] id * string, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
-  val get_latest_successful_uuid :
-    ([`job] id, Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
+  val get_latest_successful :
+    ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
-  val get_latest_successful_uuid_by_platform :
-    ([`job] id * string, Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
+  val get_latest_successful_by_platform :
+    ([`job] id * string, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
-  val get_previous_successful_uuid :
-    ([`build] id, Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
+  val get_previous_successful_different_output :
+    ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
-  val get_next_successful_uuid :
-    ([`build] id, Uuidm.t, [< `Many | `One | `Zero > `One `Zero ])
+  val get_next_successful_different_output :
+    ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_same_input_same_output_builds :
     ([`build] id, t, [ `Many | `One | `Zero ]) Caqti_request.t

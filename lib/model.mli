@@ -39,11 +39,14 @@ val build_exists : Uuidm.t -> Caqti_lwt.connection ->
 val latest_successful_build_uuid : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
   (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val previous_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+val latest_successful_build : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
+  (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
-val next_successful_build_uuid : [`build] Builder_db.id -> Caqti_lwt.connection ->
-  (Uuidm.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+val previous_successful_build_different_output : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+
+val next_successful_build_different_output : [`build] Builder_db.id -> Caqti_lwt.connection ->
+  (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val failed_builds : string option -> Caqti_lwt.connection ->
   ((string * Builder_db.Build.t) list, [> Caqti_error.call_or_retrieve ]) result Lwt.t

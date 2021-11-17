@@ -407,22 +407,28 @@ module Build = struct
          LIMIT 1
       |}
 
-  let get_latest_successful_uuid =
+  let get_latest_successful =
     Caqti_request.find_opt
       (id `job)
-      Rep.uuid
-      {| SELECT b.uuid
+      t
+      {| SELECT
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_code, b.result_msg, b.console, b.script,
+           b.platform, b.main_binary, b.input_id, b.user, b.job
          FROM build b
          WHERE b.job = ? AND b.result_code = 0
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
 
-  let get_latest_successful_uuid_by_platform =
+  let get_latest_successful_by_platform =
     Caqti_request.find_opt
       Caqti_type.(tup2 (id `job) string)
-      Rep.uuid
-      {| SELECT b.uuid
+      t
+      {| SELECT
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_code, b.result_msg, b.console, b.script,
+           b.platform, b.main_binary, b.input_id, b.user, b.job
          FROM build b
          WHERE b.job = ?1 AND b.result_code = 0 AND b.platform = ?2
          ORDER BY b.start_d DESC, b.start_ps DESC
@@ -430,29 +436,39 @@ module Build = struct
       |}
 
 
-  let get_previous_successful_uuid =
+  let get_previous_successful_different_output =
     Caqti_request.find_opt
       (id `build)
-      Rep.uuid
-      {| SELECT b.uuid
-         FROM build b, build b0
+      t
+      {| SELECT
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_code, b.result_msg, b.console, b.script,
+           b.platform, b.main_binary, b.input_id, b.user, b.job
+         FROM build b, build b0, build_artifact a, build_artifact a0
          WHERE b0.id = ? AND b0.job = b.job AND
            b.platform = b0.platform AND
            b.result_code = 0 AND
+           a.id = b.main_binary AND a0.id = b0.main_binary AND
+           a.sha256 <> a0.sha256 AND
            (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
 
-  let get_next_successful_uuid =
+  let get_next_successful_different_output =
     Caqti_request.find_opt
       (id `build)
-      Rep.uuid
-      {| SELECT b.uuid
-         FROM build b, build b0
+      t
+      {| SELECT
+           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+           b.result_code, b.result_msg, b.console, b.script,
+           b.platform, b.main_binary, b.input_id, b.user, b.job
+         FROM build b, build b0, build_artifact a, build_artifact a0
          WHERE b0.id = ? AND b0.job = b.job AND
            b.platform = b0.platform AND
            b.result_code = 0 AND
+           a.id = b.main_binary AND a0.id = b0.main_binary AND
+           a.sha256 <> a0.sha256 AND
            (b0.start_d < b.start_d OR b0.start_d = b.start_d AND b0.start_ps < b.start_ps)
          ORDER BY b.start_d ASC, b.start_ps ASC
          LIMIT 1

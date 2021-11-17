@@ -68,18 +68,22 @@ let build_exists uuid (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
   Option.is_some
 
-let latest_successful_build_uuid job_id platform (module Db : CONN) =
+let latest_successful_build job_id platform (module Db : CONN) =
   match platform with
   | None ->
-    Db.find_opt Builder_db.Build.get_latest_successful_uuid job_id
+    Db.find_opt Builder_db.Build.get_latest_successful job_id
   | Some platform ->
-    Db.find_opt Builder_db.Build.get_latest_successful_uuid_by_platform (job_id, platform)
+    Db.find_opt Builder_db.Build.get_latest_successful_by_platform (job_id, platform)
 
-let previous_successful_build_uuid id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_previous_successful_uuid id
+let latest_successful_build_uuid job_id platform db =
+  latest_successful_build job_id platform db >|= fun build ->
+  Option.map (fun build -> build.Builder_db.Build.uuid) build
 
-let next_successful_build_uuid id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_next_successful_uuid id
+let previous_successful_build_different_output id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_previous_successful_different_output id
+
+let next_successful_build_different_output id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_next_successful_different_output id
 
 let failed_builds platform (module Db : CONN) =
   match platform with

@@ -138,6 +138,11 @@ let main_binary =
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let size = String.length data in
   { Builder_db.Rep.filepath; localpath; sha256; size }
+let main_binary2 =
+  let data = "#!/bin/sh\necho Hello, World 2\n" in
+  let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+  let size = String.length data in
+  { main_binary with sha256 ; size }
 let platform = "exotic-os"
 
 let fail_if_none a =
@@ -211,7 +216,7 @@ let add_second_build (module Db : CONN) =
   Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
                      main_binary = None; input_id = None; user_id; job_id; } >>= fun () ->
   Db.find last_insert_rowid () >>= fun id ->
-  Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+  Db.exec Build_artifact.add (main_binary2, id) >>= fun () ->
   Db.find last_insert_rowid () >>= fun main_binary_id ->
   Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
   Db.commit ()
@@ -222,28 +227,32 @@ let test_build_get_latest (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.find_opt Builder_db.Build.get_latest (job_id, platform)
   >>| get_opt "no latest build" >>| fun (_id, meta, main_binary') ->
-  Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary);
+  Alcotest.(check (option Testable.file)) "same main binary" main_binary' (Some main_binary2);
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'
 
 let test_build_get_previous (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_by_uuid uuid'
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous_successful_uuid id
-  >>| get_opt "no previous build" >>| fun uuid' ->
-  Alcotest.(check Testable.uuid) "same uuid" uuid' uuid
+  Db.find_opt Builder_db.Build.get_previous_successful_different_output id
+  >>| get_opt "no previous build" >>| fun build ->
+  Alcotest.(check Testable.uuid) "same uuid" build.Builder_db.Build.uuid uuid
 
 let test_build_get_previous_none (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_by_uuid uuid
   >>| get_opt "no build" >>= fun (id, _build) ->
-  Db.find_opt Builder_db.Build.get_previous_successful_uuid id >>| function
+  Db.find_opt Builder_db.Build.get_previous_successful_different_output id >>| function
   | None -> ()
-  | Some uuid ->
-    Alcotest.failf "Got unexpected result %a" Uuidm.pp uuid
+  | Some build ->
+    Alcotest.failf "Got unexpected result %a" Uuidm.pp build.Builder_db.Build.uuid
 
 let test_build_get_with_jobname_by_hash (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Build.get_with_jobname_by_hash main_binary.sha256
+  >>| get_opt "no build" >>= fun (job_name', build) ->
+  Alcotest.(check string) "same job" job_name' job_name;
+  Alcotest.(check Testable.uuid) "same uuid" build.uuid uuid;
+  Db.find_opt Builder_db.Build.get_with_jobname_by_hash main_binary2.sha256
   >>| get_opt "no build" >>| fun (job_name', build) ->
   Alcotest.(check string) "same job" job_name' job_name;
   Alcotest.(check Testable.uuid) "same uuid" build.uuid uuid'
