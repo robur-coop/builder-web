@@ -58,7 +58,7 @@ let build uuid (module Db : CONN) =
   not_found
 
 let build_with_main_binary job platform (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest (job, platform) >|=
+  Db.find_opt Builder_db.Build.get_latest_successful_with_binary (job, platform) >|=
   Option.map (fun (_id, build, file) -> (build, file))
 
 let build_hash hash (module Db : CONN) =

@@ -391,7 +391,7 @@ module Build = struct
          LIMIT 1
       |}
 
-  let get_latest =
+  let get_latest_successful_with_binary =
     Caqti_request.find_opt
       Caqti_type.(tup2 (id `job) string)
       Caqti_type.(tup3
@@ -406,7 +406,7 @@ module Build = struct
          FROM build b
          LEFT JOIN build_artifact a ON
            b.main_binary = a.id
-         WHERE b.job = ?1 AND b.platform = ?2
+         WHERE b.job = ?1 AND b.platform = ?2 AND b.result_code = 0
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}

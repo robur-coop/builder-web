@@ -121,7 +121,7 @@ sig
     ([`job] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_artifact_sha_by_platform :
     ([`job] id * string, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_latest :
+  val get_latest_successful_with_binary :
     ([`job] id * string, [`build] id * t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_latest_failed :

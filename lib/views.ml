@@ -509,7 +509,8 @@ let compare_builds job_left job_right
 let failed_builds ~start ~count builds =
   let build (job_name, build) =
     li [
-      txtf "%s %a " job_name pp_platform (Some build.Builder_db.Build.platform);
+      check_icon build.Builder_db.Build.result;
+      txtf " %s %a " job_name pp_platform (Some build.platform);
       a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" job_name Uuidm.pp build.uuid]
         [txtf "%a" pp_ptime build.start];
       txtf " %a" Builder.pp_execution_result build.result;
