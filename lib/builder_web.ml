@@ -88,7 +88,6 @@ let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
   let builder req =
-    (* TODO filter unsuccessful builds, ?failed=true *)
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
@@ -126,7 +125,19 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.job job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.job ~failed:false job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+  in
+
+  let job_with_failed req =
+    let job_name = Dream.param "job" req in
+    let platform = Dream.query "platform" req in
+    (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
+     Dream.sql req (Model.builds_grouped_by_output_with_failed job_id platform) >|= fun builds ->
+     (readme, builds))
+    |> if_error "Error getting job"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
+    >>= fun (readme, builds) ->
+    Views.job ~failed:true job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
@@ -366,15 +377,10 @@ let add_routes datadir =
 
   let w f req = or_error_response (f req) in
 
-  (*
-  /job/:job/developer(?platform=XX) <- job list with failed builds
-  /job/:job/?platform=...&failed=true
-  /job/:job/failed(?platform=...)
-  *)
-
   Dream.router [
     Dream.get "/" (w builder);
     Dream.get "/job/:job/" (w job);
+    Dream.get "/job/:job/failed/" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);

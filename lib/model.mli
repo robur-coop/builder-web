@@ -75,6 +75,9 @@ val job_and_readme : string -> Caqti_lwt.connection ->
 val builds_grouped_by_output : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
   ((Builder_db.Build.t * Builder_db.file option) list, [> error ]) result Lwt.t
 
+val builds_grouped_by_output_with_failed : [`job] Builder_db.id -> string option -> Caqti_lwt.connection ->
+  ((Builder_db.Build.t * Builder_db.file option) list, [> error ]) result Lwt.t
+
 val job_id : string -> Caqti_lwt.connection ->
   ([`job] Builder_db.id option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 

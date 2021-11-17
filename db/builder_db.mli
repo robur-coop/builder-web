@@ -124,10 +124,10 @@ sig
   val get_latest_successful_with_binary :
     ([`job] id * string, [`build] id * t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
-  val get_latest_failed :
-    ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
-  val get_latest_failed_by_platform :
-    ([`job] id * string, t, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
+  val get_failed_builds :
+    ([`job] id, t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_failed_builds_by_platform :
+    ([`job] id * string, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful :
     ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t

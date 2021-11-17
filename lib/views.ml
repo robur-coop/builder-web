@@ -224,7 +224,7 @@ let builder section_job_map =
              txt "."
        ]])
 
-let job name platform readme builds =
+let job ~failed name platform readme builds =
   layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
     ((h1 [txtf "Job %s %a" name pp_platform platform] ::
       (match readme with
@@ -242,7 +242,7 @@ let job name platform readme builds =
           li ([
               check_icon build.Builder_db.Build.result;
               txtf " %s " build.platform;
-              a ~a:[Fmt.kstr a_href "build/%a/" Uuidm.pp build.Builder_db.Build.uuid]
+              a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.Builder_db.Build.uuid]
                 [
                   txtf "%a" pp_ptime build.Builder_db.Build.start;
                 ];
@@ -254,7 +254,10 @@ let job name platform readme builds =
               [ txtf "Build failure: %a" Builder.pp_execution_result
                   build.Builder_db.Build.result ]))
           builds);
-
+      if failed then
+        p [ txt "Excluding failed builds " ; a ~a:[a_href "../"] [txt "here"] ; txt "." ]
+      else
+        p [ txt "Including failed builds " ; a ~a:[a_href "failed/"] [txt "here"] ; txt "." ]
     ])
 
 let job_build

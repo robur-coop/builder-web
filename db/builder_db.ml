@@ -365,8 +365,8 @@ module Build = struct
          ORDER BY b.start_d DESC, b.start_ps DESC
       |}
 
-  let get_latest_failed =
-    Caqti_request.find_opt
+  let get_failed_builds =
+    Caqti_request.collect
       (id `job)
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
@@ -375,11 +375,10 @@ module Build = struct
          FROM build
          WHERE job = ? AND result_code <> 0
          ORDER BY start_d DESC, start_ps DESC
-         LIMIT 1
       |}
 
-  let get_latest_failed_by_platform =
-    Caqti_request.find_opt
+  let get_failed_builds_by_platform =
+    Caqti_request.collect
       Caqti_type.(tup2 (id `job) string)
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
@@ -388,7 +387,6 @@ module Build = struct
          FROM build
          WHERE job = ? AND platform = ? AND result_code <> 0
          ORDER BY start_d DESC, start_ps DESC
-         LIMIT 1
       |}
 
   let get_latest_successful_with_binary =

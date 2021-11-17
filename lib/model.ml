@@ -137,24 +137,26 @@ let job_and_readme job (module Db : CONN) =
 
 let builds_grouped_by_output job_id platform (module Db : CONN) =
   (match platform with
-   | None ->
-     Db.find_opt Builder_db.Build.get_latest_failed job_id >>= fun failed ->
-     Db.collect_list Builder_db.Build.get_all_artifact_sha job_id >|= fun sha ->
-     (failed, sha)
-   | Some p ->
-     Db.find_opt Builder_db.Build.get_latest_failed_by_platform (job_id, p) >>= fun failed ->
-     Db.collect_list Builder_db.Build.get_all_artifact_sha_by_platform (job_id, p) >|= fun sha ->
-     (failed, sha)) >>= fun (failed, sha) ->
+   | None -> Db.collect_list Builder_db.Build.get_all_artifact_sha job_id
+   | Some p -> Db.collect_list Builder_db.Build.get_all_artifact_sha_by_platform (job_id, p))
+  >>= fun sha ->
   Lwt_list.fold_left_s (fun acc hash ->
-     match acc with
-     | Error _ as e -> Lwt.return e
-     | Ok (fail, builds) ->
-       Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun (build, file) ->
-       match fail with
-       | Some f when Ptime.is_later ~than:build.Builder_db.Build.start f.Builder_db.Build.start -> None, (build, file) :: (f, None) :: builds
-       | x -> x, (build, file) :: builds)
-    (Ok (failed, [])) sha >|= fun (x, builds) ->
-  (match x with None -> builds | Some f -> (f, None) :: builds) |> List.rev
+    match acc with
+    | Error _ as e -> Lwt.return e
+    | Ok builds ->
+      Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun b ->
+      b :: builds)
+    (Ok []) sha >|= List.rev
+
+let builds_grouped_by_output_with_failed job_id platform ((module Db : CONN) as db) =
+  builds_grouped_by_output job_id platform db >>= fun builds ->
+  (match platform with
+   | None -> Db.collect_list Builder_db.Build.get_failed_builds job_id
+   | Some p -> Db.collect_list Builder_db.Build.get_failed_builds_by_platform (job_id, p))
+  >|= fun failed ->
+  let failed = List.map (fun b -> b, None) failed in
+  let cmp (a, _) (b, _) = Ptime.compare b.Builder_db.Build.start a.Builder_db.Build.start in
+  List.merge cmp builds failed
 
 let jobs_with_section_synopsis (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
