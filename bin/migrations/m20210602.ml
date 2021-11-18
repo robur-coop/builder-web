@@ -85,7 +85,7 @@ let find_main_artifact_id =
   Caqti_request.find ~oneshot:true
     Caqti_type.(tup2 Builder_db.Rep.untyped_id string)
     Builder_db.Rep.untyped_id
-    "SELECT id FROM build_artifact WHERE build = ?1 AND filepath = ?2"
+    "SELECT id FROM build_artifact WHERE build = $1 AND filepath = $2"
 
 let find_main_artifact_filepath =
   Caqti_request.find ~oneshot:true

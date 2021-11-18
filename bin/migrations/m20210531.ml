@@ -13,7 +13,7 @@ let build_artifacts =
 let build_artifact_update_localpath =
   Caqti_request.exec ~oneshot:true
     Caqti_type.(tup2 Builder_db.Rep.untyped_id Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET localpath = ?2 WHERE id = ?1"
+    "UPDATE build_artifact SET localpath = $2 WHERE id = $1"
 
 (* We are not migrating build_file because it is unused *)
 

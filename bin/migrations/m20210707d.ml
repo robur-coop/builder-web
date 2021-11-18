@@ -8,7 +8,7 @@ let all_build_artifacts_with_dot_slash : (unit, [`build_artifact] Builder_db.Rep
 let update_path : ([`build_artifact] Builder_db.Rep.id * Fpath.t, unit, [< `Zero | `One | `Many > `Zero ]) Caqti_request.t =
   Caqti_request.exec
     (Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET filepath = ?2 WHERE id = ?1"
+    "UPDATE build_artifact SET filepath = $2 WHERE id = $1"
 
 let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in

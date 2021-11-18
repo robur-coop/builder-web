@@ -75,7 +75,7 @@ let builds =
 let set_input_id =
   Caqti_request.exec
     (Caqti_type.tup2 Builder_db.Rep.untyped_id Builder_db.Rep.cstruct)
-    "UPDATE build SET input_id = ?2 WHERE id = ?1"
+    "UPDATE build SET input_id = $2 WHERE id = $1"
 
 open Grej.Infix
 

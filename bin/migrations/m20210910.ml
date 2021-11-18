@@ -7,7 +7,7 @@ let mixups =
 let fixup =
   Caqti_request.exec ~oneshot:true
     (Caqti_type.tup3 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE build SET console = ?2, script = ?3 WHERE id = ?1"
+    "UPDATE build SET console = $2, script = $3 WHERE id = $1"
 
 let fixup _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in

@@ -140,12 +140,12 @@ module Job_tag = struct
   let add =
     Caqti_request.exec
       Caqti_type.(tup3 (id `tag) string (id `job))
-      "INSERT INTO job_tag (tag, value, job) VALUES (?1, ?2, ?3)"
+      "INSERT INTO job_tag (tag, value, job) VALUES ($1, $2, $3)"
 
   let update =
     Caqti_request.exec
       Caqti_type.(tup3 (id `tag) string (id `job))
-      "UPDATE job_tag SET value = ?2 WHERE tag = ?1 AND job = ?3"
+      "UPDATE job_tag SET value = $2 WHERE tag = $1 AND job = $3"
 
   let get_value =
     Caqti_request.find_opt
@@ -326,8 +326,8 @@ module Build = struct
          INNER JOIN job ON job.id = b.job
          WHERE b.result_code <> 0
          ORDER BY start_d DESC, start_ps DESC
-         LIMIT ?2
-         OFFSET ?1
+         LIMIT $2
+         OFFSET $1
       |}
 
   let get_all_failed_by_platform =
@@ -339,10 +339,10 @@ module Build = struct
            b.main_binary, b.input_id, b.user, b.job
          FROM build b
          INNER JOIN job ON job.id = b.job
-         WHERE b.result_code <> 0 AND b.platform = ?3
+         WHERE b.result_code <> 0 AND b.platform = $3
          ORDER BY start_d DESC, start_ps DESC
-         LIMIT ?2
-         OFFSET ?1
+         LIMIT $2
+         OFFSET $1
       |}
 
   let get_all_artifact_sha =
@@ -404,7 +404,7 @@ module Build = struct
          FROM build b
          LEFT JOIN build_artifact a ON
            b.main_binary = a.id
-         WHERE b.job = ?1 AND b.platform = ?2 AND b.result_code = 0
+         WHERE b.job = $1 AND b.platform = $2 AND b.result_code = 0
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
@@ -432,7 +432,7 @@ module Build = struct
            b.result_code, b.result_msg, b.console, b.script,
            b.platform, b.main_binary, b.input_id, b.user, b.job
          FROM build b
-         WHERE b.job = ?1 AND b.result_code = 0 AND b.platform = ?2
+         WHERE b.job = $1 AND b.result_code = 0 AND b.platform = $2
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
@@ -590,7 +590,7 @@ module Build = struct
   let set_main_binary =
     Caqti_request.exec
       (Caqti_type.tup2 (id `build) (id `build_artifact))
-      "UPDATE build SET main_binary = ?2 WHERE id = ?1"
+      "UPDATE build SET main_binary = $2 WHERE id = $1"
 
   let remove =
     Caqti_request.exec
@@ -652,13 +652,13 @@ module User = struct
     Caqti_request.exec
       user_info
       {| UPDATE user
-         SET password_hash = ?2,
-             password_salt = ?3,
-             scrypt_n = ?4,
-             scrypt_r = ?5,
-             scrypt_p = ?6,
-             restricted = ?7
-         WHERE username = ?1
+         SET password_hash = $2,
+             password_salt = $3,
+             scrypt_n = $4,
+             scrypt_r = $5,
+             scrypt_p = $6,
+             restricted = $7
+         WHERE username = $1
       |}
 end
 

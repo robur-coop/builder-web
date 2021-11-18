@@ -85,7 +85,7 @@ let build_id_and_user =
 let update_new_build_platform =
   Caqti_request.exec
     Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) string)
-    "UPDATE new_build SET platform = ?2 WHERE id = ?1"
+    "UPDATE new_build SET platform = $2 WHERE id = $1"
 
 let drop_build =
   Caqti_request.exec

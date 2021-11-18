@@ -47,7 +47,7 @@ let old_build_execution_result =
 let update_new_build_execution_result =
   Caqti_request.exec
     Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int)
-    "UPDATE new_build SET result_code = ?2 WHERE id = ?1"
+    "UPDATE new_build SET result_code = $2 WHERE id = $1"
 
 let old_build =
   Caqti_request.exec
@@ -94,7 +94,7 @@ let new_build_execution_result =
 let update_old_build_execution_result =
   Caqti_request.exec
     Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) int (option int))
-    "UPDATE new_build SET result_kind = ?2, result_code = ?3 WHERE id = ?1"
+    "UPDATE new_build SET result_kind = $2, result_code = $3 WHERE id = $1"
 
 let drop_build =
   Caqti_request.exec

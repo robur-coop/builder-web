@@ -14,7 +14,7 @@ let build_not_stripped : ([`build] Builder_db.Rep.id, [`build_artifact] Builder_
 let update_paths : ([`build_artifact] Builder_db.Rep.id * Fpath.t * Fpath.t, unit, [< `Zero | `One | `Many > `Zero ]) Caqti_request.t =
   Caqti_request.exec
     (Caqti_type.tup3 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET localpath = ?2, filepath = ?3 WHERE id = ?1"
+    "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
 
 let add_artifact : ((Fpath.t * Fpath.t * Cstruct.t) * (int64 * [`build] Builder_db.Rep.id), unit, [< `Zero | `One | `Many > `Zero]) Caqti_request.t =
   Caqti_request.exec

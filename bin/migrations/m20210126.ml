@@ -28,7 +28,7 @@ let bin_artifact =
 let set_main_binary =
   Caqti_request.exec ~oneshot:true
     Caqti_type.(tup2 int64 (option string))
-    "UPDATE build SET main_binary = ?2 WHERE id = ?1"
+    "UPDATE build SET main_binary = $2 WHERE id = $1"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in

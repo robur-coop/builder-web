@@ -21,7 +21,7 @@ let get_localpath =
 let update_paths =
   Caqti_request.exec
     (Caqti_type.tup3 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET localpath = ?2, filepath = ?3 WHERE id = ?1"
+    "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in

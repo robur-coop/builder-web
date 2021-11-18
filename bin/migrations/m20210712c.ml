@@ -107,7 +107,7 @@ let old_build_console_script =
 let update_new_build_console_script =
   Caqti_request.exec
     Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE new_build SET console = ?2, script = ?3 WHERE id = ?1"
+    "UPDATE new_build SET console = $2, script = $3 WHERE id = $1"
 
 let new_build_console_script =
   Caqti_request.collect
@@ -118,7 +118,7 @@ let new_build_console_script =
 let update_old_build_console_script =
   Caqti_request.exec
     Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) Builder_db.Rep.cstruct string)
-    "UPDATE new_build SET console = ?2, script = ?3 WHERE id = ?1"
+    "UPDATE new_build SET console = $2, script = $3 WHERE id = $1"
 
 let drop_build =
   Caqti_request.exec
