@@ -317,29 +317,14 @@ module Build = struct
 
   let get_all_failed =
     Caqti_request.collect
-      Caqti_type.(tup2 int int)
+      Caqti_type.(tup3 int int (option string))
       (Caqti_type.tup2 Caqti_type.string t)
       {| SELECT job.name, b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_code, b.result_msg, b.console, b.script, b.platform,
            b.main_binary, b.input_id, b.user, b.job
          FROM build b
          INNER JOIN job ON job.id = b.job
-         WHERE b.result_code <> 0
-         ORDER BY start_d DESC, start_ps DESC
-         LIMIT $2
-         OFFSET $1
-      |}
-
-  let get_all_failed_by_platform =
-    Caqti_request.collect
-      Caqti_type.(tup3 int int string)
-      (Caqti_type.tup2 Caqti_type.string t)
-      {| SELECT job.name, b.id, b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg, b.console, b.script, b.platform,
-           b.main_binary, b.input_id, b.user, b.job
-         FROM build b
-         INNER JOIN job ON job.id = b.job
-         WHERE b.result_code <> 0 AND b.platform = $3
+         WHERE b.result_code <> 0 AND ($3 IS NULL OR b.platform = $3)
          ORDER BY start_d DESC, start_ps DESC
          LIMIT $2
          OFFSET $1
@@ -347,45 +332,25 @@ module Build = struct
 
   let get_all_artifact_sha =
     Caqti_request.collect
-      (id `job)
+      Caqti_type.(tup2 (id `job) (option string))
       Rep.cstruct
       {| SELECT DISTINCT a.sha256
          FROM build_artifact a, build b
-         WHERE b.job = ? AND b.main_binary = a.id
-         ORDER BY b.start_d DESC, b.start_ps DESC
-      |}
-
-  let get_all_artifact_sha_by_platform =
-    Caqti_request.collect
-      Caqti_type.(tup2 (id `job) string)
-      Rep.cstruct
-      {| SELECT DISTINCT a.sha256
-         FROM build_artifact a, build b
-         WHERE b.job = ? AND b.platform = ? AND b.main_binary = a.id
+         WHERE b.job = $1 AND b.main_binary = a.id
+           AND ($2 IS NULL OR b.platform = $2)
          ORDER BY b.start_d DESC, b.start_ps DESC
       |}
 
   let get_failed_builds =
     Caqti_request.collect
-      (id `job)
+      Caqti_type.(tup2 (id `job) (option string))
       t
       {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
                 result_code, result_msg, console, script,
                 platform, main_binary, input_id, user, job
          FROM build
-         WHERE job = ? AND result_code <> 0
-         ORDER BY start_d DESC, start_ps DESC
-      |}
-
-  let get_failed_builds_by_platform =
-    Caqti_request.collect
-      Caqti_type.(tup2 (id `job) string)
-      t
-      {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
-                result_code, result_msg, console, script,
-                platform, main_binary, input_id, user, job
-         FROM build
-         WHERE job = ? AND platform = ? AND result_code <> 0
+         WHERE job = $1 AND result_code <> 0
+           AND ($2 IS NULL OR platform = $2)
          ORDER BY start_d DESC, start_ps DESC
       |}
 
@@ -411,32 +376,18 @@ module Build = struct
 
   let get_latest_successful =
     Caqti_request.find_opt
-      (id `job)
+      Caqti_type.(tup2 (id `job) (option string))
       t
       {| SELECT
            b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
            b.result_code, b.result_msg, b.console, b.script,
            b.platform, b.main_binary, b.input_id, b.user, b.job
          FROM build b
-         WHERE b.job = ? AND b.result_code = 0
+         WHERE b.job = $1 AND b.result_code = 0
+           AND ($2 IS NULL OR b.platform = $2)
          ORDER BY b.start_d DESC, b.start_ps DESC
          LIMIT 1
       |}
-
-  let get_latest_successful_by_platform =
-    Caqti_request.find_opt
-      Caqti_type.(tup2 (id `job) string)
-      t
-      {| SELECT
-           b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-           b.result_code, b.result_msg, b.console, b.script,
-           b.platform, b.main_binary, b.input_id, b.user, b.job
-         FROM build b
-         WHERE b.job = $1 AND b.result_code = 0 AND b.platform = $2
-         ORDER BY b.start_d DESC, b.start_ps DESC
-         LIMIT 1
-      |}
-
 
   let get_previous_successful_different_output =
     Caqti_request.find_opt

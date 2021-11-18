@@ -69,11 +69,7 @@ let build_exists uuid (module Db : CONN) =
   Option.is_some
 
 let latest_successful_build job_id platform (module Db : CONN) =
-  match platform with
-  | None ->
-    Db.find_opt Builder_db.Build.get_latest_successful job_id
-  | Some platform ->
-    Db.find_opt Builder_db.Build.get_latest_successful_by_platform (job_id, platform)
+  Db.find_opt Builder_db.Build.get_latest_successful (job_id, platform)
 
 let latest_successful_build_uuid job_id platform db =
   latest_successful_build job_id platform db >|= fun build ->
@@ -86,9 +82,7 @@ let next_successful_build_different_output id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_next_successful_different_output id
 
 let failed_builds ~start ~count platform (module Db : CONN) =
-  match platform with
-  | None -> Db.collect_list Builder_db.Build.get_all_failed (start, count)
-  | Some p -> Db.collect_list Builder_db.Build.get_all_failed_by_platform (start, count, p)
+  Db.collect_list Builder_db.Build.get_all_failed (start, count, platform)
 
 let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->
@@ -136,10 +130,7 @@ let job_and_readme job (module Db : CONN) =
   job_id, readme
 
 let builds_grouped_by_output job_id platform (module Db : CONN) =
-  (match platform with
-   | None -> Db.collect_list Builder_db.Build.get_all_artifact_sha job_id
-   | Some p -> Db.collect_list Builder_db.Build.get_all_artifact_sha_by_platform (job_id, p))
-  >>= fun sha ->
+  Db.collect_list Builder_db.Build.get_all_artifact_sha (job_id, platform) >>= fun sha ->
   Lwt_list.fold_left_s (fun acc hash ->
     match acc with
     | Error _ as e -> Lwt.return e
@@ -150,10 +141,7 @@ let builds_grouped_by_output job_id platform (module Db : CONN) =
 
 let builds_grouped_by_output_with_failed job_id platform ((module Db : CONN) as db) =
   builds_grouped_by_output job_id platform db >>= fun builds ->
-  (match platform with
-   | None -> Db.collect_list Builder_db.Build.get_failed_builds job_id
-   | Some p -> Db.collect_list Builder_db.Build.get_failed_builds_by_platform (job_id, p))
-  >|= fun failed ->
+  Db.collect_list Builder_db.Build.get_failed_builds (job_id, platform) >|= fun failed ->
   let failed = List.map (fun b -> b, None) failed in
   let cmp (a, _) (b, _) = Ptime.compare b.Builder_db.Build.start a.Builder_db.Build.start in
   List.merge cmp builds failed

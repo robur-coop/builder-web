@@ -114,25 +114,16 @@ sig
   val get_all :
     ([`job] id, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_failed :
-    (int * int, string * t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_all_failed_by_platform :
-    (int * int * string, string * t, [ `Many | `One | `Zero ]) Caqti_request.t
+    (int * int * string option, string * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_all_artifact_sha :
-    ([`job] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_all_artifact_sha_by_platform :
-    ([`job] id * string, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
+    ([`job] id * string option, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful_with_binary :
     ([`job] id * string, [`build] id * t * file option, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_failed_builds :
-    ([`job] id, t, [ `Many | `One | `Zero ]) Caqti_request.t
-  val get_failed_builds_by_platform :
-    ([`job] id * string, t, [ `Many | `One | `Zero ]) Caqti_request.t
+    ([`job] id * string option, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful :
-    ([`job] id, t, [< `Many | `One | `Zero > `One `Zero ])
-      Caqti_request.t
-  val get_latest_successful_by_platform :
-    ([`job] id * string, t, [< `Many | `One | `Zero > `One `Zero ])
+    ([`job] id * string option, t, [< `Many | `One | `Zero > `One `Zero ])
       Caqti_request.t
   val get_previous_successful_different_output :
     ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ])
