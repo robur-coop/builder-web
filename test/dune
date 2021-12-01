@@ -1,3 +1,9 @@
 (test
  (name test_builder_db)
+ (modules test_builder_db)
  (libraries builder_db caqti.blocking alcotest mirage-crypto-rng.unix))
+
+(test
+ (name markdown_to_html)
+ (modules markdown_to_html)
+ (libraries builder_web alcotest))

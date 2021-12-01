@@ -222,7 +222,82 @@ let builder section_job_map =
              a ~a:[a_href "/failed-builds/"]
                [txt "here"];
              txt "."
-       ]])
+    ]])
+
+let safe_omd omd =
+  let rec safe_block = function
+    | Omd.Paragraph (attr, inline) ->
+      safe_inline inline
+      |> Option.map (fun inline -> Omd.Paragraph (attr, inline))
+    | Omd.List (attr, typ, spacing, blocks) ->
+      let blocks = List.filter_map (fun b ->
+          let b = List.filter_map safe_block b in
+          if b = [] then None else Some b)
+          blocks
+      in
+      if blocks = [] then None else
+        Some (Omd.List (attr, typ, spacing, blocks))
+    | Omd.Blockquote (attr, blocks) ->
+      let blocks = List.filter_map safe_block blocks in
+      if blocks = [] then None else
+        Some (Omd.Blockquote (attr, blocks))
+    | Omd.Heading (attr, level, inline) ->
+      safe_inline inline
+      |> Option.map (fun inline -> Omd.Heading (attr, level, inline))
+    | Omd.Html_block _ -> None
+    | Omd.Definition_list (attr, def_elts) ->
+      let def_elts = List.filter_map safe_def_elts def_elts in
+      if def_elts = [] then None else
+        Some (Omd.Definition_list (attr, def_elts))
+    | Omd.Code_block _
+    | Omd.Thematic_break _ as v -> Some v
+  and safe_def_elts { term ; defs } =
+    let defs = List.filter_map safe_inline defs in
+    safe_inline term
+    |> Option.map (fun term -> { Omd.term ; defs })
+  and safe_inline = function
+    | Concat (attr, inline) ->
+      Some (Concat (attr, List.filter_map safe_inline inline))
+    | Emph (attr, inline) ->
+      safe_inline inline
+      |> Option.map (fun inline -> Omd.Emph (attr, inline))
+    | Strong (attr, inline) ->
+      safe_inline inline
+      |> Option.map (fun inline -> Omd.Strong (attr, inline))
+    | Link (attr, link) ->
+      begin match safe_link link with
+        | `No_label | `Relative -> safe_inline link.Omd.label
+        | `Link l -> Some (Omd.Link (attr, l))
+      end
+    | Image (attr, link) ->
+      begin match safe_link link with
+        | `No_label | `Relative -> None
+        | `Link l -> Some (Omd.Image (attr, l))
+      end
+    | Html _ -> None
+    | Text _
+    | Code _
+    | Hard_break _
+    | Soft_break _ as v -> Some v
+  and safe_link ({ label ; destination ; _ } as l) =
+    let absolute_link =
+      String.(length destination >= 2 && equal (sub destination 0 2) "//") ||
+      String.(length destination >= 7 && equal (sub destination 0 7) "http://") ||
+      String.(length destination >= 8 && equal (sub destination 0 8) "https://")
+    in
+    if absolute_link then
+      match safe_inline label with
+      | None -> `No_label
+      | Some label -> `Link { l with label }
+    else
+      `Relative
+  in
+  List.filter_map safe_block omd
+
+let markdown_to_html data =
+  let omd = Omd.of_string data in
+  let omd = safe_omd omd in
+  Omd.to_html omd
 
 let job ~failed name platform readme builds =
   layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
@@ -233,7 +308,7 @@ let job ~failed name platform readme builds =
          [
            h2 ~a:[a_id "readme"] [txt "README"];
            a ~a:[a_href "#builds"] [txt "Skip to builds"];
-           Unsafe.data Omd.(to_html (of_string data))
+           Unsafe.data (markdown_to_html data)
          ])) @
      [
       h2 ~a:[a_id "builds"] [txt "Builds"];
@@ -277,7 +352,7 @@ let job_build
          [
            h2 ~a:[a_id "readme"] [txt "README"];
            a ~a:[a_href "#build"] [txt "Skip to build"];
-           Unsafe.data Omd.(to_html (of_string data))
+           Unsafe.data (markdown_to_html data)
          ])) @
     [
       h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
