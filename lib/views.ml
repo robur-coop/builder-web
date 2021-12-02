@@ -337,7 +337,6 @@ let job ~failed name platform readme builds =
 
 let job_build
   name
-  readme
   ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
   artifacts
   same_input_same_output different_input_same_output same_input_different_output
@@ -345,18 +344,9 @@ let job_build
   =
   let delta = Ptime.diff finish start in
   layout ~nav:(`Build (name, build)) ~title:(Fmt.str "Job %s %a" name pp_ptime start)
-    ((h1 [txtf "Job %s" name] ::
-      (match readme with
-       | None -> []
-       | Some data ->
-         [
-           h2 ~a:[a_id "readme"] [txt "README"];
-           a ~a:[a_href "#build"] [txt "Skip to build"];
-           Unsafe.data (markdown_to_html data)
-         ])) @
+    (h1 [txtf "Job %s" name] ::
     [
       h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
-      a ~a:[a_href "#readme"] [txt "Back to readme"];
       p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];

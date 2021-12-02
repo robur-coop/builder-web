@@ -177,7 +177,6 @@ let add_routes datadir =
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
     Dream.sql req (fun conn ->
-        Model.readme job_name conn >>= fun readme ->
         Model.build uuid conn >>= fun (build_id, build) ->
         Model.build_artifacts build_id conn >>= fun artifacts ->
         Model.builds_with_same_input_and_same_main_binary build_id conn >>= fun same_input_same_output ->
@@ -186,12 +185,12 @@ let add_routes datadir =
         Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn >>= fun latest ->
         Model.next_successful_build_different_output build_id conn >>= fun next ->
         Model.previous_successful_build_different_output build_id conn >|= fun previous ->
-        (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
+        (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
       )
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    Views.job_build job_name readme build artifacts same_input_same_output different_input_same_output same_input_different_output latest next previous
+    >>= fun (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+    Views.job_build job_name build artifacts same_input_same_output different_input_same_output same_input_different_output latest next previous
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
