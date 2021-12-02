@@ -176,16 +176,18 @@ let add_routes datadir =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
-    (Dream.sql req (Model.readme job_name) >>= fun readme ->
-     Dream.sql req (Model.build uuid) >>= fun (build_id, build) ->
-     Dream.sql req (Model.build_artifacts build_id) >>= fun artifacts ->
-     Dream.sql req (Model.builds_with_same_input_and_same_main_binary build_id) >>= fun same_input_same_output ->
-     Dream.sql req (Model.builds_with_different_input_and_same_main_binary build_id) >>= fun different_input_same_output ->
-     Dream.sql req (Model.builds_with_same_input_and_different_main_binary build_id) >>= fun same_input_different_output ->
-     Dream.sql req (Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform)) >>= fun latest ->
-     Dream.sql req (Model.next_successful_build_different_output build_id) >>= fun next ->
-     Dream.sql req (Model.previous_successful_build_different_output build_id) >|= fun previous ->
-         (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous))
+    Dream.sql req (fun conn ->
+        Model.readme job_name conn >>= fun readme ->
+        Model.build uuid conn >>= fun (build_id, build) ->
+        Model.build_artifacts build_id conn >>= fun artifacts ->
+        Model.builds_with_same_input_and_same_main_binary build_id conn >>= fun same_input_same_output ->
+        Model.builds_with_different_input_and_same_main_binary build_id conn >>= fun different_input_same_output ->
+        Model.builds_with_same_input_and_different_main_binary build_id conn >>= fun same_input_different_output ->
+        Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn >>= fun latest ->
+        Model.next_successful_build_different_output build_id conn >>= fun next ->
+        Model.previous_successful_build_different_output build_id conn >|= fun previous ->
+        (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
+      )
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (readme, build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
@@ -303,25 +305,26 @@ let add_routes datadir =
     let build_right = Dream.param "build_right" req in
     get_uuid build_left >>= fun build_left ->
     get_uuid build_right >>= fun build_right ->
-    (Dream.sql req (Model.build build_left) >>= fun (_id, build_left) ->
-     Dream.sql req (Model.build build_right) >>= fun (_id, build_right) ->
-     Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "opam-switch")) >>=
-     Model.build_artifact_data datadir >>= fun switch_left ->
-     Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "build-environment")) >>=
-     Model.build_artifact_data datadir >>= fun build_env_left ->
-     Dream.sql req (Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "system-packages")) >>=
-     Model.build_artifact_data datadir >>= fun system_packages_left ->
-     Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "opam-switch")) >>=
-     Model.build_artifact_data datadir >>= fun switch_right ->
-     Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "build-environment")) >>=
-     Model.build_artifact_data datadir >>= fun build_env_right ->
-     Dream.sql req (Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages")) >>=
-     Model.build_artifact_data datadir >>= fun system_packages_right ->
-     Dream.sql req (Model.job_name build_left.job_id) >>= fun job_left ->
-     Dream.sql req (Model.job_name build_right.job_id) >|= fun job_right ->
-     (job_left, job_right, build_left, build_right,
-      switch_left, build_env_left, system_packages_left,
-      switch_right, build_env_right, system_packages_right))
+    Dream.sql req (fun conn ->
+        Model.build build_left conn >>= fun (_id, build_left) ->
+        Model.build build_right conn >>= fun (_id, build_right) ->
+        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "opam-switch") conn >>=
+        Model.build_artifact_data datadir >>= fun switch_left ->
+        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "build-environment") conn >>=
+        Model.build_artifact_data datadir >>= fun build_env_left ->
+        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
+        Model.build_artifact_data datadir >>= fun system_packages_left ->
+        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "opam-switch") conn >>=
+        Model.build_artifact_data datadir >>= fun switch_right ->
+        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "build-environment") conn >>=
+        Model.build_artifact_data datadir >>= fun build_env_right ->
+        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
+        Model.build_artifact_data datadir >>= fun system_packages_right ->
+        Model.job_name build_left.job_id conn >>= fun job_left ->
+        Model.job_name build_right.job_id conn >|= fun job_right ->
+        (job_left, job_right, build_left, build_right,
+         switch_left, build_env_left, system_packages_left,
+         switch_right, build_env_right, system_packages_right))
     |> if_error "Internal server error"
     >>= fun (job_left, job_right, build_left, build_right,
              switch_left, build_env_left, system_packages_left,
