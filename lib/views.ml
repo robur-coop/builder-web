@@ -350,6 +350,8 @@ let job_build
       p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
+      p [a ~a:[Fmt.kstr a_href "/job/%s/build/%a/treemap" name Uuidm.pp uuid]
+           [txt "Treemap"]];
       h3 [txt "Build info"];
       ul [
         li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]

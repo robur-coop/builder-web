@@ -172,6 +172,40 @@ let add_routes datadir =
       |> Lwt_result.ok
   in
 
+  let job_build_treemap req =
+    let _job_name = Dream.param "job" req
+    and build = Dream.param "build" req in
+    get_uuid build >>= fun uuid ->
+    (Dream.sql req (Model.build uuid) >>= fun (id, _build) ->
+     Dream.sql req (Model.build_artifacts id) >>= fun binaries ->
+     Model.not_found
+       (List.find_opt (fun f -> Fpath.has_ext "debug" f.Builder_db.filepath) binaries))
+    |> if_error "Error getting job build"
+     ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+    >>= fun binary ->
+    let datadir = Dream.global datadir_global req in
+    let path = Fpath.(datadir // binary.Builder_db.localpath) in
+    let open Modulectomy in
+    Lwt.return (
+      Result.map_error (fun _ -> `File_error path)
+        (Elf.get (Fpath.to_string path)))
+    |> if_error "Error reading ELF binary"
+      ~log:(fun _ -> Log.warn (fun m -> m "Error reading ELF file %a"
+                                  Fpath.pp path))
+    >>= fun infos ->
+    let svg =
+      infos
+      |> Info.import
+      |> Info.diff_size
+      |> Info.prefix_filename
+      |> Info.cut 2
+      |> Treemap.of_tree
+      |> Treemap.doc
+      |> Fmt.to_to_string (Tyxml.Html.pp ())
+    in
+    Lwt_result.ok (Dream.html svg)
+  in
+
   let job_build req =
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
@@ -387,6 +421,7 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
+    Dream.get "/job/:job/build/:build/treemap" (w job_build_treemap);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/failed-builds/" (w failed_builds);
