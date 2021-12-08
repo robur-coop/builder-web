@@ -39,3 +39,26 @@ The sqlite3 database builder-web uses contains versioning information.
 On every schema change the database schema version is updated, and migration and rollback scripts are provided.
 The tool for database migrations is `builder-migrations`.
 See the `builder-migrations --help` output for each migration for further details.
+
+## Less common workflows
+
+Here are listed some less common but useful workflows:
+
+### Extracting builds from one server to another
+
+This is useful for development on a separate machine that doesn't run the build jobs itself.
+
+On the source server:
+```ocaml
+builder-db extract-build <build-hash> --dest <build-hash>.full
+```
+
+After copying the file over the destination server (you need a user first, 
+see `builder-db user-add --help`):
+```ocaml
+curl --data-binary @<build-hash>.full http://<user>:<passwd>@localhost:<builder-web-port>/upload
+```
+
+
+
+
