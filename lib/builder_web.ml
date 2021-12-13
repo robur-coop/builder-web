@@ -84,6 +84,11 @@ let get_uuid s =
        | None -> Error ("Bad uuid", `Bad_Request)
      else Error ("Bad uuid", `Bad_Request))
 
+let dream_svg ?status ?code ?headers body =
+  Dream.response ?status ?code ?headers body
+  |> Dream.with_header "Content-Type" "image/svg+xml"
+  |> Lwt.return
+
 let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
@@ -193,7 +198,7 @@ let add_routes datadir =
       ~log:(fun _ -> Log.warn (fun m -> m "Error reading ELF file %a"
                                   Fpath.pp path))
     >>= fun infos ->
-    let svg =
+    let svg_html =
       infos
       |> Info.import
       |> Info.diff_size
@@ -202,8 +207,11 @@ let add_routes datadir =
       |> Treemap.of_tree
       |> Treemap.doc
       |> Fmt.to_to_string (Tyxml.Html.pp ())
+      (* |> Treemap.svg
+       * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
     in
-    Lwt_result.ok (Dream.html svg)
+    (* Lwt_result.ok (dream_svg svg) *)
+    Lwt_result.ok (Dream.html svg_html)
   in
 
   let job_build req =

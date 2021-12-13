@@ -32,12 +32,12 @@ type nav = [
 let pp_platform = Fmt.(option ~none:(any "") (append (any "on ") string))
 let pp_platform_query = Fmt.(option ~none:(any "") (append (any "?platform=") string))
 
-let layout ?nav:(nav_=`Default) ~title:title_ body_ =
+let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
   let breadcrumb =
     let to_nav kvs =
       nav [ ul (List.map (fun (desc, href) ->
-          li [a ~a:[a_href href] [desc]])
-          kvs) ]
+        li [a ~a:[a_href href] [desc]])
+        kvs) ]
     in
     match nav_ with
     | `Default ->
@@ -61,55 +61,61 @@ let layout ?nav:(nav_=`Default) ~title:title_ body_ =
         Fmt.str "/compare/%a/%a/" Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid;
       ]
   in
+  let static_css =
+    let include_static_css = match include_static_css with
+      | None -> []
+      | Some l -> l
+    in
+    include_static_css @ [
+      txt "body {\
+           margin: 40px auto;\
+           line-height: 1.6;\
+           color: #444;\
+           padding: 0 10px;\
+           }";
+      txt "nav ul {\
+           display: flex;\
+           list-style: none;\
+           }";
+      Tyxml.Html.Unsafe.data
+        "nav ul li::before {\
+         content: \"→\";\
+         }";
+      Tyxml.Html.Unsafe.data
+        "nav ul li:first-child::before {\
+         content: \"\";\
+         }";
+      txt "nav a {\
+           padding: .5em 1em;\
+           }";
+      txt "h1,h2,h3{line-height:1.2}";
+      txt ".output-ts {\
+           white-space: nowrap;\
+           cursor: pointer;\
+           user-select: none;\
+           }";
+      txt ".output-ts a {text-decoration: none;}";
+      txt ".output-ts a:hover {text-decoration: underline;}";
+      txt ".output-code {\
+           overflow: visible;\
+           white-space: pre;\
+           }";
+      txt ".toggleable {\
+           display: none;\
+           }";
+      txt ".toggleable-descr {\
+           cursor: pointer;\
+           text-decoration: underline;\
+           user-select: none;\
+           }";
+      txt ":checked + .toggleable {\
+           display: block;\
+           }";
+    ]
+  in
   html
     (head (title (txt title_))
-       [style ~a:[a_mime_type "text/css"]
-          [
-            txt "body {\
-                 margin: 40px auto;\
-                 line-height: 1.6;\
-                 color: #444;\
-                 padding: 0 10px;\
-                 }";
-            txt "nav ul {\
-                 display: flex;\
-                 list-style: none;\
-                 }";
-            Tyxml.Html.Unsafe.data
-              "nav ul li::before {\
-               content: \"→\";\
-               }";
-            Tyxml.Html.Unsafe.data
-              "nav ul li:first-child::before {\
-               content: \"\";\
-               }";
-            txt "nav a {\
-                 padding: .5em 1em;\
-                 }";
-            txt "h1,h2,h3{line-height:1.2}";
-            txt ".output-ts {\
-                 white-space: nowrap;\
-                 cursor: pointer;\
-                 user-select: none;\
-                 }";
-            txt ".output-ts a {text-decoration: none;}";
-            txt ".output-ts a:hover {text-decoration: underline;}";
-            txt ".output-code {\
-                 overflow: visible;\
-                 white-space: pre;\
-                 }";
-            txt ".toggleable {\
-                 display: none;\
-                 }";
-            txt ".toggleable-descr {\
-                 cursor: pointer;\
-                 text-decoration: underline;\
-                 user-select: none;\
-                 }";
-            txt ":checked + .toggleable {\
-                 display: block;\
-                 }";
-          ]])
+       [style ~a:[a_mime_type "text/css"] static_css])
 
     (body [
         breadcrumb;
@@ -336,64 +342,71 @@ let job ~failed name platform readme builds =
     ])
 
 let job_build
-  name
-  ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
-  artifacts
-  same_input_same_output different_input_same_output same_input_different_output
-  latest next previous
+    name
+    ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
+    artifacts
+    same_input_same_output different_input_same_output same_input_different_output
+    latest next previous
   =
   let delta = Ptime.diff finish start in
-  layout ~nav:(`Build (name, build)) ~title:(Fmt.str "Job %s %a" name pp_ptime start)
-    (h1 [txtf "Job %s" name] ::
+  let body =
+    h1 [txtf "Job %s" name] ::
     [
       h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
       p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      p [a ~a:[Fmt.kstr a_href "/job/%s/build/%a/treemap" name Uuidm.pp uuid]
-           [txt "Treemap"]];
+      h3 [txt "Analysis"];
+      p [
+        let src = Fmt.str "/job/%s/build/%a/treemap" name Uuidm.pp uuid in
+        let style = "width: 35vw; height: 35.5vw" in (*treemap tries to be square*)
+        iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] [] ];
+      (* p [
+       *   let src = Fmt.str "/job/%s/build/%a/treemap" name Uuidm.pp uuid in
+       *   img ~src ~alt:"Binary dissection" ()
+       * ]; *)
       h3 [txt "Build info"];
       ul [
         li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]
-               [txt "Console output"];
-           ];
+          [txt "Console output"];
+        ];
         li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp uuid]
-               [txt "Build script"];
-           ]
+          [txt "Build script"];
+        ]
       ];
       h3 [txt "Build artifacts"];
       dl (List.concat_map
-            (fun { Builder_db.filepath; localpath=_; sha256; size } ->
-               let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
-               [
-                 dt [a
-                       ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
-                       [code [txtf "%a" Fpath.pp filepath]]];
-                 dd [
-                   code [txt "SHA256:"; txt sha256_hex];
-                   txtf " (%a)" Fmt.byte_size size;
-                 ];
-               ])
-            artifacts);
+          (fun { Builder_db.filepath; localpath=_; sha256; size } ->
+              let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
+              [
+                dt [a
+                    ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
+                    [code [txtf "%a" Fpath.pp filepath]]];
+                dd [
+                  code [txt "SHA256:"; txt sha256_hex];
+                  txtf " (%a)" Fmt.byte_size size;
+                ];
+              ])
+          artifacts);
       h3 [ txtf "Reproduced by %d builds" (List.length (same_input_same_output @ different_input_same_output))] ;
       ul
         ((List.map (fun { Builder_db.Build.start ; uuid ; platform ; _ } ->
             li [
               txtf "on %s, same input, " platform;
               a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp uuid]
-                  [txtf "%a" pp_ptime start]
+                [txtf "%a" pp_ptime start]
             ])
             same_input_same_output) @
-            List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
-              li [
-                txtf "on %s, different input, " platform;
-                a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
-                      Uuidm.pp other_uuid Uuidm.pp uuid]
-                 [txtf "%a" pp_ptime start]
-              ])
-            different_input_same_output)
-      ] @
-      (if same_input_different_output = [] then
+         List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+           li [
+             txtf "on %s, different input, " platform;
+             a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                 Uuidm.pp other_uuid Uuidm.pp uuid]
+               [txtf "%a" pp_ptime start]
+           ])
+           different_input_same_output)
+    ] @
+    (if same_input_different_output = [] then
         []
       else
         [ h3 [txt "Same input, different output (not reproducible!)"];
@@ -405,24 +418,30 @@ let job_build
                   [txtf "%a" pp_ptime start]
               ])
               same_input_different_output)
-          ]) @
-       [ h3 [txt "Comparisons with other builds on the same platform"];
-       let opt_build (ctx, build) =
-         match build with
-         | Some b when not (Uuidm.equal uuid b.Builder_db.Build.uuid) ->
-             [ li [ txt ctx;
-                    a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
-                        Uuidm.pp b.uuid Uuidm.pp uuid]
-                   [txtf "%a" pp_ptime b.start]]
-            ]
-          | _ -> []
-        in
-        ul
-          (List.concat_map opt_build
+        ]) @
+    [ h3 [txt "Comparisons with other builds on the same platform"];
+      let opt_build (ctx, build) =
+        match build with
+        | Some b when not (Uuidm.equal uuid b.Builder_db.Build.uuid) ->
+          [ li [ txt ctx;
+              a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                  Uuidm.pp b.uuid Uuidm.pp uuid]
+                [txtf "%a" pp_ptime b.start]]
+          ]
+        | _ -> []
+      in
+      ul
+        (List.concat_map opt_build
             [ ("Latest build ", latest) ;
               ("Later build with different output ", next) ;
               ("Earlier build with different output ", previous) ])
-    ])
+    ]
+  in
+  layout
+    ~nav:(`Build (name, build))
+    ~title:(Fmt.str "Job %s %a" name pp_ptime start)
+    ~include_static_css:[Unsafe.data Modulectomy.Treemap.Doc.css]
+    body
 
 let key_values xs =
   List.concat_map (fun (k, v) -> [ txtf "%s %s" k v ; br () ]) xs
