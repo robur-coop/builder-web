@@ -63,7 +63,13 @@ let or_error_response r =
   | Ok response -> Lwt.return response
   | Error (text, status) -> Dream.respond ~status text
 
-let if_error ?(status  = `Internal_Server_Error) ?(log=(fun e -> Log.warn (fun m -> m "%s: %a" (Dream.status_to_string status) pp_error e))) message r =
+let default_log_warn ~status e =
+  Log.warn (fun m -> m "%s: %a" (Dream.status_to_string status) pp_error e)
+
+let if_error
+    ?(status = `Internal_Server_Error)
+    ?(log = default_log_warn ~status)
+    message r =
   let* r = r in
   match r with
   | Error `Not_found ->
@@ -183,20 +189,31 @@ let add_routes datadir =
     get_uuid build >>= fun uuid ->
     (Dream.sql req (Model.build uuid) >>= fun (id, _build) ->
      Dream.sql req (Model.build_artifacts id) >>= fun binaries ->
-     Model.not_found
-       (List.find_opt (fun f -> Fpath.has_ext "debug" f.Builder_db.filepath) binaries))
+     Model.not_found (
+       List.find_map (fun f ->
+         if not @@ Fpath.has_ext "debug" f.Builder_db.filepath then None
+         else Some (f, binaries)
+       ) binaries
+     ))
     |> if_error "Error getting job build"
-     ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+    >>= fun (debug_binary, binaries) ->
+    let binary_name = Fpath.rem_ext debug_binary.Builder_db.filepath in
+    List.find_opt (fun f -> Fpath.equal f.Builder_db.filepath binary_name) binaries
+    |> Model.not_found
+    |> if_error "Error getting job build"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun binary ->
+    let binary_size = binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
-    let path = Fpath.(datadir // binary.Builder_db.localpath) in
+    let path = Fpath.(datadir // debug_binary.Builder_db.localpath) in
     let open Modulectomy in
     Lwt.return (
       Result.map_error (fun _ -> `File_error path)
         (Elf.get (Fpath.to_string path)))
     |> if_error "Error reading ELF binary"
-      ~log:(fun _ -> Log.warn (fun m -> m "Error reading ELF file %a"
-                                  Fpath.pp path))
+      ~log:(fun _ -> Log.warn (fun m ->
+        m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
     let svg_html =
       infos
@@ -205,7 +222,7 @@ let add_routes datadir =
       |> Info.prefix_filename
       |> Info.cut 2
       |> Treemap.of_tree
-      |> Treemap.doc
+      |> Treemap.to_html_with_scale ~binary_size
       |> Fmt.to_to_string (Tyxml.Html.pp ())
       (* |> Treemap.svg
        * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)

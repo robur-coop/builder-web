@@ -436,7 +436,6 @@ let job_build
   layout
     ~nav:(`Build (name, build))
     ~title:(Fmt.str "Job %s %a" name pp_ptime start)
-    ~include_static_css:(Unsafe.data Modulectomy.Treemap.Doc.css)
     body
 
 let key_values xs =

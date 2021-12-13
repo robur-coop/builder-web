@@ -1,3 +1,8 @@
 (library
  (name builder_web)
- (libraries builder builder_db dream tyxml bos duration hex caqti-lwt opamdiff ptime.clock.os omd modulectomy))
+ (libraries
+  builder builder_db dream tyxml bos duration hex caqti-lwt
+  opamdiff ptime.clock.os omd modulectomy)
+ (flags (:standard (-w -27-26)))
+ )
+
