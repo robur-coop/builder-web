@@ -32,6 +32,55 @@ type nav = [
 let pp_platform = Fmt.(option ~none:(any "") (append (any "on ") string))
 let pp_platform_query = Fmt.(option ~none:(any "") (append (any "?platform=") string))
 
+let static_css = Tyxml.Html.Unsafe.data {|
+body {
+  margin: 40px auto;
+  line-height: 1.6;
+  color: #444;
+  padding: 0 10px;
+}
+nav ul {
+  display: flex;
+  list-style: none;
+}
+nav ul li::before {
+  content: "→";
+}
+nav ul li:first-child::before {
+  content: "";
+}
+nav a {
+  padding: .5em 1em;
+}
+h1,h2,h3{line-height:1.2}
+.output-ts {
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+}
+.output-ts a {text-decoration: none;}
+.output-ts a:hover {text-decoration: underline;}
+.output-code {
+  overflow: visible;
+  white-space: pre;
+}
+.toggleable {
+  display: none;
+}
+.toggleable-descr {
+  cursor: pointer;
+  text-decoration: underline;
+  user-select: none;
+}
+:checked + .toggleable {
+  display: block;
+}
+|}
+
+let list_of_option = function
+  | Some v -> [ v ]
+  | None -> [] 
+
 let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
   let breadcrumb =
     let to_nav kvs =
@@ -61,57 +110,8 @@ let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
         Fmt.str "/compare/%a/%a/" Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid;
       ]
   in
-  let static_css =
-    let include_static_css = match include_static_css with
-      | None -> []
-      | Some l -> l
-    in
-    include_static_css @ [
-      txt "body {\
-           margin: 40px auto;\
-           line-height: 1.6;\
-           color: #444;\
-           padding: 0 10px;\
-           }";
-      txt "nav ul {\
-           display: flex;\
-           list-style: none;\
-           }";
-      Tyxml.Html.Unsafe.data
-        "nav ul li::before {\
-         content: \"→\";\
-         }";
-      Tyxml.Html.Unsafe.data
-        "nav ul li:first-child::before {\
-         content: \"\";\
-         }";
-      txt "nav a {\
-           padding: .5em 1em;\
-           }";
-      txt "h1,h2,h3{line-height:1.2}";
-      txt ".output-ts {\
-           white-space: nowrap;\
-           cursor: pointer;\
-           user-select: none;\
-           }";
-      txt ".output-ts a {text-decoration: none;}";
-      txt ".output-ts a:hover {text-decoration: underline;}";
-      txt ".output-code {\
-           overflow: visible;\
-           white-space: pre;\
-           }";
-      txt ".toggleable {\
-           display: none;\
-           }";
-      txt ".toggleable-descr {\
-           cursor: pointer;\
-           text-decoration: underline;\
-           user-select: none;\
-           }";
-      txt ":checked + .toggleable {\
-           display: block;\
-           }";
-    ]
+  (*> Note: Last declared CSS wins - so one can override here*)
+  let static_css = static_css :: list_of_option include_static_css 
   in
   html
     (head (title (txt title_))
@@ -440,7 +440,7 @@ let job_build
   layout
     ~nav:(`Build (name, build))
     ~title:(Fmt.str "Job %s %a" name pp_ptime start)
-    ~include_static_css:[Unsafe.data Modulectomy.Treemap.Doc.css]
+    ~include_static_css:(Unsafe.data Modulectomy.Treemap.Doc.css)
     body
 
 let key_values xs =
