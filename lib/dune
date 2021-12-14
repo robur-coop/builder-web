@@ -6,6 +6,8 @@
   opamdiff ptime.clock.os omd tar
   modulectomy
   opam-graph
+  owee
+  solo5-elftool
   )
  (flags (:standard))
  )
