@@ -184,26 +184,30 @@ let add_routes datadir =
   in
 
   let job_build_treemap req =
+    Log.info (fun m -> m ">>>>>>>>>> entering job_build_treemap");
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
-    (Dream.sql req (Model.build uuid) >>= fun (id, _build) ->
-     Dream.sql req (Model.build_artifacts id) >>= fun binaries ->
-     Model.not_found (
-       List.find_map (fun f ->
-         if not @@ Fpath.has_ext "debug" f.Builder_db.filepath then None
-         else Some (f, binaries)
-       ) binaries
-     ))
+    (
+      Dream.sql req (Model.build uuid) >>= fun (id, _build) ->
+      Dream.sql req (Model.build_artifacts id) >>= fun binaries ->
+      Model.not_found (
+        List.find_map (fun f ->
+          if not @@ Fpath.has_ext "debug" f.Builder_db.filepath then None
+          else Some (f, binaries)
+        ) binaries
+      ))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (debug_binary, binaries) ->
+    Log.info (fun m -> m ">>>>>>>>>> debug-binary bound");
     let binary_name = Fpath.rem_ext debug_binary.Builder_db.filepath in
     List.find_opt (fun f -> Fpath.equal f.Builder_db.filepath binary_name) binaries
     |> Model.not_found
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun binary ->
+    Log.info (fun m -> m ">>>>>>>>>> binary bound");
     let binary_size = binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
     let path = Fpath.(datadir // debug_binary.Builder_db.localpath) in
@@ -215,6 +219,7 @@ let add_routes datadir =
       ~log:(fun _ -> Log.warn (fun m ->
         m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
+    Log.info (fun m -> m ">>>>>>>>>> infos bound");
     let svg_html =
       infos
       |> Info.import
@@ -228,6 +233,7 @@ let add_routes datadir =
        * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
     in
     (* Lwt_result.ok (dream_svg svg) *)
+    Log.info (fun m -> m ">>>>>>>>>> returning svg_html");
     Lwt_result.ok (Dream.html svg_html)
   in
 
