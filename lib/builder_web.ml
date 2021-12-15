@@ -184,7 +184,6 @@ let add_routes datadir =
   in
 
   let job_build_treemap req =
-    Log.info (fun m -> m ">>>>>>>>>> entering job_build_treemap");
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
@@ -201,7 +200,6 @@ let add_routes datadir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (debug_binary, main_binary) ->
-    Log.info (fun m -> m ">>>>>>>>>> binary + debug-binary bound");
     let binary_size = main_binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
     let path = Fpath.(datadir // debug_binary.Builder_db.localpath) in
@@ -213,7 +211,6 @@ let add_routes datadir =
       ~log:(fun _ -> Log.warn (fun m ->
           m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
-    Log.info (fun m -> m ">>>>>>>>>> infos bound");
     let svg_html =
       infos
       |> Info.import
@@ -227,7 +224,6 @@ let add_routes datadir =
        * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
     in
     (* Lwt_result.ok (dream_svg svg) *)
-    Log.info (fun m -> m ">>>>>>>>>> returning svg_html");
     Lwt_result.ok (Dream.html svg_html)
   in
 

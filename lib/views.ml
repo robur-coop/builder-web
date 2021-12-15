@@ -359,7 +359,7 @@ let job_build
       h3 [txt "Analysis"];
       p [
         let src = Fmt.str "/job/%s/build/%a/treemap" name Uuidm.pp uuid in
-        let style = "width: 50em; height: 50.5em" in (*treemap tries to be square*)
+        let style = "width: 50em; height: 53.0em" in (*treemap tries to be square*)
         iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] [] ];
       h3 [txt "Build info"];
       ul [
