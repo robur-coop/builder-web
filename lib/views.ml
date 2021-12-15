@@ -37,6 +37,7 @@ body {
   margin: 40px auto;
   line-height: 1.6;
   color: #444;
+  background: rgb(200,200,200);
   padding: 0 10px;
 }
 nav ul {
