@@ -189,26 +189,20 @@ let add_routes datadir =
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
     (
-      Dream.sql req (Model.build uuid) >>= fun (id, _build) ->
-      Dream.sql req (Model.build_artifacts id) >>= fun binaries ->
-      Model.not_found (
-        List.find_map (fun f ->
-          if not @@ Fpath.has_ext "debug" f.Builder_db.filepath then None
-          else Some (f, binaries)
-        ) binaries
-      ))
+      Dream.sql req (Model.build uuid) >>= fun (id, build) ->
+      (* filepath = bin/caldav.hvt
+         localpath = caldav-monitoring/<uuid>/output/bin/caldav.hvt in datadir *)
+      Model.not_found build.Builder_db.Build.main_binary >>= fun main_binary_id ->
+      Dream.sql req (Model.build_artifact_by_id main_binary_id) >>= fun main_binary ->
+      let debug_binary_path = Fpath.(base main_binary.Builder_db.filepath + "debug") in
+      (* lookup debug_binary_path artifact *)
+      Dream.sql req (Model.build_artifact uuid debug_binary_path) >>= fun debug_binary ->
+      Lwt_result.return (debug_binary, main_binary))
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (debug_binary, binaries) ->
-    Log.info (fun m -> m ">>>>>>>>>> debug-binary bound");
-    let binary_name = Fpath.rem_ext debug_binary.Builder_db.filepath in
-    List.find_opt (fun f -> Fpath.equal f.Builder_db.filepath binary_name) binaries
-    |> Model.not_found
-    |> if_error "Error getting job build"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun binary ->
-    Log.info (fun m -> m ">>>>>>>>>> binary bound");
-    let binary_size = binary.Builder_db.size in
+    >>= fun (debug_binary, main_binary) ->
+    Log.info (fun m -> m ">>>>>>>>>> binary + debug-binary bound");
+    let binary_size = main_binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
     let path = Fpath.(datadir // debug_binary.Builder_db.localpath) in
     let open Modulectomy in
@@ -217,7 +211,7 @@ let add_routes datadir =
         (Elf.get (Fpath.to_string path)))
     |> if_error "Error reading ELF binary"
       ~log:(fun _ -> Log.warn (fun m ->
-        m "Error reading ELF file %a" Fpath.pp path))
+          m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
     Log.info (fun m -> m ">>>>>>>>>> infos bound");
     let svg_html =
