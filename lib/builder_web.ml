@@ -224,7 +224,7 @@ let add_routes datadir =
           | None -> true
           | Some subtree_size ->
             let pct = Int64.(to_float subtree_size /. to_float size) in
-            pct > 0.05
+            pct > 0.004
         in
         info
         |> Info.prefix_filename
