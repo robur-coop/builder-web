@@ -212,13 +212,28 @@ let add_routes datadir =
           m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
     let svg_html =
-      infos
-      |> Info.import
-      |> Info.diff_size
-      |> Info.prefix_filename
-      |> Info.cut 2
+      let info, excluded =
+        let size, info =
+          infos
+          |> Info.import
+          |> Info.diff_size_tree
+        in
+        (*> Note: this heuristic fails if one has all subtrees of equal size*)
+        let node_big_enough subtree =
+          match Info.(subtree.T.value.size) with
+          | None -> true
+          | Some subtree_size ->
+            let pct = Int64.(to_float subtree_size /. to_float size) in
+            pct > 0.05
+        in
+        info
+        |> Info.prefix_filename
+        |> Info.cut 2
+        |> Info.partition_subtrees node_big_enough
+      in
+      info
       |> Treemap.of_tree
-      |> Treemap.to_html_with_scale ~binary_size
+      |> Treemap.to_html_with_scale ~binary_size (*goto add 'excluded' via some new param*)
       |> Fmt.to_to_string (Tyxml.Html.pp ())
       (* |> Treemap.svg
        * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
