@@ -212,7 +212,7 @@ let add_routes datadir =
           m "Error reading ELF file %a" Fpath.pp path))
     >>= fun infos ->
     let svg_html =
-      let info, excluded =
+      let info, excluded_minors =
         let size, info =
           infos
           |> Info.import
@@ -231,9 +231,19 @@ let add_routes datadir =
         |> Info.cut 2
         |> Info.partition_subtrees node_big_enough
       in
+      let scale_chunks =
+        let excluded_minors_size =
+          excluded_minors
+          |> List.map Info.compute_area
+          |> List.fold_left Int64.add 0L
+        in
+        [
+          "Minor subtrees", excluded_minors_size
+        ]
+      in
       info
       |> Treemap.of_tree
-      |> Treemap.to_html_with_scale ~binary_size (*goto add 'excluded' via some new param*)
+      |> Treemap.to_html_with_scale ~binary_size ~scale_chunks
       |> Fmt.to_to_string (Tyxml.Html.pp ())
       (* |> Treemap.svg
        * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
