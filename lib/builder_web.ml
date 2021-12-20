@@ -238,7 +238,7 @@ let add_routes datadir =
           |> List.fold_left Int64.add 0L
         in
         [ 
-          "Minors excluded from treemap", excluded_minors_size
+          "Smaller excluded entries", excluded_minors_size
         ]
       in
       info
