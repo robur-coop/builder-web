@@ -342,6 +342,12 @@ let job ~failed name platform readme builds =
         p [ txt "Including failed builds " ; a ~a:[a_href "failed/"] [txt "here"] ; txt "." ]
     ])
 
+let contains_debug_bin artifacts =
+  let check f =
+    Fpath.has_ext "debug" f.Builder_db.filepath 
+  in
+  List.find_opt check artifacts |> CCOption.is_some
+
 let job_build
     name
     ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
@@ -350,6 +356,14 @@ let job_build
     latest next previous
   =
   let delta = Ptime.diff finish start in
+  let analysis_section = if not @@ contains_debug_bin artifacts then [] else [
+    h3 [txt "Analysis"];
+    p [
+      let src = Fmt.str "/job/%s/build/%a/treemap" name Uuidm.pp uuid in
+      let style = "width: 50em; height: 54.0em" in (*treemap tries to be square*)
+      iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] [] ];
+  ]
+  in
   let body =
     h1 [txtf "Job %s" name] ::
     [
@@ -357,11 +371,7 @@ let job_build
       p [txtf "Built on platform %s" platform ];
       p [txtf "Build took %a." Ptime.Span.pp delta ];
       p [txtf "Execution result: %a." Builder.pp_execution_result result];
-      h3 [txt "Analysis"];
-      p [
-        let src = Fmt.str "/job/%s/build/%a/treemap" name Uuidm.pp uuid in
-        let style = "width: 50em; height: 54.0em" in (*treemap tries to be square*)
-        iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] [] ];
+    ] @ analysis_section @ [
       h3 [txt "Build info"];
       ul [
         li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]
