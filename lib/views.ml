@@ -367,7 +367,7 @@ let job_build
     ];
     [ p [
       let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-      let style = "width: 50em; height: 54.0em" in 
+      let style = "width: 50em; height: 50.5em" in 
       iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style style ] [] ]];
   ] |> List.flatten
   in
