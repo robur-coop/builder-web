@@ -6,6 +6,18 @@ open Rresult
 (* open Lwt.Syntax
  * open Lwt_result.Infix *)
 
+let read_file file =
+  try
+    let fh = open_in file in
+    try
+      let content = really_input_string fh (in_channel_length fh) in
+      close_in_noerr fh ;
+      content
+    with _ ->
+      close_in_noerr fh;
+      invalid_arg ("Error reading file: " ^ file)
+  with _ -> invalid_arg ("Error opening file " ^ file)
+
 let print_treemap_html elf_path elf_size =
   let open Modulectomy in
   let infos = 
@@ -50,6 +62,14 @@ let print_treemap_html elf_path elf_size =
 (* |> Treemap.svg
  * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
 
+let print_dependencies_html file =
+  let open Opam_graph in
+  let switch = read_file file in
+  let data = OpamFile.SwitchExport.read_from_string switch in
+  let transitive = false in
+  let graph = Ui.dependencies ~transitive data in
+  let html = Render.Html.of_assoc graph in
+  Format.printf "%a" Render.Html.pp html
 
 module Cmd = struct 
 
@@ -71,6 +91,14 @@ module Cmd = struct
         info ~doc ~docv:"STRIPPED_ELF_SIZE" []
       )
 
+    let opam_switch_path =
+      let doc = "The Opam-switch export file of the package to be analyzed" in
+      Cmdliner.Arg.(
+        required &
+        pos 0 (some file) None &
+        info ~doc ~docv:"SWITCH_EXPORT_PATH" []
+      )
+
   end
 
   module Aux = struct
@@ -88,6 +116,11 @@ module Cmd = struct
     let doc = "Dump treemap SVG and CSS wrapped in HTML" in
     Cmdliner.Term.(pure print_treemap_html $ Arg.elf_path $ Arg.elf_size),
     Cmdliner.Term.info ~doc "treemap"
+
+  let dependencies =
+    let doc = "Dump opam dependencies SVG and CSS wrapped in HTML" in
+    Cmdliner.Term.(pure print_dependencies_html $ Arg.opam_switch_path),
+    Cmdliner.Term.info ~doc "dependencies"
 
   let help =
     let topic =
@@ -108,6 +141,7 @@ end
 let () =
   Cmdliner.Term.eval_choice Cmd.default [
     Cmd.help;
-    Cmd.treemap
+    Cmd.treemap;
+    Cmd.dependencies;
   ]
   |> Cmdliner.Term.exit
