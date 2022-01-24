@@ -46,7 +46,7 @@ let print_treemap_html elf_path elf_size =
   info
   |> Treemap.of_tree
   |> Treemap.to_html_with_scale ~binary_size:elf_size ~scale_chunks
-  |> Fmt.to_to_string (Tyxml.Html.pp ())
+  |> Tyxml.Html.pp () Format.std_formatter
 (* |> Treemap.svg
  * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
 
@@ -106,5 +106,8 @@ module Cmd = struct
 end
 
 let () =
-  Cmdliner.Term.eval_choice Cmd.default [ Cmd.help; Cmd.treemap ]
+  Cmdliner.Term.eval_choice Cmd.default [
+    Cmd.help;
+    Cmd.treemap
+  ]
   |> Cmdliner.Term.exit
