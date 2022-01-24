@@ -183,20 +183,29 @@ let add_routes datadir =
       |> Lwt_result.ok
   in
 
-  let treemap_visualization_cmd ~elf_path ~elf_size =
-    let builder_viz_cmd =
-      (*> goto make work across different cwd's*)
-      let bin = "_build/default/bin/visualizations/builder_viz.exe" in
-      bin, [| bin; "treemap"; elf_path; Int.to_string elf_size |]
+  let visualization_cmd args =
+    (*> goto make work across different cwd's*)
+    let bin = "_build/default/bin/visualizations/builder_viz.exe" in
+    let cmd = bin, Array.of_list (bin :: args)
     in
-    Lwt_process.pread ~stderr:`Dev_null builder_viz_cmd
+    Lwt_process.pread ~stderr:`Dev_null cmd
     |> Lwt_result.catch
     |> Lwt_result.map_err (fun exn ->
       Printexc.to_string exn, `Internal_Server_Error
     )
   in
+
+  let treemap_visualization_cmd ~elf_path ~elf_size =
+    [ "treemap"; elf_path; Int.to_string elf_size ]
+    |> visualization_cmd
+  in
+
+  let dependencies_visualization_cmd ~opam_switch_path =
+    [ "dependencies"; opam_switch_path ]
+    |> visualization_cmd
+  in
   
-  let job_build_treemap req =
+  let job_build_viztreemap req =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
@@ -221,6 +230,26 @@ let add_routes datadir =
     ) in
     treemap_visualization_cmd ~elf_path ~elf_size >>= fun svg_html ->
     (* Lwt_result.ok (dream_svg svg) *)
+    Lwt_result.ok (Dream.html svg_html)
+  in
+
+  let job_build_vizdependencies req =
+    let _job_name = Dream.param "job" req
+    and build = Dream.param "build" req in
+    get_uuid build >>= fun uuid ->
+    (
+      let opam_switch_path = Fpath.(v "opam-switch") in
+      Dream.sql req (Model.build_artifact uuid opam_switch_path)
+    )
+    |> if_error "Error getting job build"
+      ~log:(fun e -> Log.warn (fun m -> m "Error getting job data: %a" pp_error e))
+    >>= fun opam_switch ->
+    let datadir = Dream.global datadir_global req in
+    let opam_switch_path = Fpath.(
+      datadir // opam_switch.Builder_db.localpath
+      |> to_string
+    ) in
+    dependencies_visualization_cmd ~opam_switch_path >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
 
@@ -439,7 +468,8 @@ let add_routes datadir =
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
-    Dream.get "/job/:job/build/:build/treemap" (w job_build_treemap);
+    Dream.get "/job/:job/build/:build/viztreemap" (w job_build_viztreemap);
+    Dream.get "/job/:job/build/:build/vizdependencies" (w job_build_vizdependencies);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/failed-builds/" (w failed_builds);
