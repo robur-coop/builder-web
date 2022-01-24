@@ -356,17 +356,20 @@ let job_build
     latest next previous
   =
   let delta = Ptime.diff finish start in
-  let analysis_section = if not @@ contains_debug_bin artifacts then [] else [
-    h3 [txt "Analysis"];
-    p [
-      let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
-      let style = "width: 50em; height: 54.0em" in (*treemap tries to be square*)
-      iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] [] ];
-    p [
+  let analysis_section = [
+    [ h3 [txt "Analysis"] ];
+    if not @@ contains_debug_bin artifacts then [] else [
+      p [
+        let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
+        let style = "width: 50em; height: 54.0em" in (*treemap tries to be square*)
+        iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] []
+      ]
+    ];
+    [ p [
       let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
       let style = "width: 50em; height: 54.0em" in 
-      iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style style ] [] ];
-  ]
+      iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style style ] [] ]];
+  ] |> List.flatten
   in
   let body =
     h1 [txtf "Job %s" name] ::
