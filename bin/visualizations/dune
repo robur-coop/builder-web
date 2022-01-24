@@ -1,0 +1,12 @@
+(executable
+ (name builder_viz) 
+ (public_name builder-viz)
+ (libraries
+  tyxml bos caqti-lwt cmdliner rresult
+  builder_db
+  modulectomy
+  opam-graph
+  )
+ (flags (:standard (-w -27-26)))
+ )
+
