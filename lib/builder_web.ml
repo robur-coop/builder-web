@@ -183,6 +183,19 @@ let add_routes datadir =
       |> Lwt_result.ok
   in
 
+  let treemap_visualization_cmd ~elf_path ~elf_size =
+    let builder_viz_cmd =
+      (*> goto make work across different cwd's*)
+      let bin = "_build/default/bin/visualizations/builder_viz.exe" in
+      bin, [| bin; "treemap"; elf_path; Int.to_string elf_size |]
+    in
+    Lwt_process.pread ~stderr:`Dev_null builder_viz_cmd
+    |> Lwt_result.catch
+    |> Lwt_result.map_err (fun exn ->
+      Printexc.to_string exn, `Internal_Server_Error
+    )
+  in
+  
   let job_build_treemap req =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in
@@ -200,54 +213,13 @@ let add_routes datadir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (debug_binary, main_binary) ->
-    let binary_size = main_binary.Builder_db.size in
+    let elf_size = main_binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
-    let path = Fpath.(datadir // debug_binary.Builder_db.localpath) in
-    let open Modulectomy in
-    Lwt.return (
-      Result.map_error (fun _ -> `File_error path)
-        (Elf.get (Fpath.to_string path)))
-    |> if_error "Error reading ELF binary"
-      ~log:(fun _ -> Log.warn (fun m ->
-          m "Error reading ELF file %a" Fpath.pp path))
-    >>= fun infos ->
-    let svg_html =
-      let info, excluded_minors =
-        let size, info =
-          infos
-          |> Info.import
-          |> Info.diff_size_tree
-        in
-        (*> Note: this heuristic fails if one has all subtrees of equal size*)
-        let node_big_enough subtree =
-          match Info.(subtree.T.value.size) with
-          | None -> true
-          | Some subtree_size ->
-            let pct = Int64.(to_float subtree_size /. to_float size) in
-            pct > 0.004
-        in
-        info
-        |> Info.prefix_filename
-        |> Info.cut 2
-        |> Info.partition_subtrees node_big_enough
-      in
-      let scale_chunks =
-        let excluded_minors_size =
-          excluded_minors
-          |> List.map Info.compute_area
-          |> List.fold_left Int64.add 0L
-        in
-        [ 
-          "Smaller excluded entries", excluded_minors_size
-        ]
-      in
-      info
-      |> Treemap.of_tree
-      |> Treemap.to_html_with_scale ~binary_size ~scale_chunks
-      |> Fmt.to_to_string (Tyxml.Html.pp ())
-      (* |> Treemap.svg
-       * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
-    in
+    let elf_path = Fpath.(
+      datadir // debug_binary.Builder_db.localpath
+      |> to_string
+    ) in
+    treemap_visualization_cmd ~elf_path ~elf_size >>= fun svg_html ->
     (* Lwt_result.ok (dream_svg svg) *)
     Lwt_result.ok (Dream.html svg_html)
   in
