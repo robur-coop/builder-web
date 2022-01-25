@@ -313,6 +313,81 @@ let verify_data_dir () datadir =
     files_untracked;
   or_die 1 r
 
+module Asn = struct
+  let decode_strict codec cs =
+    match Asn.decode codec cs with
+    | Ok (a, cs) ->
+      if Cstruct.length cs = 0
+      then Ok a
+      else Error "trailing bytes"
+    | Error (`Parse msg) -> Error ("parse error: " ^ msg)
+
+  let projections_of asn =
+    let c = Asn.codec Asn.der asn in
+    (decode_strict c, Asn.encode c)
+
+  let console =
+    Asn.S.(sequence_of
+             (sequence2
+                (required ~label:"delta" int)
+                (required ~label:"data" utf8_string)))
+
+  let console_of_cs, console_to_cs = projections_of console
+end
+
+let console_of_string data =
+  let lines = String.split_on_char '\n' data in
+  (* remove last empty line *)
+  let lines =
+    match List.rev lines with
+    | "" :: lines -> List.rev lines
+    | _ -> lines
+  in
+  List.map (fun line ->
+      match String.split_on_char ':' line with
+      | ts :: tail ->
+        let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
+        Int64.to_int (Duration.of_f delta), String.concat ":" tail
+      | _ -> assert false)
+    lines
+
+let extract_full () datadir dest uuid =
+  let dbpath = datadir ^ "/builder.sqlite3" in
+  let r =
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* uuid = Uuidm.of_string uuid |> Option.to_result ~none:(`Msg "bad uuid") in
+    let* (build_id, build) =
+      Db.find_opt Builder_db.Build.get_by_uuid uuid
+      |> Fun.flip Result.bind (Option.to_result ~none:(`Msg "build not found"))
+    in
+    let { Builder_db.Build.start; finish; result;
+          job_id; console; script; platform; _ } =
+      build
+    in
+    let* job_name = Db.find Builder_db.Job.get job_id in
+    let script_path = Fpath.(v datadir // script) in
+    let* script = Bos.OS.File.read script_path in
+    let job = { Builder.name = job_name; platform; script } in
+    let console_path = Fpath.(v datadir // console) in
+    let* console = Bos.OS.File.read console_path in
+    let out = console_of_string console in
+    let* artifacts = Db.collect_list Builder_db.Build_artifact.get_all_by_build build_id in
+    let* data =
+      List.fold_left (fun acc (_, { Builder_db.filepath; localpath; _ }) ->
+          let* acc = acc in
+          let* data = Bos.OS.File.read Fpath.(v datadir // localpath) in
+          Ok ((filepath, data) :: acc))
+        (Ok [])
+        artifacts
+    in
+    let exec = (job, uuid, out, start, finish, result, data) in
+    let cs = Builder.Asn.exec_to_cs exec in
+    Bos.OS.File.write (Fpath.v dest) (Cstruct.to_string cs)
+  in
+  or_die 1 r
+
 let help man_format cmds = function
   | None -> `Help (man_format, None)
   | Some cmd ->
@@ -384,6 +459,17 @@ let job =
                 pos 1 (some string) None &
                 info ~doc ~docv:"JOB" [])
 
+let build =
+  let doc = "build uuid" in
+  Cmdliner.Arg.(required &
+                pos 0 (some string) None &
+                info ~doc ~docv:"BUILD" [])
+
+let full_dest =
+  let doc = "path to write build file" in
+  Cmdliner.Arg.(value & opt string "full" &
+                info ~doc ["dest"])
+
 let setup_log =
   let setup_log level =
     Logs.set_level level;
@@ -437,6 +523,11 @@ let job_remove_cmd =
   (Cmdliner.Term.(pure job_remove $ setup_log $ datadir $ jobname),
    Cmdliner.Term.info ~doc "job-remove")
 
+let extract_full_cmd =
+  let doc = "extract a build from the database" in
+  (Cmdliner.Term.(pure extract_full $ setup_log $ datadir $ full_dest $ build),
+   Cmdliner.Term.info ~doc "extract-build")
+
 let verify_input_id_cmd =
   let doc = "verify that the main binary hash of all builds with the same input are equal" in
   (Cmdliner.Term.(pure verify_input_id $ setup_log $ dbpath),
@@ -468,5 +559,6 @@ let () =
     [help_cmd; migrate_cmd;
      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
      access_add_cmd; access_remove_cmd; job_remove_cmd;
-     verify_input_id_cmd; verify_data_dir_cmd ]
+     verify_input_id_cmd; verify_data_dir_cmd;
+     extract_full_cmd ]
   |> Cmdliner.Term.exit
