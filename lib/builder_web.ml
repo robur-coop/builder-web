@@ -136,7 +136,7 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.job ~failed:false job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Job.make ~failed:false job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_with_failed req =
@@ -148,7 +148,7 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.job ~failed:true job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Job.make ~failed:true job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
@@ -271,7 +271,14 @@ let add_routes datadir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    Views.job_build job_name build artifacts same_input_same_output different_input_same_output same_input_different_output latest next previous
+    Views.Job.Build.make
+      ~name:job_name
+      ~build
+      ~artifacts
+      ~same_input_same_output
+      ~different_input_same_output
+      ~same_input_different_output
+      ~latest ~next ~previous
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 

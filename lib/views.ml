@@ -306,156 +306,219 @@ let markdown_to_html data =
   let omd = safe_omd omd in
   Omd.to_html omd
 
-let job ~failed name platform readme builds =
-  layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
-    ((h1 [txtf "Job %s %a" name pp_platform platform] ::
-      (match readme with
-       | None -> []
-       | Some data ->
-         [
-           h2 ~a:[a_id "readme"] [txt "README"];
-           a ~a:[a_href "#builds"] [txt "Skip to builds"];
-           Unsafe.data (markdown_to_html data)
-         ])) @
-     [
-      h2 ~a:[a_id "builds"] [txt "Builds"];
-      a ~a:[a_href "#readme"] [txt "Back to readme"];
-      ul (List.map (fun (build, main_binary) ->
-          li ([
-              check_icon build.Builder_db.Build.result;
-              txtf " %s " build.platform;
-              a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.Builder_db.Build.uuid]
-                [
-                  txtf "%a" pp_ptime build.Builder_db.Build.start;
-                ];
-              txt " ";
-            ] @ match main_binary with
-            | Some main_binary ->
-              artifact ~basename:true name build main_binary
-            | None ->
-              [ txtf "Build failure: %a" Builder.pp_execution_result
-                  build.Builder_db.Build.result ]))
-          builds);
-      if failed then
-        p [ txt "Excluding failed builds " ; a ~a:[a_href "../"] [txt "here"] ; txt "." ]
-      else
-        p [ txt "Including failed builds " ; a ~a:[a_href "failed/"] [txt "here"] ; txt "." ]
-    ])
+module Job = struct
+  
+  let make ~failed name platform readme builds =
+    layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
+      ((h1 [txtf "Job %s %a" name pp_platform platform] ::
+        (match readme with
+          | None -> []
+          | Some data ->
+            [
+              h2 ~a:[a_id "readme"] [txt "README"];
+              a ~a:[a_href "#builds"] [txt "Skip to builds"];
+              Unsafe.data (markdown_to_html data)
+            ])) @
+       [
+         h2 ~a:[a_id "builds"] [txt "Builds"];
+         a ~a:[a_href "#readme"] [txt "Back to readme"];
+         ul (List.map (fun (build, main_binary) ->
+           li ([
+             check_icon build.Builder_db.Build.result;
+             txtf " %s " build.platform;
+             a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.Builder_db.Build.uuid]
+               [
+                 txtf "%a" pp_ptime build.Builder_db.Build.start;
+               ];
+             txt " ";
+           ] @ match main_binary with
+           | Some main_binary ->
+             artifact ~basename:true name build main_binary
+           | None ->
+             [ txtf "Build failure: %a" Builder.pp_execution_result
+                 build.Builder_db.Build.result ]))
+           builds);
+         if failed then
+           p [ txt "Excluding failed builds " ; a ~a:[a_href "../"] [txt "here"] ; txt "." ]
+         else
+           p [ txt "Including failed builds " ; a ~a:[a_href "failed/"] [txt "here"] ; txt "." ]
+       ])
 
-let contains_debug_bin artifacts =
-  let check f =
-    Fpath.has_ext "debug" f.Builder_db.filepath 
-  in
-  List.find_opt check artifacts |> CCOption.is_some
+  let contains_debug_bin artifacts =
+    let check f =
+      Fpath.has_ext "debug" f.Builder_db.filepath 
+    in
+    List.find_opt check artifacts |> CCOption.is_some
 
-let job_build
-    name
-    ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build)
-    artifacts
-    same_input_same_output different_input_same_output same_input_different_output
-    latest next previous
-  =
-  let delta = Ptime.diff finish start in
-  let analysis_section = [
-    [ h3 [txt "Analysis"] ];
-    if not @@ contains_debug_bin artifacts then [] else [
-      p [
-        let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
-        let style = "width: 50em; height: 54.0em" in (*treemap tries to be square*)
-        iframe ~a:[ a_src src; a_title "Binary dissection"; a_style style ] []
-      ]
-    ];
-    [ p [
-      let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-      let style = "width: 50em; height: 50.5em" in 
-      iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style style ] [] ]];
-  ] |> List.flatten
-  in
-  let body =
-    h1 [txtf "Job %s" name] ::
-    [
-      h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime start];
-      p [txtf "Built on platform %s" platform ];
-      p [txtf "Build took %a." Ptime.Span.pp delta ];
-      p [txtf "Execution result: %a." Builder.pp_execution_result result];
-    ] @ analysis_section @ [
-      h3 [txt "Build info"];
-      ul [
-        li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp uuid]
-          [txt "Console output"];
+  module Build = struct 
+
+    let make_build_info
+        ~name
+        ~delta 
+        ~(build:Builder_db.Build.t) (* ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build) *)
+        ~artifacts
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest ~next ~previous
+      =
+      [
+        h2 ~a:[a_id "build"] [txtf "Build %a" pp_ptime build.start];
+        p [txtf "Built on platform %s" build.platform ];
+        p [txtf "Build took %a." Ptime.Span.pp delta ];
+        p [txtf "Execution result: %a." Builder.pp_execution_result build.result];
+        h3 [txt "Build info"];
+        ul [
+          li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid]
+            [txt "Console output"];
+          ];
+          li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid]
+            [txt "Build script"];
+          ]
         ];
-        li [ a ~a:[Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp uuid]
-          [txt "Build script"];
-        ]
-      ];
-      h3 [txt "Build artifacts"];
-      dl (List.concat_map
-          (fun { Builder_db.filepath; localpath=_; sha256; size } ->
-              let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
-              [
-                dt [a
-                    ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
-                    [code [txtf "%a" Fpath.pp filepath]]];
-                dd [
-                  code [txt "SHA256:"; txt sha256_hex];
-                  txtf " (%a)" Fmt.byte_size size;
-                ];
-              ])
-          artifacts);
-      h3 [ txtf "Reproduced by %d builds" (List.length (same_input_same_output @ different_input_same_output))] ;
-      ul
-        ((List.map (fun { Builder_db.Build.start ; uuid ; platform ; _ } ->
-            li [
-              txtf "on %s, same input, " platform;
-              a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp uuid]
-                [txtf "%a" pp_ptime start]
-            ])
-            same_input_same_output) @
-         List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
-           li [
-             txtf "on %s, different input, " platform;
-             a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
-                 Uuidm.pp other_uuid Uuidm.pp uuid]
-               [txtf "%a" pp_ptime start]
-           ])
-           different_input_same_output)
-    ] @
-    (if same_input_different_output = [] then
-        []
-      else
-        [ h3 [txt "Same input, different output (not reproducible!)"];
-          ul (
-            List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+        h3 [txt "Build artifacts"];
+        dl (List.concat_map
+            (fun { Builder_db.filepath; localpath=_; sha256; size } ->
+                let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
+                [
+                  dt [a
+                      ~a:[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
+                      [code [txtf "%a" Fpath.pp filepath]]];
+                  dd [
+                    code [txt "SHA256:"; txt sha256_hex];
+                    txtf " (%a)" Fmt.byte_size size;
+                  ];
+                ])
+            artifacts);
+        h3 [ txtf "Reproduced by %d builds" (List.length (same_input_same_output @ different_input_same_output))] ;
+        ul
+          ((List.map (fun { Builder_db.Build.start ; uuid ; platform ; _ } ->
               li [
-                txtf "on %s, " platform ;
-                a ~a:[Fmt.kstr a_href "/compare/%a/%a/" Uuidm.pp other_uuid Uuidm.pp uuid]
+                txtf "on %s, same input, " platform;
+                a ~a:[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp uuid]
                   [txtf "%a" pp_ptime start]
               ])
-              same_input_different_output)
-        ]) @
-    [ h3 [txt "Comparisons with other builds on the same platform"];
-      let opt_build (ctx, build) =
-        match build with
-        | Some b when not (Uuidm.equal uuid b.Builder_db.Build.uuid) ->
-          [ li [ txt ctx;
-              a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
-                  Uuidm.pp b.uuid Uuidm.pp uuid]
-                [txtf "%a" pp_ptime b.start]]
+              same_input_same_output) @
+           List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+             li [
+               txtf "on %s, different input, " platform;
+               a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                   Uuidm.pp other_uuid Uuidm.pp build.uuid]
+                 [txtf "%a" pp_ptime start]
+             ])
+             different_input_same_output)
+      ]
+      @ (if same_input_different_output = [] then
+          []
+        else
+          [ h3 [txt "Same input, different output (not reproducible!)"];
+            ul (
+              List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+                li [
+                  txtf "on %s, " platform ;
+                  a ~a:[Fmt.kstr a_href "/compare/%a/%a/" Uuidm.pp other_uuid Uuidm.pp build.uuid]
+                    [txtf "%a" pp_ptime start]
+                ])
+                same_input_different_output)
           ]
-        | _ -> []
-      in
-      ul
-        (List.concat_map opt_build
-            [ ("Latest build ", latest) ;
-              ("Later build with different output ", next) ;
-              ("Earlier build with different output ", previous) ])
-    ]
-  in
-  layout
-    ~nav:(`Build (name, build))
-    ~title:(Fmt.str "Job %s %a" name pp_ptime start)
-    body
+      )
+      @ [
+        h3 [txt "Comparisons with other builds on the same platform"];
+        let opt_build (ctx, build') =
+          match build' with
+          | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
+            [ li [ txt ctx;
+                a ~a:[Fmt.kstr a_href "/compare/%a/%a/"
+                    Uuidm.pp b.uuid Uuidm.pp build.uuid]
+                  [txtf "%a" pp_ptime b.start]]
+            ]
+          | _ -> []
+        in
+        ul
+          (List.concat_map opt_build
+              [ ("Latest build ", latest) ;
+                ("Later build with different output ", next) ;
+                ("Earlier build with different output ", previous) ])
+      ]
 
+    let viz_style = "
+      width: 46em;
+      height: 50em;
+      max-width: 100%;
+      max-height: 52vw;
+      min-width: 38em;
+      min-height: 41em;
+    "
+    
+    let make_viz_section ~name ~artifacts ~uuid =
+      [
+        (* [ h3 [txt "Analysis"] ]; *)
+        if not @@ contains_debug_bin artifacts then [] else [
+          p [
+            let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
+            iframe ~a:[ a_src src; a_title "Binary dissection"; a_style viz_style ] []
+          ]
+        ];
+        [ p [
+            let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+            iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style viz_style ] [] ]];
+      ] |> List.flatten
+
+    let make
+        ~name
+        ~(build:Builder_db.Build.t)
+        ~artifacts
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest ~next ~previous
+      =
+      let delta = Ptime.diff build.finish build.start in
+      let right_column = make_viz_section ~name ~artifacts ~uuid:build.uuid in
+      let left_column =
+        make_build_info
+          ~name
+          ~delta 
+          ~build
+          ~artifacts
+          ~same_input_same_output
+          ~different_input_same_output
+          ~same_input_different_output
+          ~latest ~next ~previous
+      in
+      let style_grid = a_style "display: flex; " in
+      let style_grid_container = a_style "\
+        display: flex; 
+        align-items: center;
+        justify-content: center;
+        min-width: 83em;
+      "
+      in
+      let style_col_container = a_style "" in
+      let style_col_left = a_style "width: 45em; min-width: 43em; padding-left: 2%" in
+      let style_col_right = a_style "width: 50%" in
+      let body = [
+        div ~a:[ style_grid_container ] [
+          div ~a:[ style_col_container ] [
+            h1 [txtf "Job %s" name];
+            div ~a:[ style_grid ] [
+              (* div ~a:[ style_col_padding ] []; *)
+              div ~a:[ style_col_left ]  left_column;
+              div ~a:[ style_col_right ] right_column
+            ]
+          ]
+        ]
+      ]
+      in
+      layout
+        ~nav:(`Build (name, build))
+        ~title:(Fmt.str "Job %s %a" name pp_ptime build.start)
+        body
+
+  end
+
+end
+    
 let key_values xs =
   List.concat_map (fun (k, v) -> [ txtf "%s %s" k v ; br () ]) xs
 
