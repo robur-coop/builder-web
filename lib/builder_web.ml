@@ -195,8 +195,8 @@ let add_routes datadir =
     )
   in
 
-  let treemap_visualization_cmd ~elf_path ~elf_size =
-    [ "treemap"; elf_path; Int.to_string elf_size ]
+  let treemap_visualization_cmd ~debug_elf_path ~elf_size =
+    [ "treemap"; debug_elf_path; Int.to_string elf_size ]
     |> visualization_cmd
   in
 
@@ -224,11 +224,11 @@ let add_routes datadir =
     >>= fun (debug_binary, main_binary) ->
     let elf_size = main_binary.Builder_db.size in
     let datadir = Dream.global datadir_global req in
-    let elf_path = Fpath.(
+    let debug_elf_path = Fpath.(
       datadir // debug_binary.Builder_db.localpath
       |> to_string
     ) in
-    treemap_visualization_cmd ~elf_path ~elf_size >>= fun svg_html ->
+    treemap_visualization_cmd ~debug_elf_path ~elf_size >>= fun svg_html ->
     (* Lwt_result.ok (dream_svg svg) *)
     Lwt_result.ok (Dream.html svg_html)
   in
