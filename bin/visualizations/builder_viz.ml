@@ -55,9 +55,21 @@ let print_treemap_html elf_path elf_size =
       "Smaller excluded entries", excluded_minors_size
     ]
   in
+  let override_css = {|
+    .module {
+      fill: rgb(60, 60, 87);
+    }
+    .functor > text, .module > text {
+      fill: bisque;
+    }
+  |}
+  in
   info
   |> Treemap.of_tree
-  |> Treemap.to_html_with_scale ~binary_size:elf_size ~scale_chunks
+  |> Treemap.to_html_with_scale
+    ~binary_size:elf_size
+    ~scale_chunks
+    ~override_css
   |> Tyxml.Html.pp () Format.std_formatter
 (* |> Treemap.svg
  * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
@@ -68,7 +80,13 @@ let print_dependencies_html file =
   let data = OpamFile.SwitchExport.read_from_string switch in
   let transitive = false in
   let graph = Ui.dependencies ~transitive data in
-  let html = Render.Html.of_assoc graph in
+  let override_css = {|
+    svg {
+      background: rgb(60, 60, 87);
+    }
+  |}
+  in
+  let html = Render.Html.of_assoc ~override_css graph in
   Format.printf "%a" Render.Html.pp html
 
 module Cmd = struct 
