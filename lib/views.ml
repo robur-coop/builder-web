@@ -441,7 +441,16 @@ module Job = struct
                 ("Earlier build with different output ", previous) ])
       ]
 
-    let viz_style = "
+    let viz_style_deps = "
+      width: 46em;
+      height: 45.4em;
+      max-width: 100%;
+      max-height: 47vw;
+      min-width: 38em;
+      min-height: 39em;
+    "
+
+    let viz_style_treemap = "
       width: 46em;
       height: 48.4em;
       max-width: 100%;
@@ -453,15 +462,23 @@ module Job = struct
     let make_viz_section ~name ~artifacts ~uuid =
       [
         (* [ h3 [txt "Analysis"] ]; *)
+        [ p [
+            let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+            iframe ~a:[
+              a_src src;
+              a_title "Opam dependencies";
+              a_style viz_style_deps
+            ] []
+          ]];
         if not @@ contains_debug_bin artifacts then [] else [
           p [
             let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
-            iframe ~a:[ a_src src; a_title "Binary dissection"; a_style viz_style ] []
-          ]
-        ];
-        [ p [
-            let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-            iframe ~a:[ a_src src; a_title "Opam dependencies"; a_style viz_style ] [] ]];
+            iframe ~a:[
+              a_src src;
+              a_title "Binary dissection";
+              a_style viz_style_treemap
+            ] []
+          ]];
       ] |> List.flatten
 
     let make
