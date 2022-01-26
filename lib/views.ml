@@ -443,7 +443,7 @@ module Job = struct
 
     let viz_style = "
       width: 46em;
-      height: 50em;
+      height: 48.4em;
       max-width: 100%;
       max-height: 52vw;
       min-width: 38em;
