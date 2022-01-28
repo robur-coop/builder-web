@@ -344,7 +344,7 @@ module Job = struct
     let check f =
       Fpath.has_ext "debug" f.Builder_db.filepath 
     in
-    List.find_opt check artifacts |> CCOption.is_some
+    List.exists check artifacts
 
   module Build = struct 
 
