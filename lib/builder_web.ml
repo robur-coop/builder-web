@@ -211,8 +211,6 @@ let add_routes datadir =
     get_uuid build >>= fun uuid ->
     (
       Dream.sql req (Model.build uuid) >>= fun (id, build) ->
-      (* filepath = bin/caldav.hvt
-         localpath = caldav-monitoring/<uuid>/output/bin/caldav.hvt in datadir *)
       Model.not_found build.Builder_db.Build.main_binary >>= fun main_binary_id ->
       Dream.sql req (Model.build_artifact_by_id main_binary_id) >>= fun main_binary ->
       let debug_binary_path = Fpath.(base main_binary.Builder_db.filepath + "debug") in
@@ -237,10 +235,8 @@ let add_routes datadir =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
-    (
-      let opam_switch_path = Fpath.(v "opam-switch") in
-      Dream.sql req (Model.build_artifact uuid opam_switch_path)
-    )
+    let opam_switch_path = Fpath.(v "opam-switch") in
+    Dream.sql req (Model.build_artifact uuid opam_switch_path)
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job data: %a" pp_error e))
     >>= fun opam_switch ->

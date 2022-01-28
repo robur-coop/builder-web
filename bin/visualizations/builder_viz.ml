@@ -3,9 +3,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 
 open Rresult
 
-(* open Lwt.Syntax
- * open Lwt_result.Infix *)
-
 let read_file file =
   try
     let fh = open_in file in
