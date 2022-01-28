@@ -78,10 +78,6 @@ h1,h2,h3{line-height:1.2}
 }
 |}
 
-let list_of_option = function
-  | Some v -> [ v ]
-  | None -> [] 
-
 let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
   let breadcrumb =
     let to_nav kvs =
@@ -112,7 +108,7 @@ let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
       ]
   in
   (*> Note: Last declared CSS wins - so one can override here*)
-  let static_css = static_css :: list_of_option include_static_css 
+  let static_css = static_css :: Option.to_list include_static_css 
   in
   html
     (head (title (txt title_))
