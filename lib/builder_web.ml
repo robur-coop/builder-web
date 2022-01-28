@@ -210,7 +210,7 @@ let add_routes datadir =
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
     (
-      Dream.sql req (Model.build uuid) >>= fun (id, build) ->
+      Dream.sql req (Model.build uuid) >>= fun (_id, build) ->
       Model.not_found build.Builder_db.Build.main_binary >>= fun main_binary_id ->
       Dream.sql req (Model.build_artifact_by_id main_binary_id) >>= fun main_binary ->
       let debug_binary_path = Fpath.(base main_binary.Builder_db.filepath + "debug") in

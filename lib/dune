@@ -7,6 +7,6 @@
   modulectomy
   opam-graph
   )
- (flags (:standard (-w -27-26)))
+ (flags (:standard))
  )
 
