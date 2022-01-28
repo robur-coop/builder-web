@@ -188,7 +188,9 @@ let add_routes datadir =
     let bin = "_build/default/bin/visualizations/builder_viz.exe" in
     let cmd = bin, Array.of_list (bin :: args)
     in
-    Lwt_process.pread ~stderr:`Dev_null cmd
+    Lwt_process.pread cmd
+      ~stderr:`Dev_null
+      ~timeout:15.
     |> Lwt_result.catch
     |> Lwt_result.map_err (fun exn ->
       Printexc.to_string exn, `Internal_Server_Error
