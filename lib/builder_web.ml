@@ -184,9 +184,7 @@ let add_routes datadir =
   in
 
   let visualization_cmd args =
-    (*> goto make work across different cwd's*)
-    let bin = "_build/default/bin/visualizations/builder_viz.exe" in
-    let cmd = bin, Array.of_list (bin :: args)
+    let cmd = "", Array.of_list ("builder-viz" :: args)
     in
     Lwt_process.pread cmd
       ~stderr:`Dev_null
