@@ -17,7 +17,7 @@ let read_file file =
 
 let print_treemap_html elf_path elf_size =
   let open Modulectomy in
-  let infos = 
+  let infos =
     elf_path
     |> Elf.get
     |> Result.map_error (fun _ -> R.msg "Invalid ELF file")
@@ -48,7 +48,7 @@ let print_treemap_html elf_path elf_size =
       |> List.map Info.compute_area
       |> List.fold_left Int64.add 0L
     in
-    [ 
+    [
       "Smaller excluded entries", excluded_minors_size
     ]
   in
@@ -86,10 +86,10 @@ let print_dependencies_html file =
   let html = Render.Html.of_assoc ~override_css graph in
   Format.printf "%a" Render.Html.pp html
 
-module Cmd = struct 
+module Cmd = struct
 
   module Arg = struct
-  
+
     let elf_path =
       let doc = "The file-path of the debug-ELF to be analyzed" in
       Cmdliner.Arg.(
@@ -126,7 +126,7 @@ module Cmd = struct
         else `Error (true, "Unknown command: " ^ cmd)
 
   end
-  
+
   let treemap =
     let doc = "Dump treemap SVG and CSS wrapped in HTML" in
     Cmdliner.Term.(pure print_treemap_html $ Arg.elf_path $ Arg.elf_size),

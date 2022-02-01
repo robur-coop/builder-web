@@ -108,7 +108,7 @@ let layout ?include_static_css ?nav:(nav_=`Default) ~title:title_ body_ =
       ]
   in
   (*> Note: Last declared CSS wins - so one can override here*)
-  let static_css = static_css :: Option.to_list include_static_css 
+  let static_css = static_css :: Option.to_list include_static_css
   in
   html
     (head (title (txt title_))
@@ -303,7 +303,7 @@ let markdown_to_html data =
   Omd.to_html omd
 
 module Job = struct
-  
+
   let make ~failed name platform readme builds =
     layout ~nav:(`Job (name, platform)) ~title:(Fmt.str "Job %s %a" name pp_platform platform)
       ((h1 [txtf "Job %s %a" name pp_platform platform] ::
@@ -342,15 +342,15 @@ module Job = struct
 
   let contains_debug_bin artifacts =
     let check f =
-      Fpath.has_ext "debug" f.Builder_db.filepath 
+      Fpath.has_ext "debug" f.Builder_db.filepath
     in
     List.exists check artifacts
 
-  module Build = struct 
+  module Build = struct
 
     let make_build_info
         ~name
-        ~delta 
+        ~delta
         ~(build:Builder_db.Build.t) (* ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build) *)
         ~artifacts
         ~same_input_same_output
@@ -454,7 +454,7 @@ module Job = struct
       min-width: 38em;
       min-height: 41em;
     "
-    
+
     let make_viz_section ~name ~artifacts ~uuid =
       [
         (* [ h3 [txt "Analysis"] ]; *)
@@ -491,7 +491,7 @@ module Job = struct
       let left_column =
         make_build_info
           ~name
-          ~delta 
+          ~delta
           ~build
           ~artifacts
           ~same_input_same_output
@@ -501,7 +501,7 @@ module Job = struct
       in
       let style_grid = a_style "display: flex; " in
       let style_grid_container = a_style "\
-        display: flex; 
+        display: flex;
         align-items: center;
         justify-content: center;
         min-width: 83em;
@@ -531,7 +531,7 @@ module Job = struct
   end
 
 end
-    
+
 let key_values xs =
   List.concat_map (fun (k, v) -> [ txtf "%s %s" k v ; br () ]) xs
 
@@ -703,4 +703,4 @@ let failed_builds ~start ~count builds =
            txt ".";
        ]
     ])
-       
+

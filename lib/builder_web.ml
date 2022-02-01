@@ -204,7 +204,7 @@ let add_routes datadir =
     [ "dependencies"; opam_switch_path ]
     |> visualization_cmd
   in
-  
+
   let job_build_viztreemap req =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req in

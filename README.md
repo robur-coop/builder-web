@@ -10,9 +10,9 @@ Builder-web is a single binary web server using a sqlite3 database with versione
 Finished builds from [builder](https://github.com/roburio/builder/) are uploaded to builder-web, stored and indexed in the database and presented in the web interface to the user.
 Users can:
 
-* Get an overview of *jobs* - a job is typically script or opam package that is run and builds an artifact, 
+* Get an overview of *jobs* - a job is typically script or opam package that is run and builds an artifact,
 * Browse all *builds* of a job - each job may have multiple builds, that are executed periodically by builder
-* Browse individual *build* and download artifacts and build information for reproducing the same binary. 
+* Browse individual *build* and download artifacts and build information for reproducing the same binary.
 * Compare two builds, observing the differences in used opam packages, environment variables, and system packages.
 * Search for the SHA-256 hash of a binary to view a build that resulted in that binary.
 
@@ -53,7 +53,7 @@ On the source server:
 builder-db extract-build <build-hash> --dest <build-hash>.full
 ```
 
-After copying the file over the destination server (you need a user first, 
+After copying the file over the destination server (you need a user first,
 see `builder-db user-add --help`):
 ```ocaml
 curl --data-binary @<build-hash>.full http://<user>:<passwd>@localhost:<builder-web-port>/upload

@@ -97,7 +97,7 @@ let infer_section_and_synopsis artifacts =
       | None -> infer_section_from_packages opam_switch
     in
     Some section, infer_synopsis_and_descr opam_switch
- 
+
 let remove_tag =
   Caqti_request.exec
     Caqti_type.unit

@@ -1,5 +1,5 @@
 (executable
- (name builder_viz) 
+ (name builder_viz)
  (public_name builder-viz)
  (libraries
   tyxml bos caqti-lwt cmdliner rresult

@@ -30,7 +30,7 @@ let new_build =
          )
       |}
 
-let old_build = 
+let old_build =
     Caqti_request.exec
       Caqti_type.unit
       {| CREATE TABLE new_build (
@@ -102,7 +102,7 @@ let collect_new_build =
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_kind, result_code, result_msg,
               console, script, main_binary, job
        FROM build |}
-  
+
 let insert_old_build =
   Caqti_request.exec ~oneshot:true
     Caqti_type.(tup3 Builder_db.Rep.untyped_id
@@ -124,14 +124,14 @@ let migrate _ (module Db : Caqti_blocking.CONNECTION) =
          | Some path -> Db.find find_main_artifact_id (id, path) >>| fun id -> Some id)
        >>= fun main_binary_id ->
        Db.exec insert_new_build
-         (id, ((uuid, start_d, start_ps, finish_d), (finish_ps, result_kind, result_code, result_msg), (console, script, main_binary_id)), job)) 
+         (id, ((uuid, start_d, start_ps, finish_d), (finish_ps, result_kind, result_code, result_msg), (console, script, main_binary_id)), job))
     builds >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
   Db.exec idx_build_job_start () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
- 
+
 let rollback _ (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
@@ -144,7 +144,7 @@ let rollback _ (module Db : Caqti_blocking.CONNECTION) =
          | Some main_binary_id -> Db.find find_main_artifact_filepath main_binary_id >>| fun filepath -> Some filepath)
        >>= fun filepath ->
        Db.exec insert_old_build
-         (id, ((uuid, start_d, start_ps, finish_d), (finish_ps, result_kind, result_code, result_msg), (console, script, filepath)), job)) 
+         (id, ((uuid, start_d, start_ps, finish_d), (finish_ps, result_kind, result_code, result_msg), (console, script, filepath)), job))
     builds >>= fun () ->
   Db.exec drop_build () >>= fun () ->
   Db.exec rename_build () >>= fun () ->
