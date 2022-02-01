@@ -3,10 +3,9 @@
  (libraries
   builder builder_db
   dream tyxml bos duration hex caqti-lwt
-  opamdiff ptime.clock.os omd
+  opamdiff ptime.clock.os omd tar
   modulectomy
   opam-graph
   )
  (flags (:standard))
  )
-

@@ -49,6 +49,7 @@ depends: [
   "omd"
   "modulectomy"
   "opam-graph"
+  "tar"
 ]
 
 synopsis: "Web interface for builder"
