@@ -55,3 +55,8 @@ Builder-web takes in submissions of builds, typically from [builder](https://git
 Produced binaries can be downloaded and executed.
 [builds.robur.coop](https://builds.robur.coop/) itself runs builder-web.
 """
+
+pin-depends: [
+  ["modulectomy.dev" "git+https://github.com/roburio/modulectomy.git#20211213_implementing_UI_scale_in_modulectomy.treemap"]
+  ["opam-graph.dev" "git+https://git.robur.io/robur/opam-graph.git"]
+]
