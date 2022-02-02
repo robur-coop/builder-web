@@ -100,7 +100,7 @@ let dream_svg ?status ?code ?headers body =
 let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
-  let builder req =
+  let builds req =
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
@@ -126,7 +126,7 @@ let add_routes datadir =
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.builder jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Builds.make jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -279,7 +279,7 @@ let add_routes datadir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    Views.Job.Build.make
+    Views.Job_build.make
       ~name:job_name
       ~build
       ~artifacts
@@ -493,7 +493,7 @@ let add_routes datadir =
   let w f req = or_error_response (f req) in
 
   Dream.router [
-    Dream.get "/" (w builder);
+    Dream.get "/" (w builds);
     Dream.get "/job/:job/" (w job);
     Dream.get "/job/:job/failed/" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
