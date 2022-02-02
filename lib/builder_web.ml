@@ -4,6 +4,8 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Syntax
 open Lwt_result.Infix
 
+let sprintf = Printf.sprintf
+
 let pp_error ppf = function
   | #Caqti_error.connect as e -> Caqti_error.pp ppf e
   | #Model.error as e -> Model.pp_error ppf e
@@ -184,15 +186,22 @@ let add_routes datadir =
   in
 
   let visualization_cmd args =
-    let cmd = "", Array.of_list ("builder-viz" :: args)
+    let cmd_list = "builder-viz" :: args in
+    let cmd = "", Array.of_list cmd_list in
+    let pin =
+      Lwt_process.open_process_in
+        ~stdin:`Dev_null ~stderr:`Dev_null
+        ~timeout:15.
+        cmd
     in
-    Lwt_process.pread cmd
-      ~stderr:`Dev_null
-      ~timeout:15.
-    |> Lwt_result.catch
-    |> Lwt_result.map_err (fun exn ->
-      Printexc.to_string exn, `Internal_Server_Error
-    )
+    let* output = Lwt_io.read pin#stdout
+    and* exit_status = pin#status in
+    match exit_status with
+    | Unix.WEXITED 0 -> Lwt_result.return output
+    | Unix.WEXITED _ | Unix.WSIGNALED _ |Unix.WSTOPPED _ ->
+      let cmd_str = String.concat " " cmd_list in
+      `Msg (sprintf "Error when running cmd: '%s'" cmd_str)
+      |> Lwt_result.fail
   in
 
   let treemap_visualization_cmd ~debug_elf_path ~elf_size =
@@ -226,8 +235,9 @@ let add_routes datadir =
       datadir // debug_binary.Builder_db.localpath
       |> to_string
     ) in
-    treemap_visualization_cmd ~debug_elf_path ~elf_size >>= fun svg_html ->
-    (* Lwt_result.ok (dream_svg svg) *)
+    treemap_visualization_cmd ~debug_elf_path ~elf_size
+    |> if_error "Failed to generate treemap visualization"
+    >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
 
@@ -245,7 +255,9 @@ let add_routes datadir =
       datadir // opam_switch.Builder_db.localpath
       |> to_string
     ) in
-    dependencies_visualization_cmd ~opam_switch_path >>= fun svg_html ->
+    dependencies_visualization_cmd ~opam_switch_path
+    |> if_error "Failed to generate dependencies visualization"
+    >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
 
