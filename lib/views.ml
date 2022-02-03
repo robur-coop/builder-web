@@ -299,61 +299,71 @@ end
 
 module Job = struct
 
+  let make_header ~job_name ~platform ~readme =
+    H.h1 [txtf "Job %s %a" job_name pp_platform platform] 
+    :: (
+      match readme with
+      | None -> []
+      | Some data ->
+        [
+          H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
+          H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
+          H.Unsafe.data (Utils.Omd.html_of_string data)
+        ]
+    )
+
+  let make_build ~job_name (build, main_binary) =
+    H.li (
+      [
+        check_icon build.Builder_db.Build.result;
+        txtf " %s " build.platform;
+        H.a ~a:H.[
+          Fmt.kstr a_href "/job/%s/build/%a/"
+            job_name
+            Uuidm.pp build.Builder_db.Build.uuid ]
+          [
+            txtf "%a" pp_ptime build.Builder_db.Build.start;
+          ];
+        H.txt " ";
+      ]
+      @ match main_binary with
+      | Some main_binary ->
+        artifact
+          ~basename:true
+          ~job_name
+          ~build
+          ~file:main_binary
+      | None ->
+        [ txtf "Build failure: %a" Builder.pp_execution_result
+            build.Builder_db.Build.result ]
+    )
+  
+  let make_builds ~failed ~job_name builds =
+    [
+      H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
+      H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
+      H.ul (builds |> List.map (make_build ~job_name));
+      if failed then
+        H.p [
+          H.txt "Excluding failed builds " ;
+          H.a ~a:H.[a_href "../"] [H.txt "here"] ;
+          H.txt "." ]
+      else
+        H.p [
+          H.txt "Including failed builds " ;
+          H.a ~a:H.[a_href "failed/"] [H.txt "here"] ;
+          H.txt "." ]
+    ]
+
+  let make_body ~failed ~job_name ~platform ~readme builds =
+    make_header ~job_name ~platform ~readme
+    @ make_builds ~failed ~job_name builds
+
   let make ~failed ~job_name ~platform ~readme builds =
-    layout
-      ~nav:(`Job (job_name, platform))
-      ~title:(Fmt.str "Job %s %a" job_name pp_platform platform)
-      (
-        (H.h1 [txtf "Job %s %a" job_name pp_platform platform] ::
-         (match readme with
-          | None -> []
-          | Some data ->
-            [
-              H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
-              H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
-              H.Unsafe.data (Utils.Omd.html_of_string data)
-            ])
-        )
-        @ [
-          H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
-          H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
-          H.ul (
-            builds |> List.map (fun (build, main_binary) ->
-              H.li (
-                [
-                  check_icon build.Builder_db.Build.result;
-                  txtf " %s " build.platform;
-                  H.a ~a:H.[
-                    Fmt.kstr a_href "/job/%s/build/%a/"
-                      job_name
-                      Uuidm.pp build.Builder_db.Build.uuid ]
-                    [
-                      txtf "%a" pp_ptime build.Builder_db.Build.start;
-                    ];
-                  H.txt " ";
-                ]
-                @ match main_binary with
-                | Some main_binary ->
-                  artifact
-                    ~basename:true
-                    ~job_name
-                    ~build
-                    ~file:main_binary
-                | None ->
-                  [ txtf "Build failure: %a" Builder.pp_execution_result
-                      build.Builder_db.Build.result ]))
-          );
-          if failed then
-            H.p [
-              H.txt "Excluding failed builds " ;
-              H.a ~a:H.[a_href "../"] [H.txt "here"] ;
-              H.txt "." ]
-          else
-            H.p [
-              H.txt "Including failed builds " ;
-              H.a ~a:H.[a_href "failed/"] [H.txt "here"] ;
-              H.txt "." ]
-        ])
+    let nav = `Job (job_name, platform) in
+    let title = Fmt.str "Job %s %a" job_name pp_platform platform in
+    layout ~nav ~title @@ make_body ~failed ~job_name ~platform ~readme builds
+      
 
 end
 
