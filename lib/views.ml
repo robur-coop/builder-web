@@ -187,89 +187,99 @@ let artifact
 
 module Builds = struct 
 
-  let make section_job_map =
-    layout ~title:"Reproducible OPAM builds"
-      ([
-        H.h1 [ H.txt "Reproducible OPAM builds" ];
-        H.p [ H.txt "This website offers binary MirageOS unikernels and \
-                 supplementary OS packages." ];
-        H.p [
-          H.txt "Following is a list of jobs that are built daily. A \
-                 persistent link to the latest successful build is available \
-                 as /job/*jobname*/build/latest/. All builds can be \
-                 reproduced with ";
-          H.a ~a:H.[a_href "https://github.com/roburio/orb/"]
-            [H.txt "orb"];
-          H.txt ". The builds are scheduled and executed by ";
-          H.a ~a:H.[a_href "https://github.com/roburio/builder/"]
-            [H.txt "builder"];
-          H.txt ". The web interface is ";
-          H.a ~a:H.[a_href "https://git.robur.io/robur/builder-web/"]
-            [H.txt "builder-web"];
-          H.txt ". Contact team@robur.coop if you have any questions or \
+  let make_header =
+    [
+      H.h1 [ H.txt "Reproducible OPAM builds" ];
+      H.p [ H.txt "This website offers binary MirageOS unikernels and \
+                   supplementary OS packages." ];
+      H.p [
+        H.txt "Following is a list of jobs that are built daily. A \
+               persistent link to the latest successful build is available \
+               as /job/*jobname*/build/latest/. All builds can be \
+               reproduced with ";
+        H.a ~a:H.[a_href "https://github.com/roburio/orb/"]
+          [H.txt "orb"];
+        H.txt ". The builds are scheduled and executed by ";
+        H.a ~a:H.[a_href "https://github.com/roburio/builder/"]
+          [H.txt "builder"];
+        H.txt ". The web interface is ";
+        H.a ~a:H.[a_href "https://git.robur.io/robur/builder-web/"]
+          [H.txt "builder-web"];
+        H.txt ". Contact team@robur.coop if you have any questions or \
                suggestions.";
-        ];
-        H.form ~a:H.[a_action "/hash"; a_method `Get]
-          [
-            H.label [
-              H.txt "Search artifact by SHA256";
-              H.br ();
-              H.input ~a:H.[
-                a_input_type `Search;
-                a_id "sha256";
-                a_name "sha256";
-              ] ();
-            ];
+      ];
+      H.form ~a:H.[a_action "/hash"; a_method `Get]
+        [
+          H.label [
+            H.txt "Search artifact by SHA256";
+            H.br ();
             H.input ~a:H.[
-              a_input_type `Submit;
-              a_value "Search";
+              a_input_type `Search;
+              a_id "sha256";
+              a_name "sha256";
             ] ();
           ];
-      ] @
-       Utils.String_map.fold (fun section jobs acc ->
-         acc @ [
-           H.h2 [ H.txt section ];
-           H.ul (List.map (fun (job_name, synopsis, platform_builds) ->
-             H.li ([
-               H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
-                 [H.txt job_name];
-               H.br ();
-               H.txt (Option.value ~default:"" synopsis);
-               H.br ()
-             ] @ List.concat_map (fun (platform, latest_build, latest_artifact) ->
-               [
-                 check_icon latest_build.Builder_db.Build.result;
-                 H.txt " ";
-                 H.a ~a:[
-                   Fmt.kstr H.a_href "job/%s/%a"
-                     job_name
-                     pp_platform_query (Some platform)]
-                   [H.txt platform];
-                 H.txt " ";
-                 H.a ~a:[
-                   Fmt.kstr H.a_href "job/%s/build/%a/"
-                     job_name
-                     Uuidm.pp latest_build.Builder_db.Build.uuid]
-                   [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
-                 H.txt " ";
-               ] @ (match latest_artifact with
-                 | Some main_binary ->
-                   artifact
-                     ~basename:true
-                     ~job_name
-                     ~build:latest_build
-                     ~file:main_binary
-                 | None ->
-                   [ txtf "Build failure: %a" Builder.pp_execution_result
-                       latest_build.Builder_db.Build.result ]
-               ) @ [ H.br () ]
-             )
-               platform_builds)
-           )
-             jobs)
-         ])
-         section_job_map
-         [] @
+          H.input ~a:H.[
+            a_input_type `Submit;
+            a_value "Search";
+          ] ();
+        ];
+    ]
+
+  let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
+    [
+      check_icon latest_build.Builder_db.Build.result;
+      H.txt " ";
+      H.a ~a:[
+        Fmt.kstr H.a_href "job/%s/%a"
+          job_name
+          pp_platform_query (Some platform)]
+        [H.txt platform];
+      H.txt " ";
+      H.a ~a:[
+        Fmt.kstr H.a_href "job/%s/build/%a/"
+          job_name
+          Uuidm.pp latest_build.Builder_db.Build.uuid]
+        [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
+      H.txt " ";
+    ] @ (match latest_artifact with
+      | Some main_binary ->
+        artifact
+          ~basename:true
+          ~job_name
+          ~build:latest_build
+          ~file:main_binary
+      | None ->
+        [ txtf "Build failure: %a" Builder.pp_execution_result
+            latest_build.Builder_db.Build.result ]
+    ) @ [ H.br () ]
+
+  let make_jobs jobs =
+    jobs |> List.map (fun (job_name, synopsis, platform_builds) ->
+      H.li ([
+        H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
+          [H.txt job_name];
+        H.br ();
+        H.txt (Option.value ~default:"" synopsis);
+        H.br ()
+      ]
+        @ List.concat_map (make_platform_builds ~job_name) platform_builds)
+    )
+
+  let make_body section_job_map =
+    let aux  section jobs acc =
+      acc @ [
+        H.h2 [ H.txt section ];
+        H.ul (make_jobs jobs)
+      ]
+    in
+    Utils.String_map.fold aux section_job_map []
+
+  let make section_job_map =
+    layout ~title:"Reproducible OPAM builds"
+      (make_header
+       @ make_body section_job_map
+       @
        [ H.p [
            H.txt "View the latest failed builds ";
            H.a ~a:H.[a_href "/failed-builds/"]
