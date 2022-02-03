@@ -112,20 +112,24 @@ let layout ?include_static_css ?(nav=`Default) ~title body =
             job_name
             pp_platform_query (Some build.Builder_db.Build.platform)
         );
-        txtf "Build %a" pp_ptime build.Builder_db.Build.start,
-        Fmt.str "/job/%s/build/%a/"
-          job_name
-          Uuidm.pp build.Builder_db.Build.uuid;
+        (
+          txtf "Build %a" pp_ptime build.Builder_db.Build.start,
+          Fmt.str "/job/%s/build/%a/"
+            job_name
+            Uuidm.pp build.Builder_db.Build.uuid
+        );
       ]
     | `Comparison ((job_left, build_left), (job_right, build_right)) ->
       to_nav [
         H.txt "Home", "/";
-        txtf "Comparison between %s@%a and %s@%a"
-          job_left pp_ptime build_left.Builder_db.Build.start
-          job_right pp_ptime build_right.Builder_db.Build.start,
-        Fmt.str "/compare/%a/%a/"
-          Uuidm.pp build_left.uuid
-          Uuidm.pp build_right.uuid;
+        (
+          txtf "Comparison between %s@%a and %s@%a"
+            job_left pp_ptime build_left.Builder_db.Build.start
+            job_right pp_ptime build_right.Builder_db.Build.start,
+          Fmt.str "/compare/%a/%a/"
+            Uuidm.pp build_left.uuid
+            Uuidm.pp build_right.uuid
+        );
       ]
   in
   (*> Note: Last declared CSS wins - so one can override here*)
