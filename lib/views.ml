@@ -337,7 +337,7 @@ module Job_build = struct
   let make_build_info
       ~name
       ~delta
-      ~(build:Builder_db.Build.t) (* ({ Builder_db.Build.uuid; start; finish; result; platform; _ } as build) *)
+      ~(build:Builder_db.Build.t)
       ~artifacts
       ~same_input_same_output
       ~different_input_same_output
@@ -351,11 +351,15 @@ module Job_build = struct
       H.p [txtf "Execution result: %a." Builder.pp_execution_result build.result];
       H.h3 [H.txt "Build info"];
       H.ul [
-        H.li [ H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid]
-          [H.txt "Console output"];
+        H.li [
+          H.a ~a:H.[
+            Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid
+          ] [H.txt "Console output"];
         ];
-        H.li [ H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid]
-          [H.txt "Build script"];
+        H.li [
+          H.a ~a:H.[
+            Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid
+          ] [H.txt "Build script"];
         ]
       ];
       H.h3 [H.txt "Build artifacts"];
