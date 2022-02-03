@@ -242,7 +242,8 @@ module Builds = struct
           Uuidm.pp latest_build.Builder_db.Build.uuid]
         [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
       H.txt " ";
-    ] @ (match latest_artifact with
+    ]
+    @ (match latest_artifact with
       | Some main_binary ->
         artifact
           ~basename:true
@@ -252,17 +253,19 @@ module Builds = struct
       | None ->
         [ txtf "Build failure: %a" Builder.pp_execution_result
             latest_build.Builder_db.Build.result ]
-    ) @ [ H.br () ]
+    )
+    @ [ H.br () ]
 
   let make_jobs jobs =
     jobs |> List.map (fun (job_name, synopsis, platform_builds) ->
-      H.li ([
-        H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
-          [H.txt job_name];
-        H.br ();
-        H.txt (Option.value ~default:"" synopsis);
-        H.br ()
-      ]
+      H.li (
+        [
+          H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
+            [H.txt job_name];
+          H.br ();
+          H.txt (Option.value ~default:"" synopsis);
+          H.br ()
+        ]
         @ List.concat_map (make_platform_builds ~job_name) platform_builds)
     )
 
@@ -279,13 +282,12 @@ module Builds = struct
     layout ~title:"Reproducible OPAM builds"
       (make_header
        @ make_body section_job_map
-       @
-       [ H.p [
-           H.txt "View the latest failed builds ";
-           H.a ~a:H.[a_href "/failed-builds/"]
-             [H.txt "here"];
-           H.txt "."
-         ]])
+       @ [ H.p [
+         H.txt "View the latest failed builds ";
+         H.a ~a:H.[a_href "/failed-builds/"]
+           [H.txt "here"];
+         H.txt "."
+       ]])
 
 end
 
@@ -295,52 +297,57 @@ module Job = struct
     layout
       ~nav:(`Job (job_name, platform))
       ~title:(Fmt.str "Job %s %a" job_name pp_platform platform)
-      ((H.h1 [txtf "Job %s %a" job_name pp_platform platform] ::
-        (match readme with
-         | None -> []
-         | Some data ->
-           [
-             H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
-             H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
-             H.Unsafe.data (Utils.Omd.html_of_string data)
-           ])) @
-       [
-         H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
-         H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
-         H.ul (List.map (fun (build, main_binary) ->
-           H.li ([
-             check_icon build.Builder_db.Build.result;
-             txtf " %s " build.platform;
-             H.a ~a:H.[
-               Fmt.kstr a_href "/job/%s/build/%a/"
-                 job_name
-                 Uuidm.pp build.Builder_db.Build.uuid ]
-               [
-                 txtf "%a" pp_ptime build.Builder_db.Build.start;
-               ];
-             H.txt " ";
-           ] @ match main_binary with
-           | Some main_binary ->
-             artifact
-               ~basename:true
-               ~job_name
-               ~build
-               ~file:main_binary
-           | None ->
-             [ txtf "Build failure: %a" Builder.pp_execution_result
-                 build.Builder_db.Build.result ]))
-           builds);
-         if failed then
-           H.p [
-             H.txt "Excluding failed builds " ;
-             H.a ~a:H.[a_href "../"] [H.txt "here"] ;
-             H.txt "." ]
-         else
-           H.p [
-             H.txt "Including failed builds " ;
-             H.a ~a:H.[a_href "failed/"] [H.txt "here"] ;
-             H.txt "." ]
-       ])
+      (
+        (H.h1 [txtf "Job %s %a" job_name pp_platform platform] ::
+         (match readme with
+          | None -> []
+          | Some data ->
+            [
+              H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
+              H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
+              H.Unsafe.data (Utils.Omd.html_of_string data)
+            ])
+        )
+        @ [
+          H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
+          H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
+          H.ul (
+            builds |> List.map (fun (build, main_binary) ->
+              H.li (
+                [
+                  check_icon build.Builder_db.Build.result;
+                  txtf " %s " build.platform;
+                  H.a ~a:H.[
+                    Fmt.kstr a_href "/job/%s/build/%a/"
+                      job_name
+                      Uuidm.pp build.Builder_db.Build.uuid ]
+                    [
+                      txtf "%a" pp_ptime build.Builder_db.Build.start;
+                    ];
+                  H.txt " ";
+                ]
+                @ match main_binary with
+                | Some main_binary ->
+                  artifact
+                    ~basename:true
+                    ~job_name
+                    ~build
+                    ~file:main_binary
+                | None ->
+                  [ txtf "Build failure: %a" Builder.pp_execution_result
+                      build.Builder_db.Build.result ]))
+          );
+          if failed then
+            H.p [
+              H.txt "Excluding failed builds " ;
+              H.a ~a:H.[a_href "../"] [H.txt "here"] ;
+              H.txt "." ]
+          else
+            H.p [
+              H.txt "Including failed builds " ;
+              H.a ~a:H.[a_href "failed/"] [H.txt "here"] ;
+              H.txt "." ]
+        ])
 
 end
 
