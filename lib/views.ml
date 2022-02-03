@@ -179,11 +179,10 @@ let artifact
       Fpath.pp filepath
   in
   [
-    H.a ~a:H.[a_href artifact_link]
-      [
-        if basename then H.txt (Fpath.basename filepath)
-        else txtf "%a" Fpath.pp filepath
-      ];
+    H.a ~a:H.[a_href artifact_link] [
+      if basename then H.txt (Fpath.basename filepath)
+      else txtf "%a" Fpath.pp filepath
+    ];
     H.txt " ";
     H.code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct sha256)];
     txtf " (%a)" Fmt.byte_size size;
@@ -212,22 +211,21 @@ module Builds = struct
         H.txt ". Contact team@robur.coop if you have any questions or \
                suggestions.";
       ];
-      H.form ~a:H.[a_action "/hash"; a_method `Get]
-        [
-          H.label [
-            H.txt "Search artifact by SHA256";
-            H.br ();
-            H.input ~a:H.[
-              a_input_type `Search;
-              a_id "sha256";
-              a_name "sha256";
-            ] ();
-          ];
+      H.form ~a:H.[a_action "/hash"; a_method `Get] [
+        H.label [
+          H.txt "Search artifact by SHA256";
+          H.br ();
           H.input ~a:H.[
-            a_input_type `Submit;
-            a_value "Search";
+            a_input_type `Search;
+            a_id "sha256";
+            a_name "sha256";
           ] ();
         ];
+        H.input ~a:H.[
+          a_input_type `Submit;
+          a_value "Search";
+        ] ();
+      ];
     ]
 
   let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
@@ -270,7 +268,8 @@ module Builds = struct
           H.txt (Option.value ~default:"" synopsis);
           H.br ()
         ]
-        @ List.concat_map (make_platform_builds ~job_name) platform_builds)
+        @ List.concat_map (make_platform_builds ~job_name) platform_builds
+      )
     )
 
   let make_body section_job_map =
@@ -282,16 +281,19 @@ module Builds = struct
     in
     Utils.String_map.fold aux section_job_map []
 
+  let make_failed_builds =
+    [ H.p [
+        H.txt "View the latest failed builds ";
+        H.a ~a:H.[a_href "/failed-builds/"]
+          [H.txt "here"];
+        H.txt "."
+      ]]
+
   let make section_job_map =
     layout ~title:"Reproducible OPAM builds"
       (make_header
        @ make_body section_job_map
-       @ [ H.p [
-         H.txt "View the latest failed builds ";
-         H.a ~a:H.[a_href "/failed-builds/"]
-           [H.txt "here"];
-         H.txt "."
-       ]])
+       @ make_failed_builds)
 
 end
 
