@@ -61,6 +61,7 @@ ppx_stritem_ext = 2
 #        )                         #      )
 #      )                           #    )
 max_indent = 2
+# < default = 4
 
 
 #
