@@ -381,15 +381,15 @@ module Job_build = struct
         ]
       ];
       H.h3 [H.txt "Build artifacts"];
-      H.dl (List.concat_map (fun { Builder_db.filepath; localpath=_; sha256; size } ->
-        let (`Hex sha256_hex) = Hex.of_cstruct sha256 in
+      H.dl (List.concat_map (fun (file:Builder_db.file) ->
+        let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
         [
           H.dt [H.a
-                  ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp filepath]
-                  [H.code [txtf "%a" Fpath.pp filepath]]];
+                  ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
+                  [H.code [txtf "%a" Fpath.pp file.filepath]]];
           H.dd [
             H.code [H.txt "SHA256:"; H.txt sha256_hex];
-            txtf " (%a)" Fmt.byte_size size;
+            txtf " (%a)" Fmt.byte_size file.size;
           ];
         ])
         artifacts);
@@ -397,21 +397,21 @@ module Job_build = struct
         txtf "Reproduced by %d builds"
           (List.length (same_input_same_output @ different_input_same_output))] ;
       H.ul
-        ((List.map (fun { Builder_db.Build.start ; uuid ; platform ; _ } ->
+        ((List.map (fun (build:Builder_db.Build.t) ->
            H.li [
-             txtf "on %s, same input, " platform;
-             H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp uuid]
-               [txtf "%a" pp_ptime start]
+             txtf "on %s, same input, " build.platform;
+             H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.uuid]
+               [txtf "%a" pp_ptime build.start]
            ])
            same_input_same_output) @
-         List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+         List.map (fun (build':Builder_db.Build.t) ->
            H.li [
-             txtf "on %s, different input, " platform;
+             txtf "on %s, different input, " build'.platform;
              H.a ~a:H.[
                Fmt.kstr a_href "/compare/%a/%a/"
-                 Uuidm.pp other_uuid
+                 Uuidm.pp build'.uuid
                  Uuidm.pp build.uuid]
-               [txtf "%a" pp_ptime start]
+               [txtf "%a" pp_ptime build'.start]
            ])
            different_input_same_output)
     ]
@@ -420,14 +420,14 @@ module Job_build = struct
        else
          [ H.h3 [H.txt "Same input, different output (not reproducible!)"];
            H.ul (
-             List.map (fun { Builder_db.Build.start ; uuid = other_uuid ; platform ; _ } ->
+             List.map (fun (build':Builder_db.Build.t) ->
                H.li [
-                 txtf "on %s, " platform ;
+                 txtf "on %s, " build'.platform ;
                  H.a ~a:H.[
                    Fmt.kstr a_href "/compare/%a/%a/"
-                     Uuidm.pp other_uuid
+                     Uuidm.pp build'.uuid
                      Uuidm.pp build.uuid]
-                   [txtf "%a" pp_ptime start]
+                   [txtf "%a" pp_ptime build'.start]
                ])
                same_input_different_output)
          ]
