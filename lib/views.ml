@@ -140,7 +140,7 @@ let layout ?include_static_css ?(nav=`Default) ~title body =
         H.main body
       ])
 
-let toggleable ?(hidden=true) id description content =
+let toggleable ?(hidden=true) ~id ~description content =
   let checked = if hidden then [] else H.[a_checked ()] in
   H.div [
     H.label
@@ -163,10 +163,10 @@ let toggleable ?(hidden=true) id description content =
   ]
 
 let artifact
-    ?(basename=false)
-    job_name
-    build
-    { Builder_db.filepath; localpath = _; sha256; size }
+    ~basename
+    ~job_name
+    ~build
+    ~file:{ Builder_db.filepath; localpath = _; sha256; size }
   =
   let artifact_link =
     Fmt.str "/job/%s/build/%a/f/%a"
@@ -254,7 +254,11 @@ module Builds = struct
                  H.txt " ";
                ] @ (match latest_artifact with
                  | Some main_binary ->
-                   artifact ~basename:true job_name latest_build main_binary
+                   artifact
+                     ~basename:true
+                     ~job_name
+                     ~build:latest_build
+                     ~file:main_binary
                  | None ->
                    [ txtf "Build failure: %a" Builder.pp_execution_result
                        latest_build.Builder_db.Build.result ]
@@ -277,11 +281,11 @@ end
 
 module Job = struct
 
-  let make ~failed name platform readme builds =
+  let make ~failed ~job_name ~platform ~readme builds =
     layout
-      ~nav:(`Job (name, platform))
-      ~title:(Fmt.str "Job %s %a" name pp_platform platform)
-      ((H.h1 [txtf "Job %s %a" name pp_platform platform] ::
+      ~nav:(`Job (job_name, platform))
+      ~title:(Fmt.str "Job %s %a" job_name pp_platform platform)
+      ((H.h1 [txtf "Job %s %a" job_name pp_platform platform] ::
         (match readme with
           | None -> []
           | Some data ->
@@ -299,7 +303,7 @@ module Job = struct
              txtf " %s " build.platform;
              H.a ~a:H.[
                Fmt.kstr a_href "/job/%s/build/%a/"
-                 name
+                 job_name
                  Uuidm.pp build.Builder_db.Build.uuid ]
                [
                  txtf "%a" pp_ptime build.Builder_db.Build.start;
@@ -307,7 +311,11 @@ module Job = struct
              H.txt " ";
            ] @ match main_binary with
            | Some main_binary ->
-             artifact ~basename:true name build main_binary
+             artifact
+               ~basename:true
+               ~job_name
+               ~build
+               ~file:main_binary
            | None ->
              [ txtf "Build failure: %a" Builder.pp_execution_result
                  build.Builder_db.Build.result ]))
@@ -580,11 +588,13 @@ let opam_diffs diffs =
     [ H.br () ])
     diffs
 
-let compare_builds job_left job_right
-    (build_left : Builder_db.Build.t) (build_right : Builder_db.Build.t)
-    (added_env, removed_env, changed_env)
-    (added_pkgs, removed_pkgs, changed_pkgs)
-    (same, opam_diff, version_diff, left, right) =
+let compare_builds
+    ~job_left ~job_right
+    ~(build_left : Builder_db.Build.t) ~(build_right : Builder_db.Build.t)
+    ~env_diff:(added_env, removed_env, changed_env)
+    ~pkg_diff:(added_pkgs, removed_pkgs, changed_pkgs)
+    ~opam_diff:(same, opam_diff, version_diff, left, right)
+  =
   layout
     ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
     ~title:(Fmt.str "Comparing builds %a and %a"

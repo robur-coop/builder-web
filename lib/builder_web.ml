@@ -138,7 +138,9 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:false job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    builds
+    |> Views.Job.make ~failed:false ~job_name ~platform ~readme 
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_with_failed req =
@@ -150,7 +152,9 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:true job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    builds
+    |> Views.Job.make ~failed:true ~job_name ~platform ~readme
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
@@ -446,8 +450,13 @@ let add_routes datadir =
     in
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-    Opamdiff.compare switch_left switch_right
-    |> Views.compare_builds job_left job_right build_left build_right env_diff pkg_diff
+    let opam_diff = Opamdiff.compare switch_left switch_right in
+    Views.compare_builds
+      ~job_left ~job_right
+      ~build_left ~build_right
+      ~env_diff
+      ~pkg_diff
+      ~opam_diff
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
