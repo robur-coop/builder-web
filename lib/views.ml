@@ -375,6 +375,109 @@ module Job_build = struct
     in
     List.exists check artifacts
 
+  let make_artifacts ~artifacts =
+    let aux (file:Builder_db.file) =
+      let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
+      [
+        H.dt [
+          H.a ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
+            [H.code [txtf "%a" Fpath.pp file.filepath]] ];
+        H.dd [
+          H.code [H.txt "SHA256:"; H.txt sha256_hex];
+          txtf " (%a)" Fmt.byte_size file.size;
+        ];
+      ]
+    in
+    [
+      H.h3 [H.txt "Build artifacts"];
+      H.dl (List.concat_map aux artifacts)
+    ]
+
+  let make_reproductions
+      ~name
+      ~(build:Builder_db.Build.t)
+      ~same_input_same_output
+      ~different_input_same_output
+    =
+    let same_input_same_output_html =
+      List.map (fun (build:Builder_db.Build.t) ->
+          H.li [
+            txtf "on %s, same input, " build.platform;
+            H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.uuid]
+              [txtf "%a" pp_ptime build.start]
+          ])
+        same_input_same_output
+    in
+    let different_input_same_output_html =
+      List.map (fun (build':Builder_db.Build.t) ->
+          H.li [
+            txtf "on %s, different input, " build'.platform;
+            H.a ~a:H.[
+                Fmt.kstr a_href "/compare/%a/%a/"
+                  Uuidm.pp build'.uuid
+                  Uuidm.pp build.uuid]
+              [txtf "%a" pp_ptime build'.start]
+          ])
+        different_input_same_output
+    in
+    [
+      H.h3 [
+        txtf "Reproduced by %d builds"
+          (List.length (same_input_same_output @ different_input_same_output))] ;
+      H.ul @@ (
+        same_input_same_output_html
+        @ different_input_same_output_html
+      )
+    ]
+
+  let make_not_reproducible
+      ~(build:Builder_db.Build.t)
+      ~same_input_different_output
+    =
+    if same_input_different_output = [] then
+      []
+    else
+      [ H.h3 [H.txt "Same input, different output (not reproducible!)"];
+        H.ul (
+          List.map (fun (build':Builder_db.Build.t) ->
+              H.li [
+                txtf "on %s, " build'.platform ;
+                H.a ~a:H.[
+                    Fmt.kstr a_href "/compare/%a/%a/"
+                      Uuidm.pp build'.uuid
+                      Uuidm.pp build.uuid]
+                  [txtf "%a" pp_ptime build'.start]
+              ])
+            same_input_different_output)
+      ]
+
+  let make_comparisons_same_platform
+      ~(build:Builder_db.Build.t)
+      ~previous
+      ~latest
+      ~next
+    =
+    [
+      H.h3 [H.txt "Comparisons with other builds on the same platform"];
+      let opt_build (ctx, build') =
+        match build' with
+        | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
+          [ H.li [ H.txt ctx;
+                   H.a ~a:[
+                     Fmt.kstr H.a_href "/compare/%a/%a/"
+                       Uuidm.pp b.uuid
+                       Uuidm.pp build.uuid ]
+                     [txtf "%a" pp_ptime b.start]]
+          ]
+        | _ -> []
+      in
+      H.ul
+        (List.concat_map opt_build
+           [ ("Latest build ", latest) ;
+             ("Later build with different output ", next) ;
+             ("Earlier build with different output ", previous) ])
+    ]
+
   let make_build_info
       ~name
       ~delta
@@ -403,78 +506,19 @@ module Job_build = struct
             ] [H.txt "Build script"];
         ]
       ];
-      H.h3 [H.txt "Build artifacts"];
-      H.dl (List.concat_map (fun (file:Builder_db.file) ->
-          let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
-          [
-            H.dt [H.a
-                    ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
-                    [H.code [txtf "%a" Fpath.pp file.filepath]]];
-            H.dd [
-              H.code [H.txt "SHA256:"; H.txt sha256_hex];
-              txtf " (%a)" Fmt.byte_size file.size;
-            ];
-          ])
-          artifacts);
-      H.h3 [
-        txtf "Reproduced by %d builds"
-          (List.length (same_input_same_output @ different_input_same_output))] ;
-      H.ul
-        ((List.map (fun (build:Builder_db.Build.t) ->
-             H.li [
-               txtf "on %s, same input, " build.platform;
-               H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.uuid]
-                 [txtf "%a" pp_ptime build.start]
-             ])
-             same_input_same_output) @
-         List.map (fun (build':Builder_db.Build.t) ->
-             H.li [
-               txtf "on %s, different input, " build'.platform;
-               H.a ~a:H.[
-                   Fmt.kstr a_href "/compare/%a/%a/"
-                     Uuidm.pp build'.uuid
-                     Uuidm.pp build.uuid]
-                 [txtf "%a" pp_ptime build'.start]
-             ])
-           different_input_same_output)
     ]
-    @ (if same_input_different_output = [] then
-         []
-       else
-         [ H.h3 [H.txt "Same input, different output (not reproducible!)"];
-           H.ul (
-             List.map (fun (build':Builder_db.Build.t) ->
-                 H.li [
-                   txtf "on %s, " build'.platform ;
-                   H.a ~a:H.[
-                       Fmt.kstr a_href "/compare/%a/%a/"
-                         Uuidm.pp build'.uuid
-                         Uuidm.pp build.uuid]
-                     [txtf "%a" pp_ptime build'.start]
-                 ])
-               same_input_different_output)
-         ]
-      )
-    @ [
-      H.h3 [H.txt "Comparisons with other builds on the same platform"];
-      let opt_build (ctx, build') =
-        match build' with
-        | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
-          [ H.li [ H.txt ctx;
-                   H.a ~a:[
-                     Fmt.kstr H.a_href "/compare/%a/%a/"
-                       Uuidm.pp b.uuid
-                       Uuidm.pp build.uuid ]
-                     [txtf "%a" pp_ptime b.start]]
-          ]
-        | _ -> []
-      in
-      H.ul
-        (List.concat_map opt_build
-           [ ("Latest build ", latest) ;
-             ("Later build with different output ", next) ;
-             ("Earlier build with different output ", previous) ])
-    ]
+    @ make_artifacts ~artifacts
+    @ make_reproductions
+      ~name
+      ~build
+      ~same_input_same_output
+      ~different_input_same_output
+    @ make_not_reproducible ~build ~same_input_different_output
+    @ make_comparisons_same_platform
+      ~build
+      ~previous
+      ~latest
+      ~next
 
   let viz_style_deps = "
       width: 46em;
