@@ -589,8 +589,10 @@ let opam_diffs diffs =
     diffs
 
 let compare_builds
-    ~job_left ~job_right
-    ~(build_left : Builder_db.Build.t) ~(build_right : Builder_db.Build.t)
+    ~job_left
+    ~job_right
+    ~(build_left : Builder_db.Build.t)
+    ~(build_right : Builder_db.Build.t)
     ~env_diff:(added_env, removed_env, changed_env)
     ~pkg_diff:(added_pkgs, removed_pkgs, changed_pkgs)
     ~opam_diff:(same, opam_diff, version_diff, left, right)
