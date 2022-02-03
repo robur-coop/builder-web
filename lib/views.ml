@@ -539,26 +539,29 @@ module Job_build = struct
     "
 
   let make_viz_section ~name ~artifacts ~uuid =
-    [
-      (* [ H.h3 [txt "Analysis"] ]; *)
-      [ H.p [
-            let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-            H.iframe ~a:H.[
-                a_src src;
-                a_title "Opam dependencies";
-                a_style viz_style_deps
-              ] []
-          ]];
+    let viz_deps_iframe = [
+      let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+      H.iframe ~a:H.[
+          a_src src;
+          a_title "Opam dependencies";
+          a_style viz_style_deps
+        ] []
+    ]
+    in
+    let viz_treemap_iframe = lazy [
+      let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
+      H.iframe ~a:H.[
+          a_src src;
+          a_title "Binary dissection";
+          a_style viz_style_treemap
+        ] []
+    ]
+    in
+    List.flatten [
+      [ H.p viz_deps_iframe];
       if not @@ contains_debug_bin artifacts then [] else [
-        H.p [
-          let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
-          H.iframe ~a:H.[
-              a_src src;
-              a_title "Binary dissection";
-              a_style viz_style_treemap
-            ] []
-        ]];
-    ] |> List.flatten
+        H.p @@ Lazy.force viz_treemap_iframe ];
+    ] 
 
   let make
       ~name
