@@ -11,15 +11,15 @@ let check_icon result =
   match result with
   | Builder.Exited 0 ->
     H.span ~a:H.[
-      a_style "color: green; cursor: pointer;";
-      a_titlef "%a" Builder.pp_execution_result result;
-    ]
+        a_style "color: green; cursor: pointer;";
+        a_titlef "%a" Builder.pp_execution_result result;
+      ]
       [H.txt "☑"]
   | _ ->
     H.span ~a:H.[
-      a_style "color: red; cursor: pointer;";
-      a_titlef "%a" Builder.pp_execution_result result;
-    ]
+        a_style "color: red; cursor: pointer;";
+        a_titlef "%a" Builder.pp_execution_result result;
+      ]
       [H.txt "☒"]
 
 type nav = [
@@ -86,8 +86,8 @@ let layout ?include_static_css ?(nav=`Default) ~title body =
       H.nav [
         H.ul (
           List.map (fun (desc, href) ->
-            H.li [H.a ~a:H.[a_href href] [desc]]
-          ) kvs
+              H.li [H.a ~a:H.[a_href href] [desc]]
+            ) kvs
         )]
     in
     match nav with
@@ -140,29 +140,29 @@ let layout ?include_static_css ?(nav=`Default) ~title body =
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
 
     (H.body [
-       breadcrumb;
-       H.main body
-     ])
+        breadcrumb;
+        H.main body
+      ])
 
 let toggleable ?(hidden=true) ~id ~description content =
   let checked = if hidden then [] else H.[a_checked ()] in
   H.div [
     H.label
       ~a:H.[
-        a_label_for id;
-        a_class ["toggleable-descr"];
-      ]
+          a_label_for id;
+          a_class ["toggleable-descr"];
+        ]
       [H.txt description];
     H.input
       ~a:(checked @ H.[
-        a_input_type `Checkbox;
-        a_id id;
-        a_style "display: none;";
-      ]) ();
+          a_input_type `Checkbox;
+          a_id id;
+          a_style "display: none;";
+        ]) ();
     H.div
       ~a:H.[
-        a_class ["toggleable"]
-      ]
+          a_class ["toggleable"]
+        ]
       content;
   ]
 
@@ -216,15 +216,15 @@ module Builds = struct
           H.txt "Search artifact by SHA256";
           H.br ();
           H.input ~a:H.[
-            a_input_type `Search;
-            a_id "sha256";
-            a_name "sha256";
-          ] ();
+              a_input_type `Search;
+              a_id "sha256";
+              a_name "sha256";
+            ] ();
         ];
         H.input ~a:H.[
-          a_input_type `Submit;
-          a_value "Search";
-        ] ();
+            a_input_type `Submit;
+            a_value "Search";
+          ] ();
       ];
     ]
 
@@ -246,31 +246,31 @@ module Builds = struct
       H.txt " ";
     ]
     @ (match latest_artifact with
-      | Some main_binary ->
-        artifact
-          ~basename:true
-          ~job_name
-          ~build:latest_build
-          ~file:main_binary
-      | None ->
-        [ txtf "Build failure: %a" Builder.pp_execution_result
-            latest_build.Builder_db.Build.result ]
-    )
+        | Some main_binary ->
+          artifact
+            ~basename:true
+            ~job_name
+            ~build:latest_build
+            ~file:main_binary
+        | None ->
+          [ txtf "Build failure: %a" Builder.pp_execution_result
+              latest_build.Builder_db.Build.result ]
+      )
     @ [ H.br () ]
 
   let make_jobs jobs =
     jobs |> List.map (fun (job_name, synopsis, platform_builds) ->
-      H.li (
-        [
-          H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
-            [H.txt job_name];
-          H.br ();
-          H.txt (Option.value ~default:"" synopsis);
-          H.br ()
-        ]
-        @ List.concat_map (make_platform_builds ~job_name) platform_builds
+        H.li (
+          [
+            H.a ~a:H.[a_href ("job/" ^ job_name ^ "/")]
+              [H.txt job_name];
+            H.br ();
+            H.txt (Option.value ~default:"" synopsis);
+            H.br ()
+          ]
+          @ List.concat_map (make_platform_builds ~job_name) platform_builds
+        )
       )
-    )
 
   let make_body section_job_map =
     let aux  section jobs acc =
@@ -283,11 +283,11 @@ module Builds = struct
 
   let make_failed_builds =
     [ H.p [
-        H.txt "View the latest failed builds ";
-        H.a ~a:H.[a_href "/failed-builds/"]
-          [H.txt "here"];
-        H.txt "."
-      ]]
+          H.txt "View the latest failed builds ";
+          H.a ~a:H.[a_href "/failed-builds/"]
+            [H.txt "here"];
+          H.txt "."
+        ]]
 
   let make section_job_map =
     layout ~title:"Reproducible OPAM builds"
@@ -318,9 +318,9 @@ module Job = struct
         check_icon build.Builder_db.Build.result;
         txtf " %s " build.platform;
         H.a ~a:H.[
-          Fmt.kstr a_href "/job/%s/build/%a/"
-            job_name
-            Uuidm.pp build.Builder_db.Build.uuid ]
+            Fmt.kstr a_href "/job/%s/build/%a/"
+              job_name
+              Uuidm.pp build.Builder_db.Build.uuid ]
           [
             txtf "%a" pp_ptime build.Builder_db.Build.start;
           ];
@@ -337,7 +337,7 @@ module Job = struct
         [ txtf "Build failure: %a" Builder.pp_execution_result
             build.Builder_db.Build.result ]
     )
-  
+
   let make_builds ~failed ~job_name builds =
     [
       H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
@@ -363,7 +363,7 @@ module Job = struct
     let nav = `Job (job_name, platform) in
     let title = Fmt.str "Job %s %a" job_name pp_platform platform in
     layout ~nav ~title @@ make_body ~failed ~job_name ~platform ~readme builds
-      
+
 
 end
 
@@ -394,48 +394,48 @@ module Job_build = struct
       H.ul [
         H.li [
           H.a ~a:H.[
-            Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid
-          ] [H.txt "Console output"];
+              Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid
+            ] [H.txt "Console output"];
         ];
         H.li [
           H.a ~a:H.[
-            Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid
-          ] [H.txt "Build script"];
+              Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid
+            ] [H.txt "Build script"];
         ]
       ];
       H.h3 [H.txt "Build artifacts"];
       H.dl (List.concat_map (fun (file:Builder_db.file) ->
-        let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
-        [
-          H.dt [H.a
-                  ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
-                  [H.code [txtf "%a" Fpath.pp file.filepath]]];
-          H.dd [
-            H.code [H.txt "SHA256:"; H.txt sha256_hex];
-            txtf " (%a)" Fmt.byte_size file.size;
-          ];
-        ])
-        artifacts);
+          let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
+          [
+            H.dt [H.a
+                    ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
+                    [H.code [txtf "%a" Fpath.pp file.filepath]]];
+            H.dd [
+              H.code [H.txt "SHA256:"; H.txt sha256_hex];
+              txtf " (%a)" Fmt.byte_size file.size;
+            ];
+          ])
+          artifacts);
       H.h3 [
         txtf "Reproduced by %d builds"
           (List.length (same_input_same_output @ different_input_same_output))] ;
       H.ul
         ((List.map (fun (build:Builder_db.Build.t) ->
-           H.li [
-             txtf "on %s, same input, " build.platform;
-             H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.uuid]
-               [txtf "%a" pp_ptime build.start]
-           ])
-           same_input_same_output) @
+             H.li [
+               txtf "on %s, same input, " build.platform;
+               H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/" name Uuidm.pp build.uuid]
+                 [txtf "%a" pp_ptime build.start]
+             ])
+             same_input_same_output) @
          List.map (fun (build':Builder_db.Build.t) ->
-           H.li [
-             txtf "on %s, different input, " build'.platform;
-             H.a ~a:H.[
-               Fmt.kstr a_href "/compare/%a/%a/"
-                 Uuidm.pp build'.uuid
-                 Uuidm.pp build.uuid]
-               [txtf "%a" pp_ptime build'.start]
-           ])
+             H.li [
+               txtf "on %s, different input, " build'.platform;
+               H.a ~a:H.[
+                   Fmt.kstr a_href "/compare/%a/%a/"
+                     Uuidm.pp build'.uuid
+                     Uuidm.pp build.uuid]
+                 [txtf "%a" pp_ptime build'.start]
+             ])
            different_input_same_output)
     ]
     @ (if same_input_different_output = [] then
@@ -444,14 +444,14 @@ module Job_build = struct
          [ H.h3 [H.txt "Same input, different output (not reproducible!)"];
            H.ul (
              List.map (fun (build':Builder_db.Build.t) ->
-               H.li [
-                 txtf "on %s, " build'.platform ;
-                 H.a ~a:H.[
-                   Fmt.kstr a_href "/compare/%a/%a/"
-                     Uuidm.pp build'.uuid
-                     Uuidm.pp build.uuid]
-                   [txtf "%a" pp_ptime build'.start]
-               ])
+                 H.li [
+                   txtf "on %s, " build'.platform ;
+                   H.a ~a:H.[
+                       Fmt.kstr a_href "/compare/%a/%a/"
+                         Uuidm.pp build'.uuid
+                         Uuidm.pp build.uuid]
+                     [txtf "%a" pp_ptime build'.start]
+                 ])
                same_input_different_output)
          ]
       )
@@ -498,21 +498,21 @@ module Job_build = struct
     [
       (* [ H.h3 [txt "Analysis"] ]; *)
       [ H.p [
-          let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-          H.iframe ~a:H.[
-            a_src src;
-            a_title "Opam dependencies";
-            a_style viz_style_deps
-          ] []
-        ]];
+            let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+            H.iframe ~a:H.[
+                a_src src;
+                a_title "Opam dependencies";
+                a_style viz_style_deps
+              ] []
+          ]];
       if not @@ contains_debug_bin artifacts then [] else [
         H.p [
           let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
           H.iframe ~a:H.[
-            a_src src;
-            a_title "Binary dissection";
-            a_style viz_style_treemap
-          ] []
+              a_src src;
+              a_title "Binary dissection";
+              a_style viz_style_treemap
+            ] []
         ]];
     ] |> List.flatten
 
@@ -579,45 +579,45 @@ let key_value_changes xs =
 let packages packages =
   OpamPackage.Set.elements packages
   |> List.concat_map (fun p -> [
-      txtf "%a" Opamdiff.pp_opampackage p;
-      H.br ();
-    ])
+        txtf "%a" Opamdiff.pp_opampackage p;
+        H.br ();
+      ])
 
 let package_diffs diffs =
   List.concat_map (fun pd -> [
-      txtf "%a" Opamdiff.pp_version_diff pd;
-      H.br ();
-    ])
+        txtf "%a" Opamdiff.pp_version_diff pd;
+        H.br ();
+      ])
     diffs
 
 let opam_diffs diffs =
   List.concat_map (fun pd ->
-    H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
-    (match pd.Opamdiff.build with None -> [] | Some a ->
-       let l, r = Opamdiff.commands_to_strings a in
-       [
-         H.h5 [ H.txt "build instruction (without common prefix) modifications, old:" ] ;
-         H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
-         H.h5 [ H.txt "new" ] ;
-         H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
-       ]) @
-    (match pd.Opamdiff.install with None -> [] | Some a ->
-       let l, r = Opamdiff.commands_to_strings a in
-       [
-         H.h5 [ H.txt "install instruction (without common prefix) modifications, old:" ] ;
-         H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
-         H.h5 [ H.txt "new" ] ;
-         H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
-       ]) @
-    (match pd.Opamdiff.url with None -> [] | Some a ->
-       let l, r = Opamdiff.opt_url_to_string a in
-       [
-         H.h5 [ H.txt "URL" ] ;
-         txtf "old: %s" l;
-         H.br ();
-         txtf "new: %s" r
-       ]) @
-    [ H.br () ])
+      H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
+      (match pd.Opamdiff.build with None -> [] | Some a ->
+          let l, r = Opamdiff.commands_to_strings a in
+          [
+            H.h5 [ H.txt "build instruction (without common prefix) modifications, old:" ] ;
+            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
+            H.h5 [ H.txt "new" ] ;
+            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
+          ]) @
+      (match pd.Opamdiff.install with None -> [] | Some a ->
+          let l, r = Opamdiff.commands_to_strings a in
+          [
+            H.h5 [ H.txt "install instruction (without common prefix) modifications, old:" ] ;
+            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
+            H.h5 [ H.txt "new" ] ;
+            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
+          ]) @
+      (match pd.Opamdiff.url with None -> [] | Some a ->
+          let l, r = Opamdiff.opt_url_to_string a in
+          [
+            H.h5 [ H.txt "URL" ] ;
+            txtf "old: %s" l;
+            H.br ();
+            txtf "new: %s" r
+          ]) @
+      [ H.br () ])
     diffs
 
 let compare_builds
@@ -656,10 +656,10 @@ let compare_builds
               pp_platform (Some build_right.platform)];
       ];
       H.h3 [ H.a ~a:H.[
-        Fmt.kstr a_href "/compare/%a/%a/"
-          Uuidm.pp build_right.uuid
-          Uuidm.pp build_left.uuid ]
-        [H.txt "Compare in reverse direction"]] ;
+          Fmt.kstr a_href "/compare/%a/%a/"
+            Uuidm.pp build_right.uuid
+            Uuidm.pp build_left.uuid ]
+          [H.txt "Compare in reverse direction"]] ;
       H.ul [
         H.li [
           H.a ~a:H.[a_href "#opam-packages-removed"]
@@ -755,8 +755,8 @@ let failed_builds ~start ~count builds =
       H.ul (List.map build builds);
       H.p [ txtf "View the next %d failed builds " count;
             H.a ~a:H.[
-              Fmt.kstr a_href "/failed-builds/?count=%d&start=%d"
-                count (start + count) ]
+                Fmt.kstr a_href "/failed-builds/?count=%d&start=%d"
+                  count (start + count) ]
               [ H.txt "here"];
             H.txt ".";
           ]
