@@ -643,7 +643,8 @@ let opam_diffs diffs =
       (match pd.Opamdiff.build with None -> [] | Some a ->
           let l, r = Opamdiff.commands_to_strings a in
           [
-            H.h5 [ H.txt "build instruction (without common prefix) modifications, old:" ] ;
+            H.h5 [ H.txt "build instruction (without common prefix) \
+                          modifications, old:" ] ;
             H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
             H.h5 [ H.txt "new" ] ;
             H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
@@ -651,7 +652,8 @@ let opam_diffs diffs =
       (match pd.Opamdiff.install with None -> [] | Some a ->
           let l, r = Opamdiff.commands_to_strings a in
           [
-            H.h5 [ H.txt "install instruction (without common prefix) modifications, old:" ] ;
+            H.h5 [ H.txt "install instruction (without common prefix) \
+                          modifications, old:" ] ;
             H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
             H.h5 [ H.txt "new" ] ;
             H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
