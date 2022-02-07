@@ -100,7 +100,7 @@ let dream_svg ?status ?code ?headers body =
 let add_routes datadir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
-  let builder req =
+  let builds req =
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
@@ -126,7 +126,7 @@ let add_routes datadir =
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.builder jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Builds.make jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -138,7 +138,9 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:false job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    builds
+    |> Views.Job.make ~failed:false ~job_name ~platform ~readme 
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_with_failed req =
@@ -150,7 +152,9 @@ let add_routes datadir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:true job_name platform readme builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    builds
+    |> Views.Job.make ~failed:true ~job_name ~platform ~readme
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req =
@@ -279,7 +283,7 @@ let add_routes datadir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    Views.Job.Build.make
+    Views.Job_build.make
       ~name:job_name
       ~build
       ~artifacts
@@ -446,8 +450,13 @@ let add_routes datadir =
     in
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-    Opamdiff.compare switch_left switch_right
-    |> Views.compare_builds job_left job_right build_left build_right env_diff pkg_diff
+    let opam_diff = Opamdiff.compare switch_left switch_right in
+    Views.compare_builds
+      ~job_left ~job_right
+      ~build_left ~build_right
+      ~env_diff
+      ~pkg_diff
+      ~opam_diff
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
@@ -493,7 +502,7 @@ let add_routes datadir =
   let w f req = or_error_response (f req) in
 
   Dream.router [
-    Dream.get "/" (w builder);
+    Dream.get "/" (w builds);
     Dream.get "/job/:job/" (w job);
     Dream.get "/job/:job/failed/" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);

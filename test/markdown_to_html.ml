@@ -1,4 +1,4 @@
-let markdown_to_html = Builder_web__Views.markdown_to_html
+let markdown_to_html = Builder_web__Utils.Omd.html_of_string
 
 let test_simple () =
   let markdown = {|# Hello world|} in
