@@ -23,6 +23,7 @@ mkdir -p "$bindir" "$debiandir" "$systemddir"
 install $bdir/builder-web $bindir/builder-web
 install $bdir/builder-migrations $bindir/builder-migrations
 install $bdir/builder-db $bindir/builder-db
+install $bdir/builder-viz $bindir/builder-viz
 
 # service script
 install -m 0644 $basedir/packaging/debian/builder-web.service $systemddir/builder-web.service

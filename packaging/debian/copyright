@@ -4,5 +4,5 @@ Upstream-Contact: Robur Team <team@robur.coop>
 Source: https://git.robur.io/robur/builder-web
 
 Files: *
-Copyright: "Reynir Björnsson <reynir@reynir.dk" "Hannes Mehnert <hannes@mehnert.org>"
+Copyright: "Reynir Björnsson <reynir@reynir.dk>" "Hannes Mehnert <hannes@mehnert.org>"
 License: ISC
