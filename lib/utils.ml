@@ -119,8 +119,8 @@ module Omd = struct
 
   let html_of_string markdown =
     markdown
-    |> Omd.of_string 
-    |> make_safe 
-    |> Omd.to_html 
+    |> Omd.of_string
+    |> make_safe
+    |> Omd.to_html
 
 end

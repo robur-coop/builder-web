@@ -188,7 +188,7 @@ let artifact
     txtf " (%a)" Fmt.byte_size size;
   ]
 
-module Builds = struct 
+module Builds = struct
 
   let make_header =
     [
@@ -300,7 +300,7 @@ end
 module Job = struct
 
   let make_header ~job_name ~platform ~readme =
-    H.h1 [txtf "Job %s %a" job_name pp_platform platform] 
+    H.h1 [txtf "Job %s %a" job_name pp_platform platform]
     :: (
       match readme with
       | None -> []
@@ -561,7 +561,7 @@ module Job_build = struct
       [ H.p viz_deps_iframe];
       if not @@ contains_debug_bin artifacts then [] else [
         H.p @@ Lazy.force viz_treemap_iframe ];
-    ] 
+    ]
 
   let make
       ~name

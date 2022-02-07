@@ -139,7 +139,7 @@ let add_routes datadir =
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
     builds
-    |> Views.Job.make ~failed:false ~job_name ~platform ~readme 
+    |> Views.Job.make ~failed:false ~job_name ~platform ~readme
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
