@@ -80,65 +80,86 @@ h1,h2,h3{line-height:1.2}
 }
 |}
 
-let layout ?include_static_css ?(nav=`Default) ~title body =
-  let breadcrumb =
-    let to_nav kvs =
-      H.nav [
-        H.ul (
-          List.map (fun (desc, href) ->
-              H.li [H.a ~a:H.[a_href href] [desc]]
-            ) kvs
-        )]
-    in
-    match nav with
-    | `Default ->
-      to_nav [H.txt "Home", "/"]
-    | `Job (job_name, platform) ->
-      to_nav [
-        H.txt "Home", "/";
-        txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name ;
-        (
-          txtf "%a" pp_platform platform,
-          Fmt.str "/job/%s/%a" job_name pp_platform_query platform
-        )
-      ]
-    | `Build (job_name, build) ->
-      to_nav [
-        H.txt "Home", "/";
-        txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name;
-        (
-          txtf "%a" pp_platform (Some build.Builder_db.Build.platform),
-          Fmt.str "/job/%s/%a"
-            job_name
-            pp_platform_query (Some build.Builder_db.Build.platform)
-        );
-        (
-          txtf "Build %a" pp_ptime build.Builder_db.Build.start,
-          Fmt.str "/job/%s/build/%a/"
-            job_name
-            Uuidm.pp build.Builder_db.Build.uuid
-        );
-      ]
-    | `Comparison ((job_left, build_left), (job_right, build_right)) ->
-      to_nav [
-        H.txt "Home", "/";
-        (
-          txtf "Comparison between %s@%a and %s@%a"
-            job_left pp_ptime build_left.Builder_db.Build.start
-            job_right pp_ptime build_right.Builder_db.Build.start,
-          Fmt.str "/compare/%a/%a/"
-            Uuidm.pp build_left.uuid
-            Uuidm.pp build_right.uuid
-        );
-      ]
+let make_breadcrumbs nav =
+  let to_nav kvs =
+    H.nav [
+      H.ul (
+        List.map (fun (desc, href) ->
+            H.li [H.a ~a:H.[a_href href] [desc]]
+          ) kvs
+      )]
   in
+  match nav with
+  | `Default ->
+    to_nav [H.txt "Home", "/"]
+  | `Job (job_name, platform) ->
+    to_nav [
+      H.txt "Home", "/";
+      txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name ;
+      (
+        txtf "%a" pp_platform platform,
+        Fmt.str "/job/%s/%a" job_name pp_platform_query platform
+      )
+    ]
+  | `Build (job_name, build) ->
+    to_nav [
+      H.txt "Home", "/";
+      txtf "Job %s" job_name, Fmt.str "/job/%s/" job_name;
+      (
+        txtf "%a" pp_platform (Some build.Builder_db.Build.platform),
+        Fmt.str "/job/%s/%a"
+          job_name
+          pp_platform_query (Some build.Builder_db.Build.platform)
+      );
+      (
+        txtf "Build %a" pp_ptime build.Builder_db.Build.start,
+        Fmt.str "/job/%s/build/%a/"
+          job_name
+          Uuidm.pp build.Builder_db.Build.uuid
+      );
+    ]
+  | `Comparison ((job_left, build_left), (job_right, build_right)) ->
+    to_nav [
+      H.txt "Home", "/";
+      (
+        txtf "Comparison between %s@%a and %s@%a"
+          job_left pp_ptime build_left.Builder_db.Build.start
+          job_right pp_ptime build_right.Builder_db.Build.start,
+        Fmt.str "/compare/%a/%a/"
+          Uuidm.pp build_left.uuid
+          Uuidm.pp build_right.uuid
+      );
+    ]
+
+let layout
+    ?include_static_css
+    ?(nav=`Default)
+    ?(manual_width=false)
+    ~title
+    body
+  =
+  let breadcrumb = make_breadcrumbs nav in
   (*> Note: Last declared CSS wins - so one can override here*)
   let static_css = static_css :: Option.to_list include_static_css
+  in
+  let body =
+    let style_grid_container = H.a_style "\
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 83em;
+    "
+    and style_grid = H.a_style @@
+      if manual_width then "" else "\
+        width: 76%;\
+      "
+    in
+    [ H.div ~a:[ style_grid_container ]
+        [ H.div ~a:[ style_grid ] body ]]
   in
   H.html
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
-
     (H.body [
         breadcrumb;
         H.main body
@@ -521,12 +542,12 @@ module Job_build = struct
       ~next
 
   let viz_style_deps = "
-      width: 46em;
+      width: 45em;
       height: 45.4em;
       max-width: 100%;
-      max-height: 47vw;
+      max-height: 49vw;
       min-width: 38em;
-      min-height: 39em;
+      min-height: 40em;
     "
 
   let viz_style_treemap = "
@@ -535,7 +556,7 @@ module Job_build = struct
       max-width: 100%;
       max-height: 52vw;
       min-width: 38em;
-      min-height: 41em;
+      min-height: 43em;
     "
 
   let make_viz_section ~name ~artifacts ~uuid =
@@ -586,33 +607,21 @@ module Job_build = struct
         ~latest ~next ~previous
     in
     let style_grid = H.a_style "display: flex; " in
-    let style_grid_container = H.a_style "\
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        min-width: 83em;
-      "
-    in
-    let style_col_container = H.a_style "" in
     let style_col_left =
-      H.a_style "width: 45em; min-width: 43em; padding-left: 2%" in
+      H.a_style "width: 45em; min-width: 43em;" in
     let style_col_right = H.a_style "width: 50%" in
     let body = [
-      H.div~a:[ style_grid_container ] [
-        H.div~a:[ style_col_container ] [
-          H.h1 [txtf "Job %s" name];
-          H.div~a:[ style_grid ] [
-            (* H.div~a:H.[ style_col_padding ] []; *)
-            H.div~a:[ style_col_left ]  left_column;
-            H.div~a:[ style_col_right ] right_column
-          ]
+        H.h1 [txtf "Job %s" name];
+        H.div~a:[ style_grid ] [
+          H.div~a:[ style_col_left ]  left_column;
+          H.div~a:[ style_col_right ] right_column
         ]
-      ]
     ]
     in
     layout
       ~nav:(`Build (name, build))
       ~title:(Fmt.str "Job %s %a" name pp_ptime build.start)
+      ~manual_width:true
       body
 
 end
