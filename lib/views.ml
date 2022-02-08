@@ -359,7 +359,7 @@ module Job = struct
             build.Builder_db.Build.result ]
     )
 
-  let make_builds ~failed ~job_name builds =
+  let make_builds ~failed ~job_name ~platform builds =
     [
       H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
       H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
@@ -367,18 +367,24 @@ module Job = struct
       if failed then
         H.p [
           H.txt "Excluding failed builds " ;
-          H.a ~a:H.[a_href "../"] [H.txt "here"] ;
+          H.a ~a:H.[
+              a_href @@ Fmt.str "../%a" pp_platform_query platform
+            ]
+            [H.txt "here"] ;
           H.txt "." ]
       else
         H.p [
           H.txt "Including failed builds " ;
-          H.a ~a:H.[a_href "failed/"] [H.txt "here"] ;
+          H.a ~a:H.[
+              a_href @@ Fmt.str "failed/%a" pp_platform_query platform
+            ]
+            [H.txt "here"] ;
           H.txt "." ]
     ]
 
   let make_body ~failed ~job_name ~platform ~readme builds =
     make_header ~job_name ~platform ~readme
-    @ make_builds ~failed ~job_name builds
+    @ make_builds ~failed ~job_name ~platform builds
 
   let make ~failed ~job_name ~platform ~readme builds =
     let nav = `Job (job_name, platform) in
