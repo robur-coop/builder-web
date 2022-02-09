@@ -59,10 +59,22 @@ let mime_lookup path =
     then "application/octet-stream"
     else Magic_mime.lookup (Fpath.to_string path)
 
+let string_of_html =
+  Format.asprintf "%a" (Tyxml.Html.pp ())
+
+let not_found req =
+  let path = "/" ^ String.concat "/" (Dream.path req) in
+  let referer = Dream.header "referer" req in
+  Views.page_not_found ~path ~referer
+  |> string_of_html |> Dream.html ~status:`Not_Found
+
 let or_error_response r =
   let* r = r in
   match r with
   | Ok response -> Lwt.return response
+  | Error (text, `Not_Found) ->
+    Views.resource_not_found ~text
+    |> string_of_html |> Dream.html ~status:`Not_Found
   | Error (text, status) -> Dream.respond ~status text
 
 let default_log_warn ~status e =
@@ -80,9 +92,6 @@ let if_error
     log e;
     Lwt_result.fail (message, status)
   | Ok _ as r -> Lwt.return r
-
-let string_of_html =
-  Format.asprintf "%a" (Tyxml.Html.pp ())
 
 let get_uuid s =
   Lwt.return

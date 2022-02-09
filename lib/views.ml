@@ -209,6 +209,35 @@ let artifact
     txtf " (%a)" Fmt.byte_size size;
   ]
 
+let resource_not_found ~text =
+  [
+    H.h2 ~a:[ H.a_style "padding-top: 33vh" ]
+      [ txtf "This resource does not exist" ];
+    H.p [
+      H.txt @@ Fmt.str "Error: '%s'" text
+    ];
+  ]
+  |> layout ~title:"Resource not found"
+
+let page_not_found ~path ~referer =
+  [
+    H.h2 ~a:[ H.a_style "padding-top: 33vh" ]
+      [ txtf "This page does not exist" ];
+    H.p [
+      H.txt @@ Fmt.str "You requested the page %s" path
+    ];
+  ] @ (
+    match referer with
+    | None -> []
+    | Some prev_url -> [
+        H.p [
+          H.txt "Go back to ";
+          H.a ~a:H.[ a_href prev_url ] [ H.txt prev_url ];
+        ];
+      ]
+  )
+  |> layout ~title:"Page not found"
+
 module Builds = struct
 
   let make_header =
