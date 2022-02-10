@@ -60,6 +60,6 @@ Produced binaries can be downloaded and executed.
 """
 
 pin-depends: [
-  ["modulectomy.dev" "git+https://github.com/roburio/modulectomy.git#20211213_implementing_UI_scale_in_modulectomy.treemap"]
+  ["modulectomy.dev" "git+https://github.com/roburio/modulectomy.git"]
   ["opam-graph.dev" "git+https://git.robur.io/robur/opam-graph.git"]
 ]
