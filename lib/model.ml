@@ -31,7 +31,7 @@ let read_file datadir filepath =
        Lwt_result.return data)
     (function
       | Unix.Unix_error (e, _, _) ->
-        Logs.warn (fun m -> m "Error reading local file %a: %s"
+        Log.warn (fun m -> m "Error reading local file %a: %s"
                       Fpath.pp filepath (Unix.error_message e));
         Lwt.return_error (`File_error filepath)
       | e -> Lwt.fail e)
@@ -301,7 +301,8 @@ let prepare_staging staging_dir =
   else Lwt_result.return ()
 
 let add_build
-    datadir
+    ~configdir
+    ~datadir
     user_id
     ((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts)
     (module Db : CONN) =
@@ -383,17 +384,20 @@ let add_build
       artifacts >>= fun () ->
     Db.collect_list Build_artifact.get_all_by_build id >>= fun artifacts ->
     (match List.filter (fun (_, p) -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
-     | [ (build_artifact_id, _) ] -> Db.exec Build.set_main_binary (id, build_artifact_id)
+     | [ (build_artifact_id, p) ] ->
+       Db.exec Build.set_main_binary (id, build_artifact_id) >|= fun () ->
+       Some p
      | [] ->
        Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
-       Lwt_result.return ()
+       Lwt_result.return None
      | xs ->
        Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
                     Fmt.(list ~sep:(any ",") Fpath.pp)
                     (List.map (fun (_, a) -> a.filepath) xs));
-       Lwt_result.return ()) >>= fun () ->
+       Lwt_result.return None) >>= fun main_binary ->
     Db.commit () >>= fun () ->
-    commit_files datadir staging_dir job_name uuid
+    commit_files datadir staging_dir job_name uuid >|= fun () ->
+    main_binary
   in
   Lwt_result.bind_lwt_err (or_cleanup r)
     (fun e ->
@@ -402,4 +406,46 @@ let add_build
            Result.iter_error
              (fun e' -> Log.err (fun m -> m "Failed rollback: %a" Caqti_error.pp e'))
              r;
-           e))
+           e)) >>= function
+  | None -> Lwt.return (Ok ())
+  | Some p ->
+    let main_binary = p.localpath
+    and `Hex sha256 = Hex.of_cstruct p.sha256
+    and uuid = Uuidm.to_string uuid
+    and time =
+      let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
+      Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
+    and job = job.name
+    in
+    let args =
+      String.concat " "
+        (List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
+           [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
+             "--uuid=" ^ uuid ; Fpath.(to_string (datadir // main_binary)) ])
+    in
+    Log.debug (fun m -> m "executing hooks with %s" args);
+    let dir = Fpath.(configdir / "upload-hooks") in
+    (try
+       Lwt.return (Ok (Some (Unix.opendir (Fpath.to_string dir))))
+     with
+       Unix.Unix_error _ -> Lwt.return (Ok None)) >>= function
+    | None -> Lwt.return (Ok ())
+    | Some dh ->
+      try
+        let is_executable file =
+          let st = Unix.stat (Fpath.to_string file) in
+          st.Unix.st_perm land 0o111 = 0o111 &&
+          st.Unix.st_kind = Unix.S_REG
+        in
+        let rec go () =
+          let next_file = Unix.readdir dh in
+          let file = Fpath.(dir / next_file) in
+          if is_executable file then
+            ignore (Sys.command (Fpath.to_string file ^ " " ^ args ^ " &"));
+          go ()
+        in
+        go ()
+      with
+      | End_of_file ->
+        Unix.closedir dh;
+        Lwt.return (Ok ())

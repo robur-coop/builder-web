@@ -106,7 +106,7 @@ let dream_svg ?status ?code ?headers body =
   |> Dream.with_header "Content-Type" "image/svg+xml"
   |> Lwt.return
 
-let add_routes datadir =
+let add_routes datadir configdir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
 
   let builds req =
@@ -404,7 +404,7 @@ let add_routes datadir =
       let datadir = Dream.global datadir_global req in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build datadir user_id exec))
+       Dream.sql req (Model.add_build ~configdir ~datadir user_id exec))
       |> if_error "Internal server error"
         ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
@@ -502,7 +502,7 @@ let add_routes datadir =
       in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build datadir user_id exec))
+       Dream.sql req (Model.add_build ~configdir ~datadir user_id exec))
       |> if_error "Internal server error"
         ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
       >>= fun () -> Dream.respond "" |> Lwt_result.ok

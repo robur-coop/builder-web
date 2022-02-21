@@ -78,9 +78,10 @@ let init_influx name data =
     in
     Lwt.async report
 
-let setup_app level influx port host datadir =
+let setup_app level influx port host datadir configdir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
+  let configdir = Fpath.v configdir in
   let () = init_influx "builder-web" influx in
   match Builder_web.init dbpath datadir with
   | Error (#Caqti_error.load as e) ->
@@ -96,7 +97,7 @@ let setup_app level influx port host datadir =
     @@ Dream.logger
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
     @@ Http_status_metrics.handle
-    @@ Builder_web.add_routes datadir
+    @@ Builder_web.add_routes datadir configdir
     @@ Builder_web.not_found
 
 open Cmdliner
@@ -124,6 +125,10 @@ let datadir =
   let doc = "data directory" in
   Arg.(value & opt dir Builder_system.default_datadir & info [ "d"; "datadir" ] ~doc)
 
+let configdir =
+  let doc = "config directory" in
+  Arg.(value & opt dir Builder_system.default_configdir & info [ "c"; "configdir" ] ~doc)
+
 let port =
   let doc = "port" in
   Arg.(value & opt int 3000 & info [ "p"; "port" ] ~doc)
@@ -137,7 +142,7 @@ let influx =
   Arg.(value & opt (some ip_port) None & info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
 
 let () =
-  let term = Term.(pure setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir) in
+  let term = Term.(pure setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $ configdir) in
   let info = Term.info "Builder web" ~doc:"Builder web" ~man:[] in
   match Term.eval (term, info) with
   | `Ok () -> exit 0

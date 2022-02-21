@@ -93,7 +93,8 @@ val user : string -> Caqti_lwt.connection ->
 val authorized : [`user] Builder_db.id -> string -> Caqti_lwt.connection -> (unit, [> Caqti_error.call_or_retrieve | `Msg of string ]) result Lwt.t
 
 val add_build :
-  Fpath.t ->
+  configdir:Fpath.t ->
+  datadir:Fpath.t ->
   [`user] Builder_db.id ->
   (Builder.script_job * Uuidm.t * (int * string) list * Ptime.t * Ptime.t *
    Builder.execution_result * (Fpath.t * string) list) ->

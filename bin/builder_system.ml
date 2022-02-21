@@ -10,3 +10,8 @@ let default_datadir =
   match Lazy.force uname with
   | `FreeBSD -> "/var/db/builder-web"
   | `Linux -> "/var/lib/builder-web"
+
+let default_configdir =
+  match Lazy.force uname with
+  | `FreeBSD -> "/usr/local/etc/builder-web"
+  | `Linux -> "/etc/builder-web"
