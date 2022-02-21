@@ -63,7 +63,7 @@ let datadir =
   let doc = "data directory containing builder.sqlite3 and data files" in
   Cmdliner.Arg.(value &
                 opt dir Builder_system.default_datadir &
-                info ~doc ["datadir"])
+                info ~doc ["datadir"; "d"])
 
 let setup_log =
   let setup_log level =

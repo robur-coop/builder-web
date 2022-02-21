@@ -411,7 +411,7 @@ let datadir =
   let doc = "data directory" in
   Cmdliner.Arg.(value &
                 opt dir Builder_system.default_datadir &
-                info ~doc ["datadir"])
+                info ~doc ["datadir"; "d"])
 
 let jobname =
   let doc = "jobname" in
