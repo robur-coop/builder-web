@@ -102,7 +102,7 @@ let setup_app level influx port host datadir configdir =
 
 open Cmdliner
 
-let ip_port : (Ipaddr.V4.t * int) Arg.converter =
+let ip_port : (Ipaddr.V4.t * int) Arg.conv =
   let default_port = 8094 in
   let parse s =
     match
@@ -114,12 +114,14 @@ let ip_port : (Ipaddr.V4.t * int) Arg.converter =
       end
         | _ -> Error "multiple : found"
     with
-    | Error msg -> `Error msg
+    | Error msg -> Error (`Msg msg)
     | Ok (ip, port) -> match Ipaddr.V4.of_string ip with
-      | Ok ip -> `Ok (ip, port)
-      | Error `Msg msg -> `Error msg
+      | Ok ip -> Ok (ip, port)
+      | Error `Msg msg -> Error (`Msg msg)
   in
-  parse, fun ppf (ip, port) -> Format.fprintf ppf "%a:%d" Ipaddr.V4.pp ip port
+  let printer ppf (ip, port) =
+    Format.fprintf ppf "%a:%d" Ipaddr.V4.pp ip port in
+  Arg.conv (parse, printer)
 
 let datadir =
   let doc = "data directory" in
@@ -142,9 +144,8 @@ let influx =
   Arg.(value & opt (some ip_port) None & info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
 
 let () =
-  let term = Term.(pure setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $ configdir) in
-  let info = Term.info "Builder web" ~doc:"Builder web" ~man:[] in
-  match Term.eval (term, info) with
-  | `Ok () -> exit 0
-  | `Error _ -> exit 1
-  | _ -> exit 0
+  let term = Term.(const setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $ configdir) in
+  let info = Cmd.info "Builder web" ~doc:"Builder web" ~man:[] in
+  Cmd.v info term
+  |> Cmd.eval
+  |> exit
