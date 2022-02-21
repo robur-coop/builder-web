@@ -416,12 +416,14 @@ let add_build
       let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
       Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
     and job = job.name
+    and platform = job.platform
     in
     let args =
       String.concat " "
         (List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
            [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
-             "--uuid=" ^ uuid ; Fpath.(to_string (datadir // main_binary)) ])
+             "--uuid=" ^ uuid ; "--platform=" ^ platform ;
+             Fpath.(to_string (datadir // main_binary)) ])
     in
     Log.debug (fun m -> m "executing hooks with %s" args);
     let dir = Fpath.(configdir / "upload-hooks") in
