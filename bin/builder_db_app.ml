@@ -164,6 +164,8 @@ let job_remove () datadir jobname =
             (Ok ())
             builds
         in
+        let* () = Db.exec Builder_db.Access_list.remove_by_job job_id in
+        let* () = Db.exec Builder_db.Job_tag.remove_by_job job_id in
         let* () = Db.exec Builder_db.Job.remove job_id in
         Db.commit ()
       in

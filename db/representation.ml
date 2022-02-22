@@ -26,6 +26,8 @@ type 'a id = untyped_id
 let id (_ : 'a) : 'a id Caqti_type.t = untyped_id
 let any_id : 'a id Caqti_type.t = untyped_id
 
+let id_to_int64 (id : 'a id) : int64 = id
+
 type file = {
   filepath : Fpath.t;
   localpath : Fpath.t;
