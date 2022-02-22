@@ -8,6 +8,7 @@ module Rep : sig
     size : int;
   }
 
+  val id_to_int64 : 'a id -> int64
   val untyped_id : untyped_id Caqti_type.t
   val id : 'a -> 'a id Caqti_type.t
   val uuid : Uuidm.t Caqti_type.t
@@ -74,6 +75,8 @@ module Job_tag : sig
     ([`tag] id * string * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val get_value :
     ([`tag] id * [`job] id, string, [< `Many | `One | `Zero > `Zero `One ]) Caqti_request.t
+  val remove_by_job :
+    ([`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end
 
 module Build_artifact : sig
@@ -176,6 +179,8 @@ module Access_list : sig
     ([`user] id * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove :
     ([`user] id * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val remove_by_job :
+    ([`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
   val remove_all_by_username :
     (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
 end

@@ -152,6 +152,12 @@ module Job_tag = struct
       Caqti_type.(tup2 (id `tag) (id `job))
       Caqti_type.string
       "SELECT value FROM job_tag WHERE tag = ? AND job = ?"
+
+  let remove_by_job =
+    Caqti_request.exec
+      (id `job)
+      "DELETE FROM job_tag WHERE job = ?"
+
 end
 
 module Build_artifact = struct
@@ -648,6 +654,11 @@ module Access_list = struct
     Caqti_request.exec
       Caqti_type.(tup2 (id `user) (id `job))
       "DELETE FROM access_list WHERE user = ? AND job = ?"
+
+  let remove_by_job =
+    Caqti_request.exec
+      (id `job)
+      "DELETE FROM access_list WHERE job = ?"
 
   let remove_all_by_username =
     Caqti_request.exec
