@@ -50,6 +50,8 @@ depends: [
   "modulectomy"
   "opam-graph"
   "tar"
+  "owee"
+  "solo5-elftool"
 ]
 
 synopsis: "Web interface for builder"

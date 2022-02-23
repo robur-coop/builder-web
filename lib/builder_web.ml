@@ -275,11 +275,16 @@ let add_routes datadir configdir =
   in
 
   let job_build req =
+    let datadir = Dream.global datadir_global req in
     let job_name = Dream.param "job" req
     and build = Dream.param "build" req in
     get_uuid build >>= fun uuid ->
     Dream.sql req (fun conn ->
         Model.build uuid conn >>= fun (build_id, build) ->
+        (match build.Builder_db.Build.main_binary with
+         | Some main_binary ->
+           Model.build_artifact_by_id main_binary conn |> Lwt_result.map Option.some
+         | None -> Lwt_result.return None) >>= fun main_binary ->
         Model.build_artifacts build_id conn >>= fun artifacts ->
         Model.builds_with_same_input_and_same_main_binary build_id conn >>= fun same_input_same_output ->
         Model.builds_with_different_input_and_same_main_binary build_id conn >>= fun different_input_same_output ->
@@ -287,15 +292,21 @@ let add_routes datadir configdir =
         Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn >>= fun latest ->
         Model.next_successful_build_different_output build_id conn >>= fun next ->
         Model.previous_successful_build_different_output build_id conn >|= fun previous ->
-        (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
+        (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
       )
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (build, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+    >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+    (match main_binary with
+     | Some main_binary -> Model.solo5_manifest datadir main_binary
+     | None -> Lwt_result.return None)
+    |> if_error "Error getting solo5 manifest" >>= fun solo5_manifest ->
     Views.Job_build.make
       ~name:job_name
       ~build
       ~artifacts
+      ~main_binary
+      ~solo5_manifest
       ~same_input_same_output
       ~different_input_same_output
       ~same_input_different_output

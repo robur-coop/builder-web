@@ -21,6 +21,9 @@ val build_artifact_data : Fpath.t -> Builder_db.file ->
 val build_artifacts : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.file list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
+val solo5_manifest : Fpath.t -> Builder_db.file ->
+  (Solo5_elftool.mft option, [> `Msg of string ]) result Lwt.t
+
 val platforms_of_job : [`job] Builder_db.id -> Caqti_lwt.connection ->
   (string list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 

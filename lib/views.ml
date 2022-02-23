@@ -431,17 +431,42 @@ module Job_build = struct
     in
     List.exists check artifacts
 
-  let make_artifacts ~artifacts =
+  let make_artifacts ~artifacts ~main_binary ~solo5_manifest =
+    let solo5_devices solo5_manifest =
+      let pp_devices =
+        let pp_device_name ppf = function
+          | Solo5_elftool.Dev_block_basic name | Solo5_elftool.Dev_net_basic name ->
+            Fmt.pf ppf "%S" name
+        in
+        Fmt.(list ~sep:(any ", ") pp_device_name)
+      in
+      match
+        List.partition (function Solo5_elftool.Dev_block_basic _ -> true | _ -> false)
+          solo5_manifest.Solo5_elftool.entries
+      with
+      | [], [] -> [txtf "with no devices in solo5 manifest"]
+      | (_::_) as block_devices, [] ->
+        [txtf "with block devices %a" pp_devices block_devices]
+      | [], ((_::_) as net_devices) ->
+        [txtf "with net devices %a" pp_devices net_devices]
+      | block_devices, net_devices ->
+        [txtf "with block devices %a, and net devices %a"
+           pp_devices block_devices pp_devices net_devices]
+    in
     let aux (file:Builder_db.file) =
       let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
       [
         H.dt [
           H.a ~a:H.[Fmt.kstr a_href "f/%a" Fpath.pp file.filepath]
             [H.code [txtf "%a" Fpath.pp file.filepath]] ];
-        H.dd [
-          H.code [H.txt "SHA256:"; H.txt sha256_hex];
-          txtf " (%a)" Fmt.byte_size file.size;
-        ];
+        H.dd ([
+            H.code [H.txt "SHA256:"; H.txt sha256_hex];
+            txtf " (%a)" Fmt.byte_size file.size;
+          ] @
+            match main_binary, solo5_manifest with
+            | Some main_binary, Some solo5_manifest when main_binary = file ->
+              (H.br () :: solo5_devices solo5_manifest)
+            | _ -> []);
       ]
     in
     [
@@ -539,6 +564,8 @@ module Job_build = struct
       ~delta
       ~(build:Builder_db.Build.t)
       ~artifacts
+      ~main_binary
+      ~solo5_manifest
       ~same_input_same_output
       ~different_input_same_output
       ~same_input_different_output
@@ -563,7 +590,7 @@ module Job_build = struct
         ]
       ];
     ]
-    @ make_artifacts ~artifacts
+    @ make_artifacts ~artifacts ~main_binary ~solo5_manifest
     @ make_reproductions
       ~name
       ~build
@@ -623,6 +650,8 @@ module Job_build = struct
       ~name
       ~(build:Builder_db.Build.t)
       ~artifacts
+      ~main_binary
+      ~solo5_manifest
       ~same_input_same_output
       ~different_input_same_output
       ~same_input_different_output
@@ -636,6 +665,8 @@ module Job_build = struct
         ~delta
         ~build
         ~artifacts
+        ~main_binary
+        ~solo5_manifest
         ~same_input_same_output
         ~different_input_same_output
         ~same_input_different_output
