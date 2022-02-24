@@ -101,7 +101,7 @@ mv "${TMP}/usr" "${PKG_ROOT}"
 
 VERSION=$(jq -r '.version' "${MANIFEST}")
 NAME=$(jq -r '.name' "${MANIFEST}")
-FULL_VERSION="${VERSION}-${BUILD_TIME}-${SHA}"
+FULL_VERSION="${VERSION}.${BUILD_TIME}.${SHA}"
 
 jq -ca ".version=\"$FULL_VERSION\"" "${MANIFEST}" > "${TMPMANIFEST}"
 mv "${TMPMANIFEST}" "${MANIFEST}"
