@@ -58,7 +58,3 @@ see `builder-db user-add --help`):
 ```ocaml
 curl --data-binary @<build-hash>.full http://<user>:<passwd>@localhost:<builder-web-port>/upload
 ```
-
-
-
-

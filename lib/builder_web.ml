@@ -4,8 +4,6 @@ module Log = (val Logs.src_log src : Logs.LOG)
 open Lwt.Syntax
 open Lwt_result.Infix
 
-let sprintf = Printf.sprintf
-
 let pp_error ppf = function
   | #Caqti_error.connect as e -> Caqti_error.pp ppf e
   | #Model.error as e -> Model.pp_error ppf e
@@ -147,8 +145,7 @@ let add_routes datadir configdir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    builds
-    |> Views.Job.make ~failed:false ~job_name ~platform ~readme
+    Views.Job.make ~failed:false ~job_name ~platform ~readme builds
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
@@ -161,8 +158,7 @@ let add_routes datadir configdir =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    builds
-    |> Views.Job.make ~failed:true ~job_name ~platform ~readme
+    Views.Job.make ~failed:true ~job_name ~platform ~readme builds
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
@@ -334,7 +330,8 @@ let add_routes datadir configdir =
     |> if_error "Error getting data"
        ~log:(fun e -> Log.warn (fun m -> m "Error getting failed builds: %a"
                                   pp_error e)) >>= fun builds ->
-    Views.failed_builds ~start ~count builds |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.failed_builds ~start ~count builds
+    |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_build_tar req =
