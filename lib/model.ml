@@ -382,25 +382,26 @@ let add_build
      match readme, readme_anywhere with
      | None, None -> Lwt_result.return ()
      | Some (_, data), _ | None, Some (_, data) -> add_or_update readme_id data) >>= fun () ->
+    (match List.partition (fun p -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
+     | [ main_binary ], other_artifacts ->
+       Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+       Db.find Builder_db.last_insert_rowid () >>= fun main_binary_id ->
+       Db.exec Build.set_main_binary (id, main_binary_id) >|= fun () ->
+       Some main_binary, other_artifacts
+     | [], _ ->
+       Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
+       Lwt_result.return (None, artifacts)
+     | xs, _ ->
+       Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
+                    Fmt.(list ~sep:(any ",") Fpath.pp)
+                    (List.map (fun a -> a.filepath) xs));
+       Lwt_result.return (None, artifacts)) >>= fun (main_binary, remaining_artifacts_to_add) ->
     List.fold_left
       (fun r file ->
          r >>= fun () ->
          Db.exec Build_artifact.add (file, id))
       (Lwt_result.return ())
-      artifacts >>= fun () ->
-    Db.collect_list Build_artifact.get_all_by_build id >>= fun artifacts ->
-    (match List.filter (fun (_, p) -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
-     | [ (build_artifact_id, p) ] ->
-       Db.exec Build.set_main_binary (id, build_artifact_id) >|= fun () ->
-       Some p
-     | [] ->
-       Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
-       Lwt_result.return None
-     | xs ->
-       Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
-                    Fmt.(list ~sep:(any ",") Fpath.pp)
-                    (List.map (fun (_, a) -> a.filepath) xs));
-       Lwt_result.return None) >>= fun main_binary ->
+      remaining_artifacts_to_add >>= fun () ->
     Db.commit () >>= fun () ->
     commit_files datadir staging_dir job_name uuid >|= fun () ->
     main_binary
@@ -423,13 +424,31 @@ let add_build
       Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
     and job = job.name
     and platform = job.platform
+    and debug_binary =
+      let bin = Fpath.base p.localpath in
+      List.find_opt
+        (fun p -> Fpath.(equal (bin + "debug") (base p.localpath)))
+        artifacts |>
+      Option.map (fun p -> p.localpath)
+    and opam_switch =
+      List.find_opt
+        (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
+        artifacts |>
+      Option.map (fun p -> p.localpath)
+    in
+    let fp_str p = Fpath.(to_string (datadir // p)) in
+    let opt_str ~prefix p =
+      Option.fold ~none:[] ~some:(fun p -> [ "--" ^ prefix ^ "=" ^ fp_str p ]) p
     in
     let args =
       String.concat " "
         (List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
-           [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
-             "--uuid=" ^ uuid ; "--platform=" ^ platform ;
-             Fpath.(to_string (datadir // main_binary)) ])
+           ((opt_str ~prefix:"debug-binary" debug_binary) @
+            (opt_str ~prefix:"opam-switch" opam_switch) @
+            [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
+              "--uuid=" ^ uuid ; "--platform=" ^ platform ;
+              "--cache-dir=" ^ fp_str (Fpath.v "_cache") ;
+              fp_str main_binary ]))
     in
     Log.debug (fun m -> m "executing hooks with %s" args);
     let dir = Fpath.(configdir / "upload-hooks") in

@@ -198,78 +198,41 @@ let add_routes datadir configdir =
       |> Lwt_result.ok
   in
 
-  let visualization_cmd args =
-    let cmd_list = "builder-viz" :: args in
-    let cmd = "", Array.of_list cmd_list in
-    let pin =
-      Lwt_process.open_process_in
-        ~stdin:`Dev_null ~stderr:`Dev_null
-        ~timeout:15.
-        cmd
+  let try_load_cached_visualization ~datadir ~uuid typ =
+    let fn = match typ with
+      | `Treemap -> "treemap"
+      | `Dependencies -> "dependencies"
     in
-    let* output = Lwt_io.read pin#stdout
-    and* exit_status = pin#status in
-    match exit_status with
-    | Unix.WEXITED 0 -> Lwt_result.return output
-    | Unix.WEXITED _ | Unix.WSIGNALED _ |Unix.WSTOPPED _ ->
-      let cmd_str = String.concat " " cmd_list in
-      `Msg (sprintf "Error when running cmd: '%s'" cmd_str)
-      |> Lwt_result.fail
-  in
-
-  let treemap_visualization_cmd ~debug_elf_path ~elf_size =
-    [ "treemap"; debug_elf_path; Int.to_string elf_size ]
-    |> visualization_cmd
-  in
-
-  let dependencies_visualization_cmd ~opam_switch_path =
-    [ "dependencies"; opam_switch_path ]
-    |> visualization_cmd
+    let path = Fpath.(datadir / "_cache" / Uuidm.to_string uuid + fn + "html") in
+    Lwt.return (Bos.OS.File.exists path) >>= fun cached_file_exists ->
+    if not cached_file_exists then
+      Lwt_result.fail (`Msg "Visualization does not exist")
+    else
+      Lwt_result.catch (
+        Lwt_io.with_file ~mode:Lwt_io.Input
+          (Fpath.to_string path)
+          Lwt_io.read
+      ) |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
   in
 
   let job_build_viztreemap req =
     let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    and build = Dream.param "build" req
+    and datadir = Dream.global datadir_global req in
     get_uuid build >>= fun uuid ->
-    (
-      Dream.sql req (Model.build uuid) >>= fun (_id, build) ->
-      Model.not_found build.Builder_db.Build.main_binary >>= fun main_binary_id ->
-      Dream.sql req (Model.build_artifact_by_id main_binary_id) >>= fun main_binary ->
-      let debug_binary_path = Fpath.(base main_binary.Builder_db.filepath + "debug") in
-      (* lookup debug_binary_path artifact *)
-      Dream.sql req (Model.build_artifact uuid debug_binary_path) >>= fun debug_binary ->
-      Lwt_result.return (debug_binary, main_binary))
-    |> if_error "Error getting job build"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (debug_binary, main_binary) ->
-    let elf_size = main_binary.Builder_db.size in
-    let datadir = Dream.global datadir_global req in
-    let debug_elf_path = Fpath.(
-      datadir // debug_binary.Builder_db.localpath
-      |> to_string
-    ) in
-    treemap_visualization_cmd ~debug_elf_path ~elf_size
-    |> if_error "Failed to generate treemap visualization"
+    (try_load_cached_visualization ~datadir ~uuid `Treemap
+     |> if_error "Error getting cached visualization")
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
 
   let job_build_vizdependencies req =
     let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    and build = Dream.param "build" req
+    and datadir = Dream.global datadir_global req in
     get_uuid build >>= fun uuid ->
-    let opam_switch_path = Fpath.(v "opam-switch") in
-    Dream.sql req (Model.build_artifact uuid opam_switch_path)
-    |> if_error "Error getting job build"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job data: %a" pp_error e))
-    >>= fun opam_switch ->
-    let datadir = Dream.global datadir_global req in
-    let opam_switch_path = Fpath.(
-      datadir // opam_switch.Builder_db.localpath
-      |> to_string
-    ) in
-    dependencies_visualization_cmd ~opam_switch_path
-    |> if_error "Failed to generate dependencies visualization"
+    (try_load_cached_visualization ~datadir ~uuid `Dependencies
+     |> if_error "Error getting cached visualization")
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
