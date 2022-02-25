@@ -2,6 +2,8 @@
 
 set -ex
 
+export HOME="/home/builder"
+
 prog_NAME=$(basename "${0}")
 
 warn()
