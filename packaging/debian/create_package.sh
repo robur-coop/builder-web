@@ -34,6 +34,9 @@ install -m 0644 $basedir/packaging/debian/changelog $debiandir/changelog
 install -m 0644 $basedir/packaging/debian/copyright $debiandir/copyright
 install $basedir/packaging/debian/postinst $debiandir/postinst
 
+ARCH=$(dpkg-architecture -q DEB_TARGET_ARCH)
+sed -i -e "s/^Architecture:.*/Architecture: ${ARCH}/" $debiandir/control
+
 dpkg-deb --build $rootdir $basedir/builder-web.deb
 echo 'bin: [ "builder-web.deb" ]' > $basedir/builder-web.install
 echo 'doc: [ "README.md" ]' >> $basedir/builder-web.install
