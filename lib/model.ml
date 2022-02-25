@@ -51,10 +51,8 @@ let build_artifacts build (module Db : CONN) =
   List.map snd
 
 let solo5_manifest datadir file =
-  try
-    let buf = Owee_buf.map_binary Fpath.(to_string (datadir // file.Builder_db.localpath)) in
-    Lwt.return (Solo5_elftool.query_manifest buf |> Result.map Option.some)
-  with Owee_buf.Invalid_format _ -> Lwt_result.return None
+  let buf = Owee_buf.map_binary Fpath.(to_string (datadir // file.Builder_db.localpath)) in
+  Solo5_elftool.query_manifest buf |> Result.to_option
 
 let platforms_of_job id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_platforms_for_job id

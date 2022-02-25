@@ -256,10 +256,7 @@ let add_routes datadir configdir =
     |> if_error "Error getting job build"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    (match main_binary with
-     | Some main_binary -> Model.solo5_manifest datadir main_binary
-     | None -> Lwt_result.return None)
-    |> if_error "Error getting solo5 manifest" >>= fun solo5_manifest ->
+    let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
     Views.Job_build.make
       ~name:job_name
       ~build
