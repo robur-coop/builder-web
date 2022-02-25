@@ -106,12 +106,7 @@ sed -i "" -e "s/Version:.*/Version: ${NEW_VERSION}/g" "${TMP}/DEBIAN/control"
 
 dpkg-deb --build "${TMP}" "${TMP}"
 
-REPO_EXISTS=1
 if ! aptly repo show "${PLATFORM}" > /dev/null 2>&1; then
-  REPO_EXISTS=0
-fi
-
-if [ "${REPO_EXISTS}" -eq 0 ]; then
   aptly repo create --distribution="${PLATFORM}" "${PLATFORM}"
 fi
 
@@ -119,7 +114,7 @@ aptly repo add "${PLATFORM}" "${TMP}"
 
 : "${REPO_KEYID:="D5E2DC92617877EDF7D4FD4345EA05FB7E26053D"}"
 
-if [ "${REPO_EXISTS}" -eq 0 ]; then
+if ! aptly publish show "${PLATFORM}" > /dev/null 2>&1; then
   aptly publish repo -gpg-key="${REPO_KEYID}" "${PLATFORM}"
 else
   aptly publish update -gpg-key="${REPO_KEYID}" "${PLATFORM}"

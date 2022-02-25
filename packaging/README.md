@@ -41,6 +41,10 @@ deb https://apt.robur.coop/ debian-10 main
 The `debian-10` can be exchanged with any platform you're building debian
 packages for.
 
+Currently, the `dpkg-repo.sh` sets the HOME to `/home/builder` (where aptly
+expects its configuration), and uses the platform (from builder) as
+distribution.
+
 ## FreeBSD package repository
 
 The dependency is FreeBSD's pkg utility.
