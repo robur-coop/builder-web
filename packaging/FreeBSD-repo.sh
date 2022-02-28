@@ -78,7 +78,7 @@ if [ "$(basename "${FILENAME}" .pkg)" = "$(basename "${FILENAME}")" ]; then
     exit 0
 fi
 
-if ls "${REPO}"/*/All/"${JOB}"-*-"${SHA}".pkg > /dev/null; then
+if ls "${REPO}"/*/All/"${JOB}"-*."${SHA}".pkg > /dev/null; then
     echo "Same hash already present, nothing to do"
     exit 0
 fi
