@@ -240,27 +240,41 @@ let page_not_found ~path ~referer =
 
 module Builds = struct
 
+  let data =
+    {|
+# Reproducible OPAM builds
+
+This website offers binary MirageOS unikernels and supplementary OS packages.
+If you want to use our binary packages and setup unikernels, follow
+[these instructions](https://robur.coop/Projects/Reproducible_builds).
+The unikernels are statically linked executables where the execution target is
+independent of the build platform - so even if they're compiled on a FreeBSD
+system they can be run on a Linux or OpenBSD host. Many are executed using a
+[solo5](https://github.com/solo5/solo5) tender.
+The filename suffix of the unikernel binary indicate the expected execution environment:
+- `.hvt`: hardware virtualized - requires `solo5-hvt`
+  ([Linux KVM](https://www.linux-kvm.org/page/Main_Page),
+   [FreeBSD BHyve](https://wiki.freebsd.org/bhyve),
+   [OpenBSD VMM](https://man.openbsd.org/vmm)),
+- `.spt`: sandboxed process - requires `solo5-spt` (Linux with seccomp),
+- `.xen`:  Xen PVH virtual machine (on a Xen or QubesOS host),
+- `.virtio`: any virtio environment (qemu, GCE, KVM, BHyve),
+- `.muen`: on [muen](https://muen.sk).
+
+A persistent link to the latest successful build is available as
+`/job/*jobname*/build/latest/`. Each build can be reproduced with
+[orb](https://github.com/roburio/orb/). The builds are scheduled and executed
+daily by [builder](https://github.com/roburio/builder/). This web interface is
+[builder-web](https://git.robur.io/robur/builder-web/). Read further information
+[on our project page](https://robur.coop/Projects/Reproducible_builds). This
+work has been funded by the European Union under the
+[NGI Pointer](https://pointer.ngi.eu) program. Contact team ATrobur.coop if you
+have questions or suggestions.
+|}
+
   let make_header =
     [
-      H.h1 [ H.txt "Reproducible OPAM builds" ];
-      H.p [ H.txt "This website offers binary MirageOS unikernels and \
-                   supplementary OS packages." ];
-      H.p [
-        H.txt "Following is a list of jobs that are built daily. A \
-               persistent link to the latest successful build is available \
-               as /job/*jobname*/build/latest/. All builds can be \
-               reproduced with ";
-        H.a ~a:H.[a_href "https://github.com/roburio/orb/"]
-          [H.txt "orb"];
-        H.txt ". The builds are scheduled and executed by ";
-        H.a ~a:H.[a_href "https://github.com/roburio/builder/"]
-          [H.txt "builder"];
-        H.txt ". The web interface is ";
-        H.a ~a:H.[a_href "https://git.robur.io/robur/builder-web/"]
-          [H.txt "builder-web"];
-        H.txt ". Contact team@robur.coop if you have any questions or \
-               suggestions.";
-      ];
+      H.Unsafe.data (Utils.Omd.html_of_string data);
       H.form ~a:H.[a_action "/hash"; a_method `Get] [
         H.label [
           H.txt "Search artifact by SHA256";
