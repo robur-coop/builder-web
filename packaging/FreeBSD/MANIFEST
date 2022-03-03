@@ -1,6 +1,6 @@
-name:         builder_web
+name:         builder-web
 version:      %%VERSION_NUM%%
-origin:	      local/builder_web
+origin:	      local/builder-web
 comment:      Builder web service
 www:	      https://git.robur.io/robur/builder-web
 maintainer:   Robur <team@robur.coop>

@@ -50,6 +50,6 @@ sed -e "s:%%FLATSIZE%%:${flatsize}:" -e "/^[Vv]ersion:/s/-/./g" "$pdir/MANIFEST"
 
 export SOURCE_DATE_EPOCH=$(git log -1 --pretty=format:%ct)
 pkg create -r "$rootdir" -M "$manifest" -o $basedir/
-mv $basedir/builder_web-*.pkg $basedir/builder_web.pkg
-echo 'bin: [ "builder_web.pkg" ]' > $basedir/builder-web.install
+mv $basedir/builder-web-*.pkg $basedir/builder-web.pkg
+echo 'bin: [ "builder-web.pkg" ]' > $basedir/builder-web.install
 echo 'doc: [ "README.md" ]' >> $basedir/builder-web.install
