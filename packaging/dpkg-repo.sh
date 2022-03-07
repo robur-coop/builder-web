@@ -97,14 +97,18 @@ cleanup () {
 
 trap cleanup EXIT
 
-dpkg-deb -R "${FILENAME}" "${TMP}"
+PKG_ROOT="${TMP}/pkg"
+
+mkdir "${PKG_ROOT}"
+
+dpkg-deb -R "${FILENAME}" "${PKG_ROOT}"
 
 VERSION=$(dpkg-deb -f "${FILENAME}" Version)
 NEW_VERSION="${VERSION}"-"${BUILD_TIME}"-"${SHA}"
 
-sed -i "" -e "s/Version:.*/Version: ${NEW_VERSION}/g" "${TMP}/DEBIAN/control"
+sed -i "" -e "s/Version:.*/Version: ${NEW_VERSION}/g" "${PKG_ROOT}/DEBIAN/control"
 
-dpkg-deb --build "${TMP}" "${TMP}"
+dpkg-deb --build "${PKG_ROOT}" "${TMP}"
 
 if ! aptly repo show "${PLATFORM}" > /dev/null 2>&1; then
   aptly repo create --distribution="${PLATFORM}" "${PLATFORM}"
