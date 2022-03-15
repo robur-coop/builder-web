@@ -53,10 +53,10 @@ let print_treemap_html elf_path elf_size =
     ]
   in
   let override_css = {|
-    .module {
+    .treemap-module {
       fill: rgb(60, 60, 87);
     }
-    .functor > text, .module > text {
+    .treemap-functor > text, .treemap-module > text {
       fill: bisque;
     }
   |}
@@ -78,7 +78,7 @@ let print_dependencies_html file =
   let transitive = false in
   let graph = Ui.dependencies ~transitive data in
   let override_css = {|
-    svg {
+    .treemap-svg-wrap {
       background: rgb(60, 60, 87);
     }
   |}
