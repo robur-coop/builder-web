@@ -78,7 +78,7 @@ let print_dependencies_html file =
   let transitive = false in
   let graph = Ui.dependencies ~transitive data in
   let override_css = {|
-    svg {
+    .deps-svg-wrap {
       background: rgb(60, 60, 87);
     }
   |}
