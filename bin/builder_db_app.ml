@@ -480,87 +480,111 @@ let setup_log =
   in
   Cmdliner.Term.(const setup_log $ Logs_cli.level ())
 
+open Cmdliner
+
 let migrate_cmd =
   let doc = "create database and add tables" in
-  Cmdliner.Term.(pure migrate $ setup_log $ dbpath_new),
-  Cmdliner.Term.info ~doc "migrate"
+  let term = Term.(const migrate $ setup_log $ dbpath_new) in
+  let info = Cmd.info ~doc "migrate" in
+  Cmd.v info term
 
 let user_add_cmd =
   let doc = "add a user" in
-  (Cmdliner.Term.(pure user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username $ unrestricted),
-   Cmdliner.Term.info ~doc "user-add")
+  let term = Term.(
+      const user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p
+      $ username $ unrestricted) in
+  let info = Cmd.info ~doc "user-add" in
+  Cmd.v info term
 
 let user_update_cmd =
   let doc = "update a user password" in
-  (Cmdliner.Term.(pure user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p $ username $ unrestricted),
-   Cmdliner.Term.info ~doc "user-update")
+  let term = Term.(
+      const user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p
+      $ username $ unrestricted) in
+  let info = Cmd.info ~doc "user-update" in
+  Cmd.v info term
 
 let user_remove_cmd =
   let doc = "remove a user" in
-  (Cmdliner.Term.(pure user_remove $ setup_log $ dbpath $ username),
-   Cmdliner.Term.info ~doc "user-remove")
+  let term = Term.(const user_remove $ setup_log $ dbpath $ username) in
+  let info = Cmd.info ~doc "user-remove" in
+  Cmd.v info term
 
 let user_disable_cmd =
   let doc = "disable a user" in
-  (Cmdliner.Term.(pure user_disable $ setup_log $ dbpath $ username),
-   Cmdliner.Term.info ~doc "user-disable")
+  let term = Term.(const user_disable $ setup_log $ dbpath $ username) in
+  let info = Cmd.info ~doc "user-disable" in
+  Cmd.v info term
 
 let user_list_cmd =
   let doc = "list all users" in
-  (Cmdliner.Term.(pure user_list $ setup_log $ dbpath),
-   Cmdliner.Term.info ~doc "user-list")
+  let term = Term.(const user_list $ setup_log $ dbpath) in
+  let info = Cmd.info ~doc "user-list" in
+  Cmd.v info term
 
 let access_add_cmd =
   let doc = "grant access to user and job" in
-  (Cmdliner.Term.(pure access_add $ setup_log $ dbpath $ username $ job),
-   Cmdliner.Term.info ~doc "access-add")
+  let term = Term.(const access_add $ setup_log $ dbpath $ username $ job) in
+  let info = Cmd.info ~doc "access-add" in
+  Cmd.v info term
 
 let access_remove_cmd =
   let doc = "remove access to user and job" in
-  (Cmdliner.Term.(pure access_remove $ setup_log $ dbpath $ username $ job),
-   Cmdliner.Term.info ~doc "access-remove")
+  let term = Term.(const access_remove $ setup_log $ dbpath $ username $ job) in
+  let info = Cmd.info ~doc "access-remove" in
+  Cmd.v info term
 
 let job_remove_cmd =
   let doc = "remove job and its associated builds and artifacts" in
-  (Cmdliner.Term.(pure job_remove $ setup_log $ datadir $ jobname),
-   Cmdliner.Term.info ~doc "job-remove")
+  let term = Term.(const job_remove $ setup_log $ datadir $ jobname) in
+  let info = Cmd.info ~doc "job-remove" in
+  Cmd.v info term
 
 let extract_full_cmd =
   let doc = "extract a build from the database" in
-  (Cmdliner.Term.(pure extract_full $ setup_log $ datadir $ full_dest $ build),
-   Cmdliner.Term.info ~doc "extract-build")
+  let term = Term.(
+      const extract_full $ setup_log $ datadir $ full_dest $ build) in
+  let info = Cmd.info ~doc "extract-build" in
+  Cmd.v info term
 
 let verify_input_id_cmd =
-  let doc = "verify that the main binary hash of all builds with the same input are equal" in
-  (Cmdliner.Term.(pure verify_input_id $ setup_log $ dbpath),
-   Cmdliner.Term.info ~doc "verify-input-id")
+  let doc = "verify that the main binary hash of all builds with the same \
+             input are equal" in
+  let term = Term.(const verify_input_id $ setup_log $ dbpath) in
+  let info = Cmd.info ~doc "verify-input-id" in
+  Cmd.v info term
 
 let verify_data_dir_cmd =
-  let doc = "verify that the data directory is consistent with the build_artifact table" in
-  (Cmdliner.Term.(pure verify_data_dir $ setup_log $ datadir),
-   Cmdliner.Term.info ~doc "verify-data-dir")
+  let doc = "verify that the data directory is consistent with the \
+             build_artifact table" in
+  let term = Term.(const verify_data_dir $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "verify-data-dir" in
+  Cmd.v info term
 
 let help_cmd =
   let topic =
     let doc = "Command to get help on" in
-    Cmdliner.Arg.(value & pos 0 (some string) None & info ~doc ~docv:"COMMAND" [])
+    Arg.(value & pos 0 (some string) None & info ~doc ~docv:"COMMAND" [])
   in
   let doc = "Builder database help" in
-  Cmdliner.Term.(ret (const help $ man_format $ choice_names $ topic)),
-  Cmdliner.Term.info ~doc "help"
+  let term = Term.(ret (const help $ Arg.man_format $ choice_names $ topic)) in
+  let info = Cmd.info ~doc "help" in
+  Cmd.v info term
 
-let default_cmd =
+let default_cmd, default_info =
   let doc = "Builder database command" in
-  Cmdliner.Term.(ret (const help $ man_format $ choice_names $ const None)),
-  Cmdliner.Term.info ~doc "builder-db"
+  Term.(ret (const help $ Arg.man_format $ choice_names $ const None)),
+  Cmd.info ~doc "builder-db"
 
 let () =
   Mirage_crypto_rng_unix.initialize ();
-  Cmdliner.Term.eval_choice
-    default_cmd
-    [help_cmd; migrate_cmd;
-     user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd; user_disable_cmd;
-     access_add_cmd; access_remove_cmd; job_remove_cmd;
-     verify_input_id_cmd; verify_data_dir_cmd;
-     extract_full_cmd ]
-  |> Cmdliner.Term.exit
+  Cmdliner.Cmd.group
+    ~default:default_cmd default_info
+    [ help_cmd; migrate_cmd;
+      user_add_cmd; user_update_cmd; user_remove_cmd; user_list_cmd;
+      user_disable_cmd;
+      access_add_cmd; access_remove_cmd; job_remove_cmd;
+      verify_input_id_cmd; verify_data_dir_cmd;
+      extract_full_cmd ]
+  |> Cmdliner.Cmd.eval
+  |> exit

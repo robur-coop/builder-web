@@ -86,9 +86,9 @@ let print_dependencies_html file =
   let html = Render.Html.of_assoc ~override_css graph in
   Format.printf "%a" Render.Html.pp html
 
-module Cmd = struct
+module Cmd_aux = struct
 
-  module Arg = struct
+  module Arg_aux = struct
 
     let elf_path =
       let doc = "The file-path of the debug-ELF to be analyzed" in
@@ -127,15 +127,19 @@ module Cmd = struct
 
   end
 
+  open Cmdliner
+
   let treemap =
     let doc = "Dump treemap SVG and CSS wrapped in HTML" in
-    Cmdliner.Term.(pure print_treemap_html $ Arg.elf_path $ Arg.elf_size),
-    Cmdliner.Term.info ~doc "treemap"
+    let term = Term.(const print_treemap_html $ Arg_aux.elf_path $ Arg_aux.elf_size) in
+    let info = Cmd.info ~doc "treemap" in
+    Cmd.v info term
 
   let dependencies =
     let doc = "Dump opam dependencies SVG and CSS wrapped in HTML" in
-    Cmdliner.Term.(pure print_dependencies_html $ Arg.opam_switch_path),
-    Cmdliner.Term.info ~doc "dependencies"
+    let term = Term.(const print_dependencies_html $ Arg_aux.opam_switch_path) in
+    let info = Cmd.info ~doc "dependencies" in
+    Cmd.v info term
 
   let help =
     let topic =
@@ -143,20 +147,26 @@ module Cmd = struct
       Cmdliner.Arg.(value & pos 0 (some string) None & info ~doc ~docv:"COMMAND" [])
     in
     let doc = "Builder database help" in
-    Cmdliner.Term.(ret (const Aux.help $ man_format $ choice_names $ topic)),
-    Cmdliner.Term.info ~doc "help"
+    let term = Term.(ret (const Aux.help $ Arg.man_format $ choice_names $ topic)) in
+    let info = Cmd.info ~doc "help" in
+    Cmd.v info term
 
-  let default =
+  let default_info, default_cmd =
     let doc = "Builder database command" in
-    Cmdliner.Term.(ret (const Aux.help $ man_format $ choice_names $ const None)),
-    Cmdliner.Term.info ~doc "builder-viz"
+    let term = Term.(ret (const Aux.help $ Arg.man_format $ choice_names $ const None)) in
+    let info = Cmd.info ~doc "builder-viz" in
+    info, term
 
 end
 
 let () =
-  Cmdliner.Term.eval_choice Cmd.default [
-    Cmd.help;
-    Cmd.treemap;
-    Cmd.dependencies;
-  ]
-  |> Cmdliner.Term.exit
+  let open Cmdliner in
+  Cmd.group
+    ~default:Cmd_aux.default_cmd Cmd_aux.default_info
+    [
+      Cmd_aux.help;
+      Cmd_aux.treemap;
+      Cmd_aux.dependencies;
+    ]
+  |> Cmd.eval
+  |> exit

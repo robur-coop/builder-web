@@ -43,7 +43,7 @@ depends: [
   "mirage-crypto"
   "asn1-combinators"
   "logs"
-  "cmdliner"
+  "cmdliner" {>= "1.1.0"}
   "uri"
   "fmt" {>= "0.8.7"}
   "omd"
