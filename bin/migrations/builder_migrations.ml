@@ -72,53 +72,69 @@ let setup_log =
   in
   Cmdliner.Term.(const setup_log $ Logs_cli.level ())
 
+open Cmdliner
+
 let actions (module M : MIGRATION) =
   let c s = s ^ "-" ^ M.identifier in
   let v doc from_ver to_ver = Printf.sprintf "%s (DB version %Ld -> %Ld)" doc from_ver to_ver in
-  [
-    (Cmdliner.Term.(const do_database_action $ const M.migrate $ setup_log $ datadir),
-     Cmdliner.Term.info ~doc:(v M.migrate_doc M.old_version M.new_version)
-       (c "migrate"));
-    (Cmdliner.Term.(const do_database_action $ const M.rollback $ setup_log $ datadir),
-     Cmdliner.Term.info ~doc:(v M.rollback_doc M.new_version M.old_version)
-       (c "rollback"));
-  ]
+  let migrate_cmd =
+    let term = Term.(
+        const do_database_action $ const M.migrate $ setup_log $ datadir) in
+    let info = Cmd.info ~doc:(v M.migrate_doc M.old_version M.new_version)
+        (c "migrate") in
+    Cmd.v info term
+  in
+  let rollback_cmd =
+    let term = Term.(
+        const do_database_action $ const M.rollback $ setup_log $ datadir) in
+    let info = Cmd.info ~doc:(v M.rollback_doc M.new_version M.old_version)
+        (c "rollback") in
+    Cmd.v info term
+  in
+  [ migrate_cmd; rollback_cmd ]
 
 let f20210308 =
   let doc = "Remove broken builds as fixed in commit a57798f4c02eb4d528b90932ec26fb0b718f1a13. \
     Note that the files on disk have to be removed manually." in
-  Cmdliner.Term.(const do_database_action $ const M20210308.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-03-08"
+  let term = Term.(const do_database_action $ const M20210308.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-03-08" in
+  Cmd.v info term
 
 let f20210707a =
   let doc = "Remove orb.deb and orb.txz that ended up in the build." in
-  Cmdliner.Term.(const do_database_action $ const M20210707a.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-07-07a"
+  let term = Term.(const do_database_action $ const M20210707a.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-07-07a" in
+  Cmd.v info term
 
 let f20210707b =
   let doc = "Move *.deb.debug to bin/*.deb and remove the earlier bin/*.deb. Adjust main_binary of build." in
-  Cmdliner.Term.(const do_database_action $ const M20210707b.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-07-07b"
+  let term = Term.(const do_database_action $ const M20210707b.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-07-07b" in
+  Cmd.v info term
 
 let f20210707c =
   let doc = "Strip bin/*.{hvt,xen} if no *.{hvt,xen} exists. Adjust build_artifact table and main_binary of build." in
-  Cmdliner.Term.(const do_database_action $ const M20210707c.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-07-07c"
+  let term = Term.(const do_database_action $ const M20210707c.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-07-07c" in
+  Cmd.v info term
 
 let f20210707d =
   let doc = "Remove ./ from filepath." in
-  Cmdliner.Term.(const do_database_action $ const M20210707d.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-07-07d"
+  let term = Term.(const do_database_action $ const M20210707d.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-07-07d" in
+  Cmd.v info term
 
 let f20210712b =
   let doc = "Remove build-hashes and README from artifacts." in
-  Cmdliner.Term.(const do_database_action $ const M20210712b.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-07-12b"
+  let term = Term.(const do_database_action $ const M20210712b.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-07-12b" in
+  Cmd.v info term
 
 let f20210910 =
   let doc = "Undo builds with script and console mixed up." in
-  Cmdliner.Term.(const do_database_action $ const M20210910.fixup $ setup_log $ datadir),
-  Cmdliner.Term.info ~doc "fixup-2021-09-10"
+  let term = Term.(const do_database_action $ const M20210910.fixup $ setup_log $ datadir) in
+  let info = Cmd.info ~doc "fixup-2021-09-10" in
+  Cmd.v info term
 
 let help_cmd =
   let topic =
@@ -126,17 +142,16 @@ let help_cmd =
     Cmdliner.Arg.(value & pos 0 (some string) None & info ~doc ~docv:"MIGRATION" [])
   in
   let doc = "Builder migration help" in
-  Cmdliner.Term.(ret (const help $ man_format $ choice_names $ topic)),
-  Cmdliner.Term.info ~doc "help"
-
-let default_cmd =
-  let doc = "Builder migration command" in
-  Cmdliner.Term.(ret (const help $ man_format $ choice_names $ const None)),
-  Cmdliner.Term.info ~doc "builder-migrations"
+  let term = Term.(ret (const help $ Arg.man_format $ choice_names $ topic)) in
+  let info = Cmd.info ~doc "help" in
+  Cmd.v info term
 
 let () =
-  Cmdliner.Term.eval_choice
-    default_cmd
+  let doc = "Builder migration command" in
+  let default_term = Term.(ret (const help $ Arg.man_format $ choice_names $ const None)) in
+  let default_info = Cmd.info ~doc "builder-migrations" in
+  Cmd.group
+    ~default:default_term default_info
     (List.concat [
         [ help_cmd ];
         actions (module M20210126);
@@ -164,4 +179,5 @@ let () =
         [ f20210910 ];
         actions (module M20211105);
       ])
-  |> Cmdliner.Term.exit
+  |> Cmd.eval
+  |> exit
