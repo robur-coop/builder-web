@@ -75,11 +75,10 @@ let print_dependencies_html file =
   let module G = Opam_graph in
   let switch = read_file file in
   let data = OpamFile.SwitchExport.read_from_string switch in
-  let transitive = false in
-  let graph = G.Ui.dependencies ~transitive data in
+  let graph = G.Ui.dependencies ~transitive:false data in
   let sharing_stats =
     data
-    |> G.dependencies ~transitive:true
+    |> G.dependencies ~transitive:false
     |> G.calc_sharing_stats in
   let override_css = {|
     .deps-svg-wrap {
