@@ -84,7 +84,7 @@ mktemp_aux () {
     elif [ "$(uname)" = "FreeBSD" ]; then
         mktemp -t "$1"
     else
-        mktemp -t "$1.XXX" #< todo what to choose here
+        echo 'Unsupported platform'; exit 1
     fi
 }
 TMPTREE=$(mktemp_aux treeviz)
@@ -109,7 +109,7 @@ stat_aux () {
     elif [ "$(uname)" = "FreeBSD" ]; then
         stat -f "%z" "$1"
     else
-        stat -c "%s" "$1" #< todo what to choose here
+        echo 'Unsupported platform'; exit 1
     fi
 }
 
