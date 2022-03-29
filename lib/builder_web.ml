@@ -211,23 +211,12 @@ let add_routes datadir configdir =
       ) |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
   in
 
-  let job_build_viztreemap req =
+  let job_build_viz viz_typ req =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req
     and datadir = Dream.global datadir_global req in
     get_uuid build >>= fun uuid ->
-    (try_load_cached_visualization ~datadir ~uuid `Treemap
-     |> if_error "Error getting cached visualization")
-    >>= fun svg_html ->
-    Lwt_result.ok (Dream.html svg_html)
-  in
-
-  let job_build_vizdependencies req =
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req
-    and datadir = Dream.global datadir_global req in
-    get_uuid build >>= fun uuid ->
-    (try_load_cached_visualization ~datadir ~uuid `Dependencies
+    (try_load_cached_visualization ~datadir ~uuid viz_typ
      |> if_error "Error getting cached visualization")
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
@@ -486,8 +475,8 @@ let add_routes datadir configdir =
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
-    Dream.get "/job/:job/build/:build/viztreemap" (w job_build_viztreemap);
-    Dream.get "/job/:job/build/:build/vizdependencies" (w job_build_vizdependencies);
+    Dream.get "/job/:job/build/:build/viztreemap" (w @@ job_build_viz `Treemap);
+    Dream.get "/job/:job/build/:build/vizdependencies" (w @@ job_build_viz `Dependencies);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/failed-builds/" (w failed_builds);
