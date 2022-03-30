@@ -618,6 +618,7 @@ module Job_build = struct
       ~next
 
   let viz_style_deps = "
+      border: 0;
       width: 45em;
       height: 45.4em;
       max-width: 100%;
@@ -627,8 +628,9 @@ module Job_build = struct
     "
 
   let viz_style_treemap = "
+      border: 0;
       width: 46em;
-      height: 48.4em;
+      height: 49.4em;
       max-width: 100%;
       max-height: 52vw;
       min-width: 38em;
