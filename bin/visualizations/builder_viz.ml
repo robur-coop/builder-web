@@ -72,19 +72,22 @@ let print_treemap_html elf_path elf_size =
  * |> Fmt.to_to_string (Tyxml.Svg.pp ()) *)
 
 let print_dependencies_html file =
-  let open Opam_graph in
+  let module G = Opam_graph in
   let switch = read_file file in
   let data = OpamFile.SwitchExport.read_from_string switch in
-  let transitive = false in
-  let graph = Ui.dependencies ~transitive data in
+  let graph = G.Ui.dependencies ~transitive:false data in
+  let sharing_stats =
+    data
+    |> G.dependencies ~transitive:false
+    |> G.calc_sharing_stats in
   let override_css = {|
     .deps-svg-wrap {
       background: rgb(60, 60, 87);
     }
   |}
   in
-  let html = Render.Html.of_assoc ~override_css graph in
-  Format.printf "%a" Render.Html.pp html
+  let html = G.Render.Html.of_assoc ~override_css ~sharing_stats graph in
+  Format.printf "%a" G.Render.Html.pp html
 
 module Cmd_aux = struct
 
