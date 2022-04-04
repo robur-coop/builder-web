@@ -1,20 +1,29 @@
 (* Grej is utilities *)
 module Syntax = struct
+  open Caqti_request.Infix
   let ( let* ) = Result.bind
   let ( let+ ) x f = Result.map f x
+  let ( ->. ) = ( ->. ) ~oneshot:true
+  let ( ->! ) = ( ->! ) ~oneshot:true
+  let ( ->? ) = ( ->? ) ~oneshot:true
+  let ( ->* ) = ( ->* ) ~oneshot:true
 end
 
 module Infix = struct
+  open Caqti_request.Infix
   let ( >>= ) = Result.bind
   let ( >>| ) x f = Result.map f x
+  let ( ->. ) = ( ->. ) ~oneshot:true
+  let ( ->! ) = ( ->! ) ~oneshot:true
+  let ( ->? ) = ( ->? ) ~oneshot:true
+  let ( ->* ) = ( ->* ) ~oneshot:true
 end
 
 open Syntax
 
 let set_version version =
-  Caqti_request.exec ~oneshot:true
-    Caqti_type.unit
-    (Printf.sprintf "PRAGMA user_version = %Ld" version)
+  Caqti_type.unit ->. Caqti_type.unit @@
+  Printf.sprintf "PRAGMA user_version = %Ld" version
 
 let check_version
     ?application_id:(desired_application_id=Builder_db.application_id)
@@ -34,6 +43,5 @@ let list_iter_result f xs =
 
 let foreign_keys on =
   let on = if on then "ON" else "OFF" in
-  Caqti_request.exec
-    Caqti_type.unit
-    (Printf.sprintf "PRAGMA foreign_keys = %s" on)
+  Caqti_type.unit ->. Caqti_type.unit @@
+  Printf.sprintf "PRAGMA foreign_keys = %s" on

@@ -6,96 +6,87 @@ and rollback_doc = "remove platform from build"
 open Grej.Syntax
 
 let new_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| CREATE TABLE new_build (
-         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-         uuid VARCHAR(36) NOT NULL UNIQUE,
-         start_d INTEGER NOT NULL,
-         start_ps INTEGER NOT NULL,
-         finish_d INTEGER NOT NULL,
-         finish_ps INTEGER NOT NULL,
-         result_code INTEGER NOT NULL,
-         result_msg TEXT,
-         console TEXT NOT NULL,
-         script TEXT NOT NULL,
-         platform TEXT NOT NULL,
-         main_binary INTEGER,
-         user INTEGER NOT NULL,
-         job INTEGER NOT NULL,
-         input_id BLOB, -- sha256 (sha256<opam-switch> || sha256<build-environment> || sha256<system-packages>)
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| CREATE TABLE new_build (
+       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+       uuid VARCHAR(36) NOT NULL UNIQUE,
+       start_d INTEGER NOT NULL,
+       start_ps INTEGER NOT NULL,
+       finish_d INTEGER NOT NULL,
+       finish_ps INTEGER NOT NULL,
+       result_code INTEGER NOT NULL,
+       result_msg TEXT,
+       console TEXT NOT NULL,
+       script TEXT NOT NULL,
+       platform TEXT NOT NULL,
+       main_binary INTEGER,
+       user INTEGER NOT NULL,
+       job INTEGER NOT NULL,
+       input_id BLOB, -- sha256 (sha256<opam-switch> || sha256<build-environment> || sha256<system-packages>)
 
-         FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
-         FOREIGN KEY(user) REFERENCES user(id),
-         FOREIGN KEY(job) REFERENCES job(id)
-       )
-    |}
+       FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
+       FOREIGN KEY(user) REFERENCES user(id),
+       FOREIGN KEY(job) REFERENCES job(id)
+     )
+  |}
 
 let old_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| CREATE TABLE new_build (
-         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-         uuid VARCHAR(36) NOT NULL UNIQUE,
-         start_d INTEGER NOT NULL,
-         start_ps INTEGER NOT NULL,
-         finish_d INTEGER NOT NULL,
-         finish_ps INTEGER NOT NULL,
-         result_code INTEGER NOT NULL,
-         result_msg TEXT,
-         console TEXT NOT NULL,
-         script TEXT NOT NULL,
-         main_binary INTEGER,
-         user INTEGER NOT NULL,
-         job INTEGER NOT NULL,
-         input_id BLOB, -- sha256 (sha256<opam-switch> || sha256<build-environment> || sha256<system-packages>)
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| CREATE TABLE new_build (
+       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+       uuid VARCHAR(36) NOT NULL UNIQUE,
+       start_d INTEGER NOT NULL,
+       start_ps INTEGER NOT NULL,
+       finish_d INTEGER NOT NULL,
+       finish_ps INTEGER NOT NULL,
+       result_code INTEGER NOT NULL,
+       result_msg TEXT,
+       console TEXT NOT NULL,
+       script TEXT NOT NULL,
+       main_binary INTEGER,
+       user INTEGER NOT NULL,
+       job INTEGER NOT NULL,
+       input_id BLOB, -- sha256 (sha256<opam-switch> || sha256<build-environment> || sha256<system-packages>)
 
-         FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
-         FOREIGN KEY(user) REFERENCES user(id),
-         FOREIGN KEY(job) REFERENCES job(id)
-       )
-    |}
+       FOREIGN KEY(main_binary) REFERENCES build_artifact(id) DEFERRABLE INITIALLY DEFERRED,
+       FOREIGN KEY(user) REFERENCES user(id),
+       FOREIGN KEY(job) REFERENCES job(id)
+     )
+  |}
 
 let copy_from_old_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
-         result_code, result_msg, console, script, platform, main_binary, user, job, input_id)
-       SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
-         console, script, 'PLACEHOLDER-PLATFORM', main_binary, user, job, input_id
-       FROM build
-    |}
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
+       result_code, result_msg, console, script, platform, main_binary, user, job, input_id)
+     SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
+       console, script, 'PLACEHOLDER-PLATFORM', main_binary, user, job, input_id
+     FROM build
+  |}
 
 let copy_from_new_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
-         result_code, result_msg, console, script, main_binary, user, job, input_id)
-       SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
-         console, script, main_binary, user, job, input_id
-       FROM build
-    |}
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| INSERT INTO new_build(id, uuid, start_d, start_ps, finish_d, finish_ps,
+       result_code, result_msg, console, script, main_binary, user, job, input_id)
+     SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_code, result_msg,
+       console, script, main_binary, user, job, input_id
+     FROM build
+  |}
 
 let build_id_and_user =
-  Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int64)
-    "SELECT id, user FROM build"
+  Caqti_type.unit ->* Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int64) @@
+  "SELECT id, user FROM build"
 
 let update_new_build_platform =
-  Caqti_request.exec
-    Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) string)
-    "UPDATE new_build SET platform = $2 WHERE id = $1"
+  Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) string) ->. Caqti_type.unit @@
+  "UPDATE new_build SET platform = $2 WHERE id = $1"
 
 let drop_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    "DROP TABLE build"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "DROP TABLE build"
 
 let rename_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    "ALTER TABLE new_build RENAME TO build"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "ALTER TABLE new_build RENAME TO build"
 
 (*
 1|reynir
@@ -114,6 +105,22 @@ let platform_of_user_id = function
   | 7L -> "debian-11"
   | _ -> assert false
 
+let idx_build_job_start =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)"
+
+let idx_build_failed =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE result_code <> 0"
+
+let idx_build_input_id =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_input_id ON build(input_id)"
+
+let idx_build_main_binary =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_main_binary ON build(main_binary)"
+
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let* () = Grej.check_version ~user_version:old_version (module Db) in
   let* () = Db.exec new_build () in
@@ -127,26 +134,10 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   in
   let* () = Db.exec drop_build () in
   let* () = Db.exec rename_build () in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE result_code <> 0")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_input_id ON build(input_id)")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_main_binary ON build(main_binary)")
-      ()
-  in
+  let* () = Db.exec idx_build_job_start () in
+  let* () = Db.exec idx_build_failed () in
+  let* () = Db.exec idx_build_input_id () in
+  let* () = Db.exec idx_build_main_binary () in
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -155,25 +146,9 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let* () = Db.exec copy_from_new_build () in
   let* () = Db.exec drop_build () in
   let* () = Db.exec rename_build () in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE result_code <> 0")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_input_id ON build(input_id)")
-      ()
-  in
-  let* () =
-    Db.exec (Caqti_request.exec Caqti_type.unit
-        "CREATE INDEX idx_build_main_binary ON build(main_binary)")
-      ()
-  in
+  let* () = Db.exec idx_build_job_start () in
+  let* () = Db.exec idx_build_failed () in
+  let* () = Db.exec idx_build_input_id () in
+  let* () = Db.exec idx_build_main_binary () in
   Db.exec (Grej.set_version old_version) ()
 

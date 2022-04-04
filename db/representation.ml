@@ -138,7 +138,6 @@ let user_info =
 
 (* this doesn't really belong in this module, but we need access to the type of [id] *)
 let last_insert_rowid =
-  Caqti_request.find
-    Caqti_type.unit
-    any_id
+  let open Caqti_request.Infix in
+  Caqti_type.unit ->! any_id @@
     "SELECT last_insert_rowid()"

@@ -1,28 +1,28 @@
+open Grej.Infix
 
 let all_builds_with_binary : (unit, [`build] Builder_db.Rep.id * [`build_artifact] Builder_db.Rep.id * Fpath.t * Fpath.t, [ `Zero | `One | `Many ]) Caqti_request.t =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.unit
-    (Caqti_type.tup4 (Builder_db.Rep.id `build) (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "SELECT b.id, b.main_binary, a.filepath, a.localpath FROM build b, build_artifact a WHERE b.main_binary = a.id AND b.main_binary IS NOT NULL"
+  Caqti_type.unit ->*
+  Caqti_type.tup4 (Builder_db.Rep.id `build) (Builder_db.Rep.id `build_artifact)
+    Builder_db.Rep.fpath Builder_db.Rep.fpath @@
+  "SELECT b.id, b.main_binary, a.filepath, a.localpath FROM build b, build_artifact a WHERE b.main_binary = a.id AND b.main_binary IS NOT NULL"
 
-let build_not_stripped : ([`build] Builder_db.Rep.id, [`build_artifact] Builder_db.Rep.id, [< `Zero | `One | `Many > `Zero `One ]) Caqti_request.t =
-  Caqti_request.find_opt
-    (Builder_db.Rep.id `build)
-    (Builder_db.Rep.id `build_artifact)
-    {| SELECT id FROM build_artifact WHERE build = ? AND filepath LIKE '%.debug' |}
+let build_not_stripped : ([`build] Builder_db.Rep.id, [`build_artifact] Builder_db.Rep.id, [ `Zero | `One ]) Caqti_request.t =
+  Builder_db.Rep.id `build ->? Builder_db.Rep.id `build_artifact @@
+  "SELECT id FROM build_artifact WHERE build = ? AND filepath LIKE '%.debug'"
 
-let update_paths : ([`build_artifact] Builder_db.Rep.id * Fpath.t * Fpath.t, unit, [< `Zero | `One | `Many > `Zero ]) Caqti_request.t =
-  Caqti_request.exec
-    (Caqti_type.tup3 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
+let update_paths : ([`build_artifact] Builder_db.Rep.id * Fpath.t * Fpath.t, unit, [ `Zero ]) Caqti_request.t =
+  Caqti_type.tup3 (Builder_db.Rep.id `build_artifact)
+    Builder_db.Rep.fpath Builder_db.Rep.fpath ->.
+  Caqti_type.unit @@
+  "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
 
-let add_artifact : ((Fpath.t * Fpath.t * Cstruct.t) * (int64 * [`build] Builder_db.Rep.id), unit, [< `Zero | `One | `Many > `Zero]) Caqti_request.t =
-  Caqti_request.exec
-    Caqti_type.(tup2 (tup3 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct) (tup2 Caqti_type.int64 (Builder_db.Rep.id `build)))
-    {| INSERT INTO build_artifact (filepath, localpath, sha256, size, build) VALUES (?, ?, ?, ?, ?) |}
+let add_artifact : ((Fpath.t * Fpath.t * Cstruct.t) * (int64 * [`build] Builder_db.Rep.id), unit, [ `Zero]) Caqti_request.t =
+  Caqti_type.(tup2 (tup3 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct)
+                (tup2 Caqti_type.int64 (Builder_db.Rep.id `build))) ->.
+  Caqti_type.unit @@
+  "INSERT INTO build_artifact (filepath, localpath, sha256, size, build) VALUES (?, ?, ?, ?, ?)"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list all_builds_with_binary () >>= fun builds ->
   Grej.list_iter_result
