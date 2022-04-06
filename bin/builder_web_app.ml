@@ -81,7 +81,10 @@ let init_influx name data =
 let setup_app level influx port host datadir cachedir configdir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
-  let cachedir = Fpath.v cachedir in
+  let cachedir = match cachedir with
+    | Some c -> Fpath.v c
+    | None -> Fpath.(datadir / "_cache")
+  in
   let configdir = Fpath.v configdir in
   let () = init_influx "builder-web" influx in
   match Builder_web.init dbpath datadir with
@@ -130,7 +133,11 @@ let datadir =
 
 let cachedir =
   let doc = "cache directory" in
-  Arg.(value & opt dir Builder_system.default_cachedir & info [ "cachedir" ] ~doc)
+  Arg.(
+    value
+    & opt (some ~none:"DATADIR/_cache" dir) None
+    & info [ "cachedir" ] ~doc
+  )
 
 let configdir =
   let doc = "config directory" in

@@ -11,9 +11,6 @@ let default_datadir =
   | `FreeBSD -> "/var/db/builder-web"
   | `Linux -> "/var/lib/builder-web"
 
-let default_cachedir =
-  default_datadir ^ "/_cache"
-
 let default_configdir =
   match Lazy.force uname with
   | `FreeBSD -> "/usr/local/etc/builder-web"
