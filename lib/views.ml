@@ -618,6 +618,7 @@ module Job_build = struct
       ~next
 
   let viz_style_deps = "
+      border: 0;
       width: 45em;
       height: 45.4em;
       max-width: 100%;
@@ -627,37 +628,83 @@ module Job_build = struct
     "
 
   let viz_style_treemap = "
+      border: 0;
       width: 46em;
-      height: 48.4em;
+      height: 49.4em;
       max-width: 100%;
       max-height: 52vw;
       min-width: 38em;
       min-height: 43em;
     "
 
+  let make_description descr_txt =
+    H.span [ H.txt "?" ] ~a:H.[
+        a_title descr_txt;
+        a_style "\
+          font-size: 1.2em;\
+          font-weight: bold;\
+          "
+      ]
+  
   let make_viz_section ~name ~artifacts ~uuid =
-    let viz_deps_iframe = [
-      let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
-      H.iframe ~a:H.[
-          a_src src;
-          a_title "Opam dependencies";
-          a_style viz_style_deps
-        ] []
-    ]
+    let viz_deps = 
+      let iframe = 
+        let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+        H.iframe ~a:H.[
+            a_src src;
+            a_title "Opam dependencies";
+            a_style viz_style_deps
+          ] []
+      in
+      let descr_txt = "\
+This is an interactive visualization of dependencies, \
+focusing on how shared dependencies are. 
+
+In the middle you see the primary package. \
+Edges shoot out to its direct \
+dependencies, including build dependencies. 
+
+From these direct dependencies, edges shoot out to sets \
+of their own respective direct dependencies. \
+These dependency-sets include duplicates (i.e. shared dependencies) \
+across the other dependency sets \
+- which are shown by hovering over the \
+direct dependencies of the primary package.
+
+The lightness of nodes correspond to how shared they are. See \
+the exact amount of reverse dependencies in the tooltip for each \
+dependency.\
+"
+      in
+      [ iframe; H.br (); make_description descr_txt ]
     in
-    let viz_treemap_iframe = lazy [
-      let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
-      H.iframe ~a:H.[
-          a_src src;
-          a_title "Binary dissection";
-          a_style viz_style_treemap
-        ] []
-    ]
+    let viz_treemap = lazy (
+      let iframe = 
+        let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
+        H.iframe ~a:H.[
+            a_src src;
+            a_title "Binary dissection";
+            a_style viz_style_treemap
+          ] []
+      in
+      let descr_txt = "\
+This interactive treemap shows the space-usage of modules/libraries inside the \
+ELF binary. You can get more info from each block by \
+hovering over them. 
+
+On top of the treemap there is a scale, showing how much space the \
+treemap itself constitutes of the binary, the excluded symbols/modules \
+and the rest of the unaccounted data.\
+"
+      in
+      [ iframe; H.br (); make_description descr_txt ]
+    )
     in
+    let a_paragraph = H.[ a_style "text-align: center" ] in
     List.flatten [
-      [ H.p viz_deps_iframe];
+      [ H.p ~a:a_paragraph viz_deps];
       if not @@ contains_debug_bin artifacts then [] else [
-        H.p @@ Lazy.force viz_treemap_iframe ];
+        H.p ~a:a_paragraph @@ Lazy.force viz_treemap ];
     ]
 
   let make

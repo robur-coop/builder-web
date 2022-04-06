@@ -78,8 +78,17 @@ FILENAME="${1}"
 CACHE_DIR="${CACHE}/${UUID}"
 BUILDER_VIZ="builder-viz"
 
-TMPTREE=$(mktemp -t treevis)
-TMPOPAM=$(mktemp -t opamvis)
+mktemp_aux () {
+    if [ "$(uname)" = "Linux" ]; then
+        mktemp -t "$1.XXX"
+    elif [ "$(uname)" = "FreeBSD" ]; then
+        mktemp -t "$1"
+    else
+        echo 'Unsupported platform'; exit 1
+    fi
+}
+TMPTREE=$(mktemp_aux treeviz)
+TMPOPAM=$(mktemp_aux opamviz)
 cleanup () {
   rm -rf "${TMPTREE}" "${TMPOPAM}"
 }
@@ -94,7 +103,17 @@ else
     fi
 fi
 
-SIZE="$(stat -f "%z" ${FILENAME})"
+stat_aux () {
+    if [ "$(uname)" = "Linux" ]; then
+        stat -c "%s" "$1"
+    elif [ "$(uname)" = "FreeBSD" ]; then
+        stat -f "%z" "$1"
+    else
+        echo 'Unsupported platform'; exit 1
+    fi
+}
+
+SIZE="$(stat_aux ${FILENAME})"
 
 if [ ! -z "${DEBUG}" ]; then
     if [ -e "${CACHE_DIR}.treemap.html" ]; then
