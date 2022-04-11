@@ -81,18 +81,32 @@ let init_influx name data =
 let setup_app level influx port host datadir cachedir configdir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
-  let cachedir = Option.fold ~none:Fpath.(datadir / "_cache") ~some:Fpath.v in
+  let cachedir =
+    cachedir |> Option.fold ~none:Fpath.(datadir / "_cache") ~some:Fpath.v
+  in
   let configdir = Fpath.v configdir in
   let () = init_influx "builder-web" influx in
   match Builder_web.init dbpath datadir with
   | Error (#Caqti_error.load as e) ->
     Format.eprintf "Error: %a\n%!" Caqti_error.pp e;
     exit 2
-  | Error (#Caqti_error.connect | #Caqti_error.call_or_retrieve | `Msg _ | `Wrong_version _ as e) ->
+  | Error (
+      #Caqti_error.connect
+    | #Caqti_error.call_or_retrieve
+    | `Msg _
+    | `Wrong_version _ as e
+    ) ->
     Format.eprintf "Error: %a\n%!" Builder_web.pp_error e;
     exit 1
   | Ok () ->
-    let level = match level with None -> None | Some Logs.Debug -> Some `Debug | Some Info -> Some `Info | Some Warning -> Some `Warning | Some Error -> Some `Error | Some App -> None in
+    let level = match level with
+      | None -> None
+      | Some Logs.Debug -> Some `Debug
+      | Some Info -> Some `Info
+      | Some Warning -> Some `Warning
+      | Some Error -> Some `Error
+      | Some App -> None
+    in
     Dream.initialize_log ?level ();
     Dream.run ~port ~interface:host ~https:false
     @@ Dream.logger
