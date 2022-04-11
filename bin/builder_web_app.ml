@@ -81,10 +81,7 @@ let init_influx name data =
 let setup_app level influx port host datadir cachedir configdir =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
-  let cachedir = match cachedir with
-    | Some c -> Fpath.v c
-    | None -> Fpath.(datadir / "_cache")
-  in
+  let cachedir = Option.fold ~none:Fpath.(datadir / "_cache") ~some:Fpath.v in
   let configdir = Fpath.v configdir in
   let () = init_influx "builder-web" influx in
   match Builder_web.init dbpath datadir with
@@ -156,13 +153,10 @@ let influx =
   Arg.(value & opt (some ip_port) None & info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
 
 let () =
-  let term = Term.(
-      const setup_app
-      $ Logs_cli.level ()
-      $ influx
-      $ port $ host
-      $ datadir $ cachedir $ configdir
-    ) in
+  let term =
+    Term.(const setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $
+          cachedir $ configdir)
+  in
   let info = Cmd.info "Builder web" ~doc:"Builder web" ~man:[] in
   Cmd.v info term
   |> Cmd.eval
