@@ -476,11 +476,12 @@ let add_routes ~datadir ~cachedir ~configdir =
       String.concat "/"
     in
     let parent = parent ^ "/" in
-    let url = match Dream.queries req with
+    let url = match Dream.all_queries req with
       | [] -> parent
       | xs -> parent ^ "?" ^ (Dream.to_form_urlencoded xs)
     in
     Dream.redirect ~status:`Temporary_Redirect req url
+    |> Lwt_result.ok
   in
 
   let w f req = or_error_response (f req) in
