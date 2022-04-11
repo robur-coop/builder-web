@@ -305,8 +305,9 @@ let prepare_staging staging_dir =
   else Lwt_result.return ()
 
 let add_build
-    ~configdir
     ~datadir
+    ~cachedir
+    ~configdir
     user_id
     ((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts)
     (module Db : CONN) =
@@ -445,7 +446,7 @@ let add_build
             (opt_str ~prefix:"opam-switch" opam_switch) @
             [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
               "--uuid=" ^ uuid ; "--platform=" ^ platform ;
-              "--cache-dir=" ^ fp_str (Fpath.v "_cache") ;
+              "--cache-dir=" ^ Fpath.to_string cachedir ;
               fp_str main_binary ]))
     in
     Log.debug (fun m -> m "executing hooks with %s" args);

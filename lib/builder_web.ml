@@ -104,8 +104,9 @@ let dream_svg ?status ?code ?headers body =
   |> Dream.with_header "Content-Type" "image/svg+xml"
   |> Lwt.return
 
-let add_routes datadir configdir =
+let add_routes ~datadir ~cachedir ~configdir =
   let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
+  let cachedir_global = Dream.new_global ~name:"cachedir" (fun () -> cachedir) in
 
   let builds req =
     Dream.sql req Model.jobs_with_section_synopsis
@@ -194,12 +195,12 @@ let add_routes datadir configdir =
       |> Lwt_result.ok
   in
 
-  let try_load_cached_visualization ~datadir ~uuid typ =
+  let try_load_cached_visualization ~cachedir ~uuid typ =
     let fn = match typ with
       | `Treemap -> "treemap"
       | `Dependencies -> "dependencies"
     in
-    let path = Fpath.(datadir / "_cache" / Uuidm.to_string uuid + fn + "html") in
+    let path = Fpath.(cachedir / Uuidm.to_string uuid + fn + "html") in
     Lwt.return (Bos.OS.File.exists path) >>= fun cached_file_exists ->
     if not cached_file_exists then
       Lwt_result.fail (`Msg "Visualization does not exist")
@@ -211,23 +212,12 @@ let add_routes datadir configdir =
       ) |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
   in
 
-  let job_build_viztreemap req =
+  let job_build_viz viz_typ req =
     let _job_name = Dream.param "job" req
     and build = Dream.param "build" req
-    and datadir = Dream.global datadir_global req in
+    and cachedir = Dream.global cachedir_global req in
     get_uuid build >>= fun uuid ->
-    (try_load_cached_visualization ~datadir ~uuid `Treemap
-     |> if_error "Error getting cached visualization")
-    >>= fun svg_html ->
-    Lwt_result.ok (Dream.html svg_html)
-  in
-
-  let job_build_vizdependencies req =
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req
-    and datadir = Dream.global datadir_global req in
-    get_uuid build >>= fun uuid ->
-    (try_load_cached_visualization ~datadir ~uuid `Dependencies
+    (try_load_cached_visualization ~cachedir ~uuid viz_typ
      |> if_error "Error getting cached visualization")
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
@@ -370,9 +360,10 @@ let add_routes datadir configdir =
       |> Lwt_result.ok
     | false ->
       let datadir = Dream.global datadir_global req in
+      let cachedir = Dream.global cachedir_global req in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build ~configdir ~datadir user_id exec))
+       Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
       |> if_error "Internal server error"
         ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
@@ -463,6 +454,7 @@ let add_routes datadir configdir =
       |> Lwt_result.ok
     | false ->
       let datadir = Dream.global datadir_global req in
+      let cachedir = Dream.global cachedir_global req in
       let exec =
         let now = Ptime_clock.now () in
         ({ Builder.name = job ; platform ; script = "" }, uuid, [], now, now, Builder.Exited 0,
@@ -470,7 +462,7 @@ let add_routes datadir configdir =
       in
       (Lwt.return (Dream.local Authorization.user_info_local req |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build ~configdir ~datadir user_id exec))
+       Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
       |> if_error "Internal server error"
         ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
@@ -486,8 +478,8 @@ let add_routes datadir configdir =
     Dream.get "/job/:job/build/:build/" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
-    Dream.get "/job/:job/build/:build/viztreemap" (w job_build_viztreemap);
-    Dream.get "/job/:job/build/:build/vizdependencies" (w job_build_vizdependencies);
+    Dream.get "/job/:job/build/:build/viztreemap" (w @@ job_build_viz `Treemap);
+    Dream.get "/job/:job/build/:build/vizdependencies" (w @@ job_build_viz `Dependencies);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/failed-builds/" (w failed_builds);
