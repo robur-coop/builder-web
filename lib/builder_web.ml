@@ -476,11 +476,23 @@ let add_routes datadir configdir =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
+  let redirect_parent req =
+    let path = Dream.target req in
+    let parent =
+      String.split_on_char '/' |>
+      List.rev |> List.tl |> List.rev |>
+      String.concat "/"
+    in
+    Dream.redirect ~status:`Temporary_Redirect req (parent ^ "/")
+  in
+
   let w f req = or_error_response (f req) in
 
   Dream.router [
     Dream.get "/" (w builds);
+    Dream.get "/job" (w redirect_parent);
     Dream.get "/job/:job/" (w job);
+    Dream.get "/job/:job/build" (w redirect_parent);
     Dream.get "/job/:job/failed/" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
     Dream.get "/job/:job/build/:build/" (w job_build);
