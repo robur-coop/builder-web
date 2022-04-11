@@ -477,13 +477,18 @@ let add_routes datadir configdir =
   in
 
   let redirect_parent req =
-    let path = Dream.target req in
     let parent =
+      Dream.target req |>
       String.split_on_char '/' |>
       List.rev |> List.tl |> List.rev |>
       String.concat "/"
     in
-    Dream.redirect ~status:`Temporary_Redirect req (parent ^ "/")
+    let parent = parent ^ "/" in
+    let url = match Dream.queries req with
+      | [] -> parent
+      | xs -> parent ^ (Dream.to_form_urlencoded xs)
+    in
+    Dream.redirect ~status:`Temporary_Redirect req url
   in
 
   let w f req = or_error_response (f req) in
