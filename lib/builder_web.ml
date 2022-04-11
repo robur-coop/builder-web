@@ -468,11 +468,29 @@ let add_routes ~datadir ~cachedir ~configdir =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
+  let redirect_parent req =
+    let parent =
+      Dream.target req |>
+      String.split_on_char '/' |>
+      List.rev |> List.tl |> List.rev |>
+      String.concat "/"
+    in
+    let parent = parent ^ "/" in
+    let url = match Dream.all_queries req with
+      | [] -> parent
+      | xs -> parent ^ "?" ^ (Dream.to_form_urlencoded xs)
+    in
+    Dream.redirect ~status:`Temporary_Redirect req url
+    |> Lwt_result.ok
+  in
+
   let w f req = or_error_response (f req) in
 
   Dream.router [
     Dream.get "/" (w builds);
+    Dream.get "/job" (w redirect_parent);
     Dream.get "/job/:job/" (w job);
+    Dream.get "/job/:job/build" (w redirect_parent);
     Dream.get "/job/:job/failed/" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
     Dream.get "/job/:job/build/:build/" (w job_build);
