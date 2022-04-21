@@ -112,6 +112,7 @@ let setup_app level influx port host datadir cachedir configdir =
     @@ Dream.logger
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
     @@ Http_status_metrics.handle
+    @@ Builder_web.Middleware.remove_trailing_url_slash
     @@ Builder_web.add_routes ~datadir ~cachedir ~configdir
     @@ Builder_web.not_found
 

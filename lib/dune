@@ -6,4 +6,5 @@
   opamdiff ptime.clock.os omd tar
   owee
   solo5-elftool
+  uri
   ))

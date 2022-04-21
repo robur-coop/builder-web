@@ -124,3 +124,39 @@ module Omd = struct
     |> Omd.to_html
 
 end
+
+module Path = struct
+
+  let to_url ~path ~queries =
+    let path = match path with
+      | "" :: [] -> "/"
+      | path -> "/" ^ String.concat "/" path
+    in
+    let query = queries |> List.map (fun (k, v) -> k, [v]) in
+    Uri.make ~path ~query () |> Uri.to_string
+
+  (* Like Dream.path in 1.0.0~alpha2 but on Dream.target *)
+  let of_url uri_str =
+    let path_str = uri_str |> Uri.of_string |> Uri.path in
+    match String.split_on_char '/' path_str with
+    | "" :: (_ :: _ as tail) -> tail
+    | path -> path
+
+  let matches_dreamroute ~path dreamroute =
+    let is_match path_elem dpath_elem =
+      (dpath_elem |> String.starts_with ~prefix:":")
+      || path_elem = dpath_elem
+    in
+    let rec aux path dreampath =
+      match path, dreampath with
+      | []     , _ :: _   -> false   (*length path < length dreampath*)
+      | _      , []       -> true    (*length path >= length dreampath *)
+      | _ :: _ , "" :: [] -> true    (*dreampath ends in '/'*)
+      | p_elem :: path, dp_elem :: dreampath ->
+        is_match p_elem dp_elem
+        && aux path dreampath
+    in
+    let dreampath = dreamroute |> of_url in
+    aux path dreampath
+
+end

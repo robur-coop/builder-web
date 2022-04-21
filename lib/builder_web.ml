@@ -379,7 +379,7 @@ let add_routes ~datadir ~cachedir ~configdir =
     Dream.sql req (Model.build_hash hash) >>= Model.not_found
     |> if_error "Internal server error" >>= fun (job_name, build) ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/" job_name Uuidm.pp build.Builder_db.Build.uuid)
+      (Fmt.str "/job/%s/build/%a" job_name Uuidm.pp build.Builder_db.Build.uuid)
     |> Lwt_result.ok
   in
 
@@ -469,18 +469,16 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let redirect_parent req =
-    let parent =
-      Dream.target req |>
-      String.split_on_char '/' |>
-      List.rev |> List.tl |> List.rev |>
-      String.concat "/"
+    let queries = Dream.all_queries req in
+    let parent_url =
+      let parent_path =
+        Dream.target req
+        |> Utils.Path.of_url
+        |> List.rev |> List.tl |> List.rev
+      in
+      Utils.Path.to_url ~path:parent_path ~queries
     in
-    let parent = parent ^ "/" in
-    let url = match Dream.all_queries req with
-      | [] -> parent
-      | xs -> parent ^ "?" ^ (Dream.to_form_urlencoded xs)
-    in
-    Dream.redirect ~status:`Temporary_Redirect req url
+    Dream.redirect ~status:`Temporary_Redirect req parent_url
     |> Lwt_result.ok
   in
 
@@ -489,21 +487,48 @@ let add_routes ~datadir ~cachedir ~configdir =
   Dream.router [
     Dream.get "/" (w builds);
     Dream.get "/job" (w redirect_parent);
-    Dream.get "/job/:job/" (w job);
+    Dream.get "/job/:job" (w job);
     Dream.get "/job/:job/build" (w redirect_parent);
-    Dream.get "/job/:job/failed/" (w job_with_failed);
+    Dream.get "/job/:job/failed" (w job_with_failed);
     Dream.get "/job/:job/build/latest/**" (w redirect_latest);
-    Dream.get "/job/:job/build/:build/" (w job_build);
+    Dream.get "/job/:job/build/:build" (w job_build);
     Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
     Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
     Dream.get "/job/:job/build/:build/viztreemap" (w @@ job_build_viz `Treemap);
     Dream.get "/job/:job/build/:build/vizdependencies" (w @@ job_build_viz `Dependencies);
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
-    Dream.get "/failed-builds/" (w failed_builds);
+    Dream.get "/failed-builds" (w failed_builds);
     Dream.get "/job/:job/build/:build/all.tar" (w job_build_tar);
     Dream.get "/hash" (w hash);
-    Dream.get "/compare/:build_left/:build_right/" (w compare_builds);
+    Dream.get "/compare/:build_left/:build_right" (w compare_builds);
     Dream.post "/upload" (Authorization.authenticate (w upload));
     Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
   ]
+
+let routeprefix_blacklist_when_removing_trailing_slash = [
+  "/job/:job/build/:build/f"
+]
+
+module Middleware = struct
+
+  let remove_trailing_url_slash : Dream.middleware =
+    fun handler req ->
+      let path = Dream.target req |> Utils.Path.of_url in
+      let is_blacklisted =
+        routeprefix_blacklist_when_removing_trailing_slash
+        |> List.exists (Utils.Path.matches_dreamroute ~path)
+      in
+      if not (List.mem (Dream.method_ req) [`GET; `HEAD]) || is_blacklisted then
+        handler req
+      else match List.rev path with
+        | "" :: [] (* / *) -> handler req
+        | "" :: path (* /.../ *) ->
+          let path = List.rev path in
+          let queries = Dream.all_queries req in
+          let url = Utils.Path.to_url ~path ~queries in
+          (*> Note: See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location*)
+          Dream.redirect ~status:`Permanent_Redirect req url
+        | _ (* /... *) -> handler req
+
+end
