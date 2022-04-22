@@ -204,7 +204,7 @@ let routes ~datadir ~cachedir ~configdir =
     and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     try_load_cached_visualization ~cachedir ~uuid viz_typ
-    |> if_error "Error getting cached visualization"
+    |> if_error ~status:`Not_Found "Error getting cached visualization"
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
