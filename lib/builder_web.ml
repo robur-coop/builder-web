@@ -506,7 +506,7 @@ let add_routes ~datadir ~cachedir ~configdir =
     Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
   ]
 
-let routeprefix_blacklist_when_removing_trailing_slash = [
+let routeprefix_ignorelist_when_removing_trailing_slash = [
   "/job/:job/build/:build/f"
 ]
 
@@ -515,11 +515,11 @@ module Middleware = struct
   let remove_trailing_url_slash : Dream.middleware =
     fun handler req ->
       let path = Dream.target req |> Utils.Path.of_url in
-      let is_blacklisted =
-        routeprefix_blacklist_when_removing_trailing_slash
+      let is_ignored =
+        routeprefix_ignorelist_when_removing_trailing_slash
         |> List.exists (Utils.Path.matches_dreamroute ~path)
       in
-      if not (List.mem (Dream.method_ req) [`GET; `HEAD]) || is_blacklisted then
+      if not (List.mem (Dream.method_ req) [`GET; `HEAD]) || is_ignored then
         handler req
       else match List.rev path with
         | "" :: [] (* / *) -> handler req
