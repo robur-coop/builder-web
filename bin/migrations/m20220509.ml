@@ -33,11 +33,20 @@ let rollback_q =
     (Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep)
     "UPDATE build SET uuid = $2 WHERE id = $1"
 
+let create_index =
+  Caqti_request.exec Caqti_type.unit
+    "CREATE INDEX idx_build_uuid ON build(uuid);"
+
+let drop_index =
+  Caqti_request.exec Caqti_type.unit
+    "DROP INDEX idx_build_uuid;"
+
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.collect_list uuids_byte_encoded_q () >>= fun old_uuids ->
   Grej.list_iter_result (Db.exec migrate_q) old_uuids >>= fun () ->
+  Db.exec create_index () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -45,4 +54,5 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.collect_list uuids_hex_encoded_q () >>= fun new_uuids ->
   Grej.list_iter_result (Db.exec rollback_q) new_uuids >>= fun () ->
+  Db.exec drop_index () >>= fun () ->
   Db.exec (Grej.set_version old_version) ()
