@@ -60,12 +60,6 @@ let mime_lookup path =
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
 
-let not_found req =
-  let path = "/" ^ String.concat "/" (Dream.path req) in
-  let referer = Dream.header "referer" req in
-  Views.page_not_found ~path ~referer
-  |> string_of_html |> Dream.html ~status:`Not_Found
-
 let or_error_response r =
   let* r = r in
   match r with
@@ -99,15 +93,7 @@ let get_uuid s =
        | None -> Error ("Bad uuid", `Bad_Request)
      else Error ("Bad uuid", `Bad_Request))
 
-let dream_svg ?status ?code ?headers body =
-  Dream.response ?status ?code ?headers body
-  |> Dream.with_header "Content-Type" "image/svg+xml"
-  |> Lwt.return
-
-let add_routes ~datadir ~cachedir ~configdir =
-  let datadir_global = Dream.new_global ~name:"datadir" (fun () -> datadir) in
-  let cachedir_global = Dream.new_global ~name:"cachedir" (fun () -> cachedir) in
-
+let routes ~datadir ~cachedir ~configdir =
   let builds req =
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
@@ -138,8 +124,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job req =
-    let job_name = Dream.param "job" req in
-    let platform = Dream.query "platform" req in
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
     (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
      Dream.sql req (Model.builds_grouped_by_output job_id platform) >|= fun builds ->
      (readme, builds))
@@ -151,8 +137,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job_with_failed req =
-    let job_name = Dream.param "job" req in
-    let platform = Dream.query "platform" req in
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
     (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
      Dream.sql req (Model.builds_grouped_by_output_with_failed job_id platform) >|= fun builds ->
      (readme, builds))
@@ -164,9 +150,10 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let redirect_latest req =
-    let job_name = Dream.param "job" req in
-    let platform = Dream.query "platform" req in
-    let path = Dream.path req |> String.concat "/" in
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    (* FIXME *)
+    let path = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
@@ -177,8 +164,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let redirect_main_binary req =
-    let job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    let job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     Dream.sql req (Model.build uuid)
     |> if_error "Error getting job build"
@@ -213,20 +200,18 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job_build_viz viz_typ req =
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req
-    and cachedir = Dream.global cachedir_global req in
+    let _job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
-    (try_load_cached_visualization ~cachedir ~uuid viz_typ
-     |> if_error "Error getting cached visualization")
+    try_load_cached_visualization ~cachedir ~uuid viz_typ
+    |> if_error ~status:`Not_Found "Error getting cached visualization"
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
 
   let job_build req =
-    let datadir = Dream.global datadir_global req in
-    let job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    let job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     Dream.sql req (fun conn ->
         Model.build uuid conn >>= fun (build_id, build) ->
@@ -261,11 +246,11 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job_build_file req =
-    let datadir = Dream.global datadir_global req in
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req
-    and filepath = Dream.path req |> String.concat "/" in
-    let if_none_match = Dream.header "if-none-match" req in
+    let _job_name = Dream.param req "job"
+    and build = Dream.param req "build"
+    (* FIXME *)
+    and filepath = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+    let if_none_match = Dream.header req "if-none-match" in
     (* XXX: We don't check safety of [file]. This should be fine however since
      * we don't use [file] for the filesystem but is instead used as a key for
      * lookup in the data table of the 'full' file. *)
@@ -292,9 +277,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job_build_static_file (file : [< `Console | `Script ]) req =
-    let datadir = Dream.global datadir_global req in
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    let _job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
     get_uuid build >>= fun build ->
     (match file with
     | `Console ->
@@ -309,10 +293,10 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let failed_builds req =
-    let platform = Dream.query "platform" req in
+    let platform = Dream.query req "platform" in
     let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
-    let start = to_int 0 (Dream.query "start" req) in
-    let count = to_int 10 (Dream.query "count" req) in
+    let start = to_int 0 (Dream.query req "start") in
+    let count = to_int 10 (Dream.query req "count") in
     Dream.sql req (Model.failed_builds ~start ~count platform)
     |> if_error "Error getting data"
        ~log:(fun e -> Log.warn (fun m -> m "Error getting failed builds: %a"
@@ -322,9 +306,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let job_build_tar req =
-    let datadir = Dream.global datadir_global req in
-    let _job_name = Dream.param "job" req
-    and build = Dream.param "build" req in
+    let _job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
     get_uuid build >>= fun build ->
     Dream.sql req (Model.build build)
     |> if_error "Error getting build" >>= fun (build_id, build) ->
@@ -359,9 +342,7 @@ let add_routes ~datadir ~cachedir ~configdir =
         (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
       |> Lwt_result.ok
     | false ->
-      let datadir = Dream.global datadir_global req in
-      let cachedir = Dream.global cachedir_global req in
-      (Lwt.return (Dream.local Authorization.user_info_local req |>
+      (Lwt.return (Dream.field req Authorization.user_info_field |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
        Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
       |> if_error "Internal server error"
@@ -370,7 +351,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let hash req =
-    Dream.query "sha256" req |> Option.to_result ~none:(`Msg "Missing sha256 query parameter") |> Lwt.return
+    Dream.query req "sha256" |> Option.to_result ~none:(`Msg "Missing sha256 query parameter")
+    |> Lwt.return
     |> if_error ~status:`Bad_Request "Bad request" >>= fun hash_hex ->
     begin try Hex.to_cstruct (`Hex hash_hex) |> Lwt_result.return
       with Invalid_argument e -> Lwt_result.fail (`Msg ("Bad hex: " ^ e))
@@ -384,9 +366,8 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let compare_builds req =
-    let datadir = Dream.global datadir_global req in
-    let build_left = Dream.param "build_left" req in
-    let build_right = Dream.param "build_right" req in
+    let build_left = Dream.param req "build_left" in
+    let build_right = Dream.param req "build_right" in
     get_uuid build_left >>= fun build_left ->
     get_uuid build_right >>= fun build_right ->
     Dream.sql req (fun conn ->
@@ -429,10 +410,10 @@ let add_routes ~datadir ~cachedir ~configdir =
   in
 
   let upload_binary req =
-    let job = Dream.param "job" req in
-    let platform = Dream.param "platform" req in
+    let job = Dream.param req "job" in
+    let platform = Dream.param req "platform" in
     let binary_name =
-      Dream.query "binary_name" req
+      Dream.query req "binary_name"
       |> Option.map Fpath.of_string
       |> Option.value ~default:(Ok Fpath.(v job + "bin"))
     in
@@ -453,14 +434,12 @@ let add_routes ~datadir ~cachedir ~configdir =
         (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
       |> Lwt_result.ok
     | false ->
-      let datadir = Dream.global datadir_global req in
-      let cachedir = Dream.global cachedir_global req in
       let exec =
         let now = Ptime_clock.now () in
         ({ Builder.name = job ; platform ; script = "" }, uuid, [], now, now, Builder.Exited 0,
          [ (Fpath.(v "bin" // binary_name), body) ])
       in
-      (Lwt.return (Dream.local Authorization.user_info_local req |>
+      (Lwt.return (Dream.field req Authorization.user_info_field |>
                    Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
        Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
       |> if_error "Internal server error"
@@ -484,7 +463,7 @@ let add_routes ~datadir ~cachedir ~configdir =
 
   let w f req = or_error_response (f req) in
 
-  Dream.router [
+  [
     Dream.get "/" (w builds);
     Dream.get "/job" (w redirect_parent);
     Dream.get "/job/:job" (w job);

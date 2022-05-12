@@ -3,59 +3,49 @@ let identifier = "2021-06-30"
 let migrate_doc = "add readme.md tag"
 let rollback_doc = "remove readme.md tag"
 
+open Grej.Infix
+
 let jobs =
-  Caqti_request.collect
-    Caqti_type.unit
-    Builder_db.Rep.untyped_id
-    "SELECT id FROM job"
+  Caqti_type.unit ->* Builder_db.Rep.untyped_id @@
+  "SELECT id FROM job"
 
 let latest_successful_build =
-  Caqti_request.find_opt
-    Builder_db.Rep.untyped_id
-    Builder_db.Rep.untyped_id
-    {| SELECT b.id
-       FROM build b
-       WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
-       ORDER BY b.start_d DESC, b.start_ps DESC
-       LIMIT 1
-    |}
+  Builder_db.Rep.untyped_id ->? Builder_db.Rep.untyped_id @@
+  {| SELECT b.id
+     FROM build b
+     WHERE b.job = ? AND b.result_kind = 0 AND b.result_code = 0
+     ORDER BY b.start_d DESC, b.start_ps DESC
+     LIMIT 1
+  |}
 
 let build_artifacts =
-  Caqti_request.collect
-    Builder_db.Rep.untyped_id
-    Caqti_type.(tup2 Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    {| SELECT a.filepath, a.localpath
-       FROM build_artifact a
-       WHERE a.build = ?
-    |}
+  Builder_db.Rep.untyped_id ->*
+  Caqti_type.tup2 Builder_db.Rep.fpath Builder_db.Rep.fpath @@
+  {| SELECT a.filepath, a.localpath
+     FROM build_artifact a
+     WHERE a.build = ?
+  |}
 
 let insert_tag =
-   Caqti_request.exec
-     Caqti_type.string
-     "INSERT INTO tag (tag) VALUES (?)"
+  Caqti_type.string ->. Caqti_type.unit @@
+  "INSERT INTO tag (tag) VALUES (?)"
 
 let insert_job_tag =
-   Caqti_request.exec
-     Caqti_type.(tup3 Builder_db.Rep.untyped_id string Builder_db.Rep.untyped_id)
-     "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
+  Caqti_type.(tup3 Builder_db.Rep.untyped_id string Builder_db.Rep.untyped_id) ->.
+  Caqti_type.unit @@
+  "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
 
 let find_tag =
-   Caqti_request.find
-     Caqti_type.string
-     Builder_db.Rep.untyped_id
-     "SELECT id FROM tag where tag = ?"
+  Caqti_type.string ->! Builder_db.Rep.untyped_id @@
+  "SELECT id FROM tag where tag = ?"
 
 let remove_job_tag =
-   Caqti_request.exec
-     Builder_db.Rep.untyped_id
-     "DELETE FROM job_tag where tag = ?"
+  Builder_db.Rep.untyped_id ->. Caqti_type.unit @@
+  "DELETE FROM job_tag where tag = ?"
 
 let remove_tag =
-   Caqti_request.exec
-     Builder_db.Rep.untyped_id
-     "DELETE FROM tag where id = ?"
-
-open Grej.Infix
+  Builder_db.Rep.untyped_id ->. Caqti_type.unit @@
+  "DELETE FROM tag where id = ?"
 
 let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->

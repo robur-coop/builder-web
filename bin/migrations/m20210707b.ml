@@ -1,30 +1,28 @@
+open Grej.Infix
+
 let deb_debug_left_in_builds =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.unit
-    (Caqti_type.tup4 (Builder_db.Rep.id `build_artifact) (Builder_db.Rep.id `build) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    {| SELECT id, build, localpath, filepath FROM build_artifact
-       WHERE filepath LIKE '%.deb.debug'
-    |}
+  Caqti_type.unit ->*
+  Caqti_type.tup4 (Builder_db.Rep.id `build_artifact) (Builder_db.Rep.id `build)
+    Builder_db.Rep.fpath Builder_db.Rep.fpath @@
+  {| SELECT id, build, localpath, filepath FROM build_artifact
+     WHERE filepath LIKE '%.deb.debug'
+  |}
 
 let get_main_binary =
-  Caqti_request.find_opt
-    (Builder_db.Rep.id `build)
-    (Builder_db.Rep.id `build_artifact)
-    "SELECT main_binary FROM build WHERE id = ?"
+  Builder_db.Rep.id `build ->? Builder_db.Rep.id `build_artifact @@
+  "SELECT main_binary FROM build WHERE id = ?"
 
 let get_localpath =
-  Caqti_request.find
-    (Builder_db.Rep.id `build_artifact)
-    Builder_db.Rep.fpath
-    "SELECT localpath FROM build_artifact WHERE id = ?"
+  Builder_db.Rep.id `build_artifact ->! Builder_db.Rep.fpath @@
+  "SELECT localpath FROM build_artifact WHERE id = ?"
 
 let update_paths =
-  Caqti_request.exec
-    (Caqti_type.tup3 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
+  Caqti_type.tup3 (Builder_db.Rep.id `build_artifact)
+    Builder_db.Rep.fpath Builder_db.Rep.fpath ->.
+  Caqti_type.unit @@
+  "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
-  let open Grej.Infix in
   Grej.check_version ~user_version:12L (module Db) >>= fun () ->
   Db.rev_collect_list deb_debug_left_in_builds () >>= fun leftover_debug ->
   Grej.list_iter_result

@@ -6,14 +6,14 @@ open Lwt.Syntax
 
 let realm = "builder-web"
 
-let user_info_local = Dream.new_local ~name:"user_info" ()
+let user_info_field = Dream.new_field ~name:"user_info" ()
 
 let authenticate handler = fun req ->
   let unauthorized () =
     let headers = ["WWW-Authenticate", Printf.sprintf "Basic realm=\"%s\"" realm] in
     Dream.respond ~headers ~status:`Unauthorized "Forbidden!"
   in
-  match Dream.header "Authorization" req with
+  match Dream.header req "Authorization" with
   | None -> unauthorized ()
   | Some data -> match String.split_on_char ' ' data with
      | [ "Basic" ; user_pass ] ->
@@ -31,7 +31,7 @@ let authenticate handler = fun req ->
            match user_info with
            | Ok (Some (id, user_info)) ->
              if Builder_web_auth.verify_password pass user_info
-             then handler (Dream.with_local user_info_local (id, user_info) req)
+             then (Dream.set_field req user_info_field (id, user_info); handler req)
              else unauthorized ()
            | Ok None ->
              let _ : _ Builder_web_auth.user_info =
@@ -45,7 +45,7 @@ let authenticate handler = fun req ->
        Dream.respond ~status:`Bad_Request "Couldn't decode authorization"
 
 let authorized req job_name =
-  match Dream.local user_info_local req with
+  match Dream.field req user_info_field with
   | None -> Lwt.return (Error (`Msg "not authenticated"))
   | Some (id, user) ->
      if user.restricted then

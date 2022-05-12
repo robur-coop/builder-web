@@ -3,32 +3,27 @@ let identifier = "2021-01-26"
 let migrate_doc = "add column main_binary to build"
 let rollback_doc = "remove column main_binary from build"
 
+open Grej.Infix
+
 let set_application_id =
-  Caqti_request.exec
-    Caqti_type.unit
-    (Printf.sprintf "PRAGMA application_id = %ld" Builder_db.application_id)
+  Caqti_type.unit ->. Caqti_type.unit @@
+  Printf.sprintf "PRAGMA application_id = %ld" Builder_db.application_id
 
 let alter_build =
-  Caqti_request.exec ~oneshot:true
-    Caqti_type.unit
-    "ALTER TABLE build ADD COLUMN main_binary TEXT"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "ALTER TABLE build ADD COLUMN main_binary TEXT"
 
 let all_builds =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.unit
-    Caqti_type.int64
-    "SELECT id FROM build"
+  Caqti_type.unit ->* Caqti_type.int64 @@
+  "SELECT id FROM build"
 
 let bin_artifact =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.int64
-    Caqti_type.(tup2 int64 string)
-    "SELECT id, filepath FROM build_artifact WHERE build = ? AND filepath LIKE 'bin/%'"
+  Caqti_type.int64 ->* Caqti_type.(tup2 int64 string) @@
+  "SELECT id, filepath FROM build_artifact WHERE build = ? AND filepath LIKE 'bin/%'"
 
 let set_main_binary =
-  Caqti_request.exec ~oneshot:true
-    Caqti_type.(tup2 int64 (option string))
-    "UPDATE build SET main_binary = $2 WHERE id = $1"
+  Caqti_type.(tup2 int64 (option string)) ->. Caqti_type.unit @@
+  "UPDATE build SET main_binary = $2 WHERE id = $1"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
@@ -52,39 +47,36 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec (Grej.set_version new_version) ()
 
 let rename_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    "ALTER TABLE build RENAME TO __tmp_build"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "ALTER TABLE build RENAME TO __tmp_build"
 
 let create_build =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| CREATE TABLE build (
-         id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
-         uuid VARCHAR(36) NOT NULL UNIQUE,
-         start_d INTEGER NOT NULL,
-         start_ps INTEGER NOT NULL,
-         finish_d INTEGER NOT NULL,
-         finish_ps INTEGER NOT NULL,
-         result_kind TINYINT NOT NULL,
-         result_code INTEGER,
-         result_msg TEXT,
-         console BLOB NOT NULL,
-         script TEXT NOT NULL,
-         job INTEGER NOT NULL,
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| CREATE TABLE build (
+       id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
+       uuid VARCHAR(36) NOT NULL UNIQUE,
+       start_d INTEGER NOT NULL,
+       start_ps INTEGER NOT NULL,
+       finish_d INTEGER NOT NULL,
+       finish_ps INTEGER NOT NULL,
+       result_kind TINYINT NOT NULL,
+       result_code INTEGER,
+       result_msg TEXT,
+       console BLOB NOT NULL,
+       script TEXT NOT NULL,
+       job INTEGER NOT NULL,
 
-         FOREIGN KEY(job) REFERENCES job(id)
-       )
-       |}
+       FOREIGN KEY(job) REFERENCES job(id)
+     )
+  |}
 
 let rollback_data =
-  Caqti_request.exec
-    Caqti_type.unit
-    {| INSERT INTO build
-       SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
-         result_kind, result_code, result_msg, console, script, job
-       FROM __tmp_build
-    |}
+  Caqti_type.unit ->. Caqti_type.unit @@
+  {| INSERT INTO build
+     SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
+       result_kind, result_code, result_msg, console, script, job
+     FROM __tmp_build
+  |}
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in

@@ -33,66 +33,66 @@ val application_id : int32
 val current_version : int64
 
 val get_application_id :
-  (unit, int32, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  (unit, int32, [ `One ]) Caqti_request.t
 
 val set_application_id :
-  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  (unit, unit, [ `Zero ]) Caqti_request.t
 
 val get_version :
-  (unit, int64, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  (unit, int64, [ `One ]) Caqti_request.t
 
 val set_current_version :
-  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  (unit, unit, [ `Zero ]) Caqti_request.t
 
 val last_insert_rowid :
-  (unit, 'a id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+  (unit, 'a id, [ `One ]) Caqti_request.t
 
 module Job : sig
   val get :
-    ([`job] id, string, [< `Many | `One | `Zero > `One ])
+    ([`job] id, string, [ `One ])
       Caqti_request.t
   val get_id_by_name :
-    (string, [`job] id, [< `Many | `One | `Zero > `One `Zero ]) Caqti_request.t
+    (string, [`job] id, [ `One | `Zero ]) Caqti_request.t
   val get_all_with_section_synopsis :
     (unit, [`job] id * string * string option * string option, [ `Many | `One | `Zero ]) Caqti_request.t
   val try_add :
-    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    (string, unit, [ `Zero ]) Caqti_request.t
   val remove :
-    ([`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`job] id, unit, [ `Zero ]) Caqti_request.t
 end
 
 module Tag : sig
   val get_id_by_name :
-    (string, [`tag] id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+    (string, [`tag] id, [ `One ]) Caqti_request.t
   val try_add :
-    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    (string, unit, [ `Zero ]) Caqti_request.t
 end
 
 module Job_tag : sig
   val add :
-    ([`tag] id * string * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`tag] id * string * [`job] id, unit, [ `Zero ]) Caqti_request.t
   val update :
-    ([`tag] id * string * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`tag] id * string * [`job] id, unit, [ `Zero ]) Caqti_request.t
   val get_value :
-    ([`tag] id * [`job] id, string, [< `Many | `One | `Zero > `Zero `One ]) Caqti_request.t
+    ([`tag] id * [`job] id, string, [ `One | `Zero ]) Caqti_request.t
   val remove_by_job :
-    ([`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`job] id, unit, [ `Zero ]) Caqti_request.t
 end
 
 module Build_artifact : sig
-  val get : ([`build_artifact] id, file, [< `Many | `One | `Zero > `One]) Caqti_request.t
+  val get : ([`build_artifact] id, file, [ `One]) Caqti_request.t
   val get_by_build_uuid :
     (Uuidm.t * Fpath.t, [`build_artifact] id * file,
-     [< `Many | `One | `Zero > `One `Zero ])
+     [ `One | `Zero ])
       Caqti_request.t
   val get_all_by_build :
     ([`build] id, [`build_artifact] id * file, [ `Many | `One | `Zero ]) Caqti_request.t
   val add :
-    (file * [`build] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    (file * [`build] id, unit, [ `Zero ]) Caqti_request.t
   val remove_by_build :
-    ([`build] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`build] id, unit, [ `Zero ]) Caqti_request.t
   val remove :
-    ([`build_artifact] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`build_artifact] id, unit, [ `Zero ]) Caqti_request.t
 end
 
 module Build :
@@ -112,7 +112,7 @@ sig
   }
 
   val get_by_uuid :
-    (Uuidm.t, [`build] id * t, [< `Many | `One | `Zero > `One `Zero ])
+    (Uuidm.t, [`build] id * t, [ `One | `Zero ])
       Caqti_request.t
   val get_all :
     ([`job] id, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
@@ -121,18 +121,18 @@ sig
   val get_all_artifact_sha :
     ([`job] id * string option, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful_with_binary :
-    ([`job] id * string, [`build] id * t * file option, [< `Many | `One | `Zero > `One `Zero ])
+    ([`job] id * string, [`build] id * t * file option, [ `One | `Zero ])
       Caqti_request.t
   val get_failed_builds :
     ([`job] id * string option, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful :
-    ([`job] id * string option, t, [< `Many | `One | `Zero > `One `Zero ])
+    ([`job] id * string option, t, [ `One | `Zero ])
       Caqti_request.t
   val get_previous_successful_different_output :
-    ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ])
+    ([`build] id, t, [ `One | `Zero ])
       Caqti_request.t
   val get_next_successful_different_output :
-    ([`build] id, t, [< `Many | `One | `Zero > `One `Zero ])
+    ([`build] id, t, [ `One | `Zero ])
       Caqti_request.t
   val get_same_input_same_output_builds :
     ([`build] id, t, [ `Many | `One | `Zero ]) Caqti_request.t
@@ -141,51 +141,51 @@ sig
   val get_different_input_same_output_input_ids :
     ([`build] id, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_one_by_input_id :
-    (Cstruct.t, t, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+    (Cstruct.t, t, [ `One ]) Caqti_request.t
   val get_platforms_for_job :
     ([`job] id, string, [ `Many | `One | `Zero ]) Caqti_request.t
-  val add : (t, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+  val add : (t, unit, [ `Zero ]) Caqti_request.t
   val get_by_hash :
-    (Cstruct.t, t, [< `Many | `One | `Zero > `One]) Caqti_request.t
+    (Cstruct.t, t, [ `One]) Caqti_request.t
   val get_with_main_binary_by_hash :
-    (Cstruct.t, t * file option, [< `Many | `One | `Zero > `One]) Caqti_request.t
+    (Cstruct.t, t * file option, [ `One]) Caqti_request.t
   val get_with_jobname_by_hash :
-    (Cstruct.t, string * t, [< `Many | `One | `Zero > `One `Zero]) Caqti_request.t
-  val set_main_binary : ([`build] id * [`build_artifact] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
-  val remove : ([`build] id, unit, [< `Many | `One | `Zero > `Zero]) Caqti_request.t
+    (Cstruct.t, string * t, [ `One | `Zero]) Caqti_request.t
+  val set_main_binary : ([`build] id * [`build_artifact] id, unit, [ `Zero ]) Caqti_request.t
+  val remove : ([`build] id, unit, [ `Zero]) Caqti_request.t
 end
 
 module User : sig
   val get_user :
     (string, [`user] id * Builder_web_auth.scrypt Builder_web_auth.user_info,
-     [< `Many | `One | `Zero > `One `Zero ])
+     [ `One | `Zero ])
     Caqti_request.t
   val get_all :
     (unit, string, [ `Many | `One | `Zero ]) Caqti_request.t
   val add :
-    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
+    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [ `Zero ])
     Caqti_request.t
   val remove_user :
-    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    (string, unit, [ `Zero ]) Caqti_request.t
   val update_user :
-    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [< `Many | `One | `Zero > `Zero ])
+    (Builder_web_auth.scrypt Builder_web_auth.user_info, unit, [ `Zero ])
     Caqti_request.t
 end
 
 module Access_list : sig
   val get :
-    ([`user] id * [`job] id, [`access_list] id, [< `Many | `One | `Zero > `One ]) Caqti_request.t
+    ([`user] id * [`job] id, [`access_list] id, [ `One ]) Caqti_request.t
   val add :
-    ([`user] id * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`user] id * [`job] id, unit, [ `Zero ]) Caqti_request.t
   val remove :
-    ([`user] id * [`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`user] id * [`job] id, unit, [ `Zero ]) Caqti_request.t
   val remove_by_job :
-    ([`job] id, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    ([`job] id, unit, [ `Zero ]) Caqti_request.t
   val remove_all_by_username :
-    (string, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t
+    (string, unit, [ `Zero ]) Caqti_request.t
 end
 
 val migrate :
-  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t list
+  (unit, unit, [ `Zero ]) Caqti_request.t list
 val rollback :
-  (unit, unit, [< `Many | `One | `Zero > `Zero ]) Caqti_request.t list
+  (unit, unit, [ `Zero ]) Caqti_request.t list

@@ -1,3 +1,5 @@
+open Caqti_request.Infix
+
 let ( let* ) = Result.bind
 let ( let+ ) x f = Result.map f x
 
@@ -10,19 +12,12 @@ let or_die exit_code = function
     Format.eprintf "Database error: %a\n" Caqti_error.pp e;
     exit exit_code
 
-let foreign_keys =
-  Caqti_request.exec
-    Caqti_type.unit
-    "PRAGMA foreign_keys = ON"
-
 let defer_foreign_keys =
-  Caqti_request.exec
-    Caqti_type.unit
-    "PRAGMA defer_foreign_keys = ON"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "PRAGMA defer_foreign_keys = ON"
 
 let connect uri =
-  let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect uri in
-  let* () = Db.exec foreign_keys () in
+  let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect ~tweaks_version:(1,8) uri in
   let* () = Db.exec defer_foreign_keys () in
   Ok (module Db : Caqti_blocking.CONNECTION)
 
@@ -179,19 +174,16 @@ let job_remove () datadir jobname =
   or_die 1 r
 
 let input_ids =
-   Caqti_request.collect
-     Caqti_type.unit
-     Builder_db.Rep.cstruct
-     "SELECT DISTINCT input_id FROM build WHERE input_id IS NOT NULL"
+  Caqti_type.unit ->* Builder_db.Rep.cstruct @@
+  "SELECT DISTINCT input_id FROM build WHERE input_id IS NOT NULL"
 
 let main_artifact_hash =
-   Caqti_request.collect
-     Builder_db.Rep.cstruct
-     (Caqti_type.tup3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string)
-     {|
-       SELECT a.sha256, b.uuid, j.name FROM build_artifact a, build b, job j
-       WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
-     |}
+  Builder_db.Rep.cstruct ->*
+  Caqti_type.tup3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string @@
+  {|
+    SELECT a.sha256, b.uuid, j.name FROM build_artifact a, build b, job j
+    WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
+  |}
 
 let verify_input_id () dbpath =
   let r =
@@ -219,26 +211,25 @@ let verify_input_id () dbpath =
   or_die 1 r
 
 let num_build_artifacts =
-  Caqti_request.find
-    Caqti_type.unit
-    Caqti_type.int
-    "SELECT count(*) FROM build_artifact"
+  Caqti_type.unit ->! Caqti_type.int @@
+  "SELECT count(*) FROM build_artifact"
 
 let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Fpath.t * Cstruct.t * int64), [ `One | `Zero | `Many ]) Caqti_request.t =
-  Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup3 string Builder_db.Rep.uuid (tup4 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
-    {| SELECT job.name, b.uuid, a.filepath, a.localpath, a.sha256, a.size
-       FROM build_artifact a, build b, job
-       WHERE a.build = b.id AND b.job = job.id |}
+  Caqti_type.unit ->*
+  Caqti_type.(tup3 string Builder_db.Rep.uuid
+                (tup4 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
+  @@
+  {| SELECT job.name, b.uuid, a.filepath, a.localpath, a.sha256, a.size
+     FROM build_artifact a, build b, job
+     WHERE a.build = b.id AND b.job = job.id |}
 
 let script_and_console : (unit, _, [`One | `Zero | `Many ]) Caqti_request.t =
-  Caqti_request.collect
-    Caqti_type.unit
-    Caqti_type.(tup4 string Builder_db.Rep.uuid Builder_db.Rep.fpath Builder_db.Rep.fpath)
-    {| SELECT job.name, b.uuid, b.console, b.script
-       FROM build b, job
-       WHERE job.id = b.job |}
+  Caqti_type.unit ->*
+  Caqti_type.(tup4 string Builder_db.Rep.uuid Builder_db.Rep.fpath Builder_db.Rep.fpath)
+  @@
+  {| SELECT job.name, b.uuid, b.console, b.script
+     FROM build b, job
+     WHERE job.id = b.job |}
 
 module FpathSet = Set.Make(Fpath)
 
