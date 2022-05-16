@@ -3,6 +3,8 @@ and identifier = "2022-05-09"
 and migrate_doc = "switch uuid encoding to hex"
 and rollback_doc = "switch uuid encoding back to binary"
 
+open Grej.Infix
+
 let old_uuid_rep =
   let encode uuid = Ok (Uuidm.to_bytes uuid) in
   let decode s =
@@ -12,34 +14,32 @@ let old_uuid_rep =
   Caqti_type.custom ~encode ~decode Caqti_type.string
 
 let uuids_byte_encoded_q =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.unit
-    (Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep)
-    "SELECT id, uuid FROM build"
+  Caqti_type.unit ->*
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep @@
+  "SELECT id, uuid FROM build"
 
 let uuids_hex_encoded_q =
-  Caqti_request.collect ~oneshot:true
-    Caqti_type.unit
-    (Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid)
-    "SELECT id, uuid FROM build"
+  Caqti_type.unit ->*
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid @@
+  "SELECT id, uuid FROM build"
 
 let migrate_q =
-  Caqti_request.exec ~oneshot:true
-    (Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid)
-    "UPDATE build SET uuid = $2 WHERE id = $1"
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid ->.
+  Caqti_type.unit @@
+  "UPDATE build SET uuid = $2 WHERE id = $1"
 
 let rollback_q =
-  Caqti_request.exec ~oneshot:true
-    (Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep)
-    "UPDATE build SET uuid = $2 WHERE id = $1"
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep ->.
+  Caqti_type.unit @@
+  "UPDATE build SET uuid = $2 WHERE id = $1"
 
 let create_index =
-  Caqti_request.exec Caqti_type.unit
-    "CREATE INDEX idx_build_uuid ON build(uuid);"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_uuid ON build(uuid);"
 
 let drop_index =
-  Caqti_request.exec Caqti_type.unit
-    "DROP INDEX idx_build_uuid;"
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "DROP INDEX idx_build_uuid;"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
