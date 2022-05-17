@@ -178,6 +178,7 @@ let () =
         actions (module M20210712c);
         [ f20210910 ];
         actions (module M20211105);
+        actions (module M20220509);
       ])
   |> Cmd.eval
   |> exit
