@@ -13,6 +13,14 @@ let old_uuid_rep =
   in
   Caqti_type.custom ~encode ~decode Caqti_type.string
 
+let new_uuid_rep =
+  let encode uuid = Ok (Uuidm.to_string uuid) in
+  let decode s =
+    Uuidm.of_string s
+    |> Option.to_result ~none:"failed to decode uuid"
+  in
+  Caqti_type.custom ~encode ~decode Caqti_type.string
+
 let uuids_byte_encoded_q =
   Caqti_type.unit ->*
   Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep @@
@@ -20,11 +28,11 @@ let uuids_byte_encoded_q =
 
 let uuids_hex_encoded_q =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid @@
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep @@
   "SELECT id, uuid FROM build"
 
 let migrate_q =
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) Builder_db.Rep.uuid ->.
+  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep ->.
   Caqti_type.unit @@
   "UPDATE build SET uuid = $2 WHERE id = $1"
 
@@ -33,20 +41,11 @@ let rollback_q =
   Caqti_type.unit @@
   "UPDATE build SET uuid = $2 WHERE id = $1"
 
-let create_index =
-  Caqti_type.unit ->. Caqti_type.unit @@
-  "CREATE INDEX idx_build_uuid ON build(uuid);"
-
-let drop_index =
-  Caqti_type.unit ->. Caqti_type.unit @@
-  "DROP INDEX idx_build_uuid;"
-
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let open Grej.Infix in
   Grej.check_version ~user_version:old_version (module Db) >>= fun () ->
   Db.collect_list uuids_byte_encoded_q () >>= fun old_uuids ->
   Grej.list_iter_result (Db.exec migrate_q) old_uuids >>= fun () ->
-  Db.exec create_index () >>= fun () ->
   Db.exec (Grej.set_version new_version) ()
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -54,5 +53,4 @@ let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   Grej.check_version ~user_version:new_version (module Db) >>= fun () ->
   Db.collect_list uuids_hex_encoded_q () >>= fun new_uuids ->
   Grej.list_iter_result (Db.exec rollback_q) new_uuids >>= fun () ->
-  Db.exec drop_index () >>= fun () ->
   Db.exec (Grej.set_version old_version) ()
