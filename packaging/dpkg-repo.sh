@@ -31,7 +31,7 @@ Options:
     --build-time=STRING
         Build timestamp (used for the version of the package).
     --sha256=STRING
-        Base64 encoded SHA256 digest of the main binary.
+        Hex encoded SHA256 digest of the main binary.
     --job=STRING
         Job name that was built.
     --platform=STRING
