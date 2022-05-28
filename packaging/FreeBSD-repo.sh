@@ -100,6 +100,12 @@ mkdir "${PKG_ROOT}"
 mv "${TMP}/usr" "${PKG_ROOT}"
 
 VERSION=$(jq -r '.version' "${MANIFEST}")
+# if we've a tagged version (1.5.0), append the number of commits and a dummy hash
+HAS_COMMIT=$(echo $VERSION | grep -c '[0-9a-fA-F][0-9a-fA-f][0-9a-fA-F][0-9a-fA-F][0-9a-fA-f][0-9a-fA-F]')
+if [ $HAS_COMMIT -eq 0 ]; then
+    VERSION="${VERSION}.0.g0000000"
+fi
+
 NAME=$(jq -r '.name' "${MANIFEST}")
 FULL_VERSION="${VERSION}.${BUILD_TIME}.${SHA}"
 
