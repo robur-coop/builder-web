@@ -8,8 +8,13 @@
 freebsd_sanitize_version () {
     post=$(echo $1 | rev | cut -d '-' -f 1-2 | rev | sed -e 's/-/./g')
     v=$(echo $1 | rev | cut -d '-' -f 3- | rev | sed -e 's/-/./g')
-    has_commit=$(echo $v | grep -c '[0-9a-fA-F][0-9a-fA-f][0-9a-fA-F][0-9a-fA-F][0-9a-fA-f][0-9a-fA-F]')
-    if [ $has_commit -eq 0 ]; then
+    version_good=$(echo $v | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+$')
+    version_with_commit=$(echo $v | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\.g[0-9a-fA-f]\+$')
+    if [ $version_good -eq 0 -a $version_with_commit -eq 0 ]; then
+        echo "invalid version $v";
+        exit 1;
+    fi
+    if [ $version_with_commit -eq 0 ]; then
         v="${v}.0.g0000000"
     fi
     echo $v
