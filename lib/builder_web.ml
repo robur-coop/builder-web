@@ -306,13 +306,13 @@ let routes ~datadir ~cachedir ~configdir =
     let job_name = Dream.param req "job" in
     let platform = Dream.query req "platform" in
     (* FIXME *)
-    let path = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+    let artifact = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+      (Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact ())
     |> Lwt_result.ok
   in
 
@@ -321,9 +321,9 @@ let routes ~datadir ~cachedir ~configdir =
     and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     Dream.sql req (main_binary_of_uuid uuid) >>= fun main_binary ->
-    Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/f/%a" job_name Uuidm.pp uuid
-         Fpath.pp main_binary.Builder_db.filepath)
+    let filepath = main_binary.Builder_db.filepath in
+    Link.Job_build_f.make ~job_name ~build:uuid ~filepath ()
+    |> Dream.redirect req
     |> Lwt_result.ok
   in
 
@@ -360,7 +360,7 @@ let routes ~datadir ~cachedir ~configdir =
     >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
     let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
     Views.Job_build.make
-      ~name:job_name
+      ~job_name
       ~build
       ~artifacts
       ~main_binary
@@ -488,7 +488,7 @@ let routes ~datadir ~cachedir ~configdir =
     Dream.sql req (Model.build_hash hash) >>= Model.not_found
     |> if_error "Internal server error" >>= fun (job_name, build) ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a" job_name Uuidm.pp build.Builder_db.Build.uuid)
+      (Link.Job_build.make ~job_name ~build:build.Builder_db.Build.uuid ())
     |> Lwt_result.ok
   in
 
