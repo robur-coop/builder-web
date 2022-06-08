@@ -75,57 +75,41 @@ info "processing UUID '$UUID'"
 DB="${DATA_DIR}/builder.sqlite3"
 
 get_main_binary () {
-    sqlite3 "${DB}" <<EOF
-        select ba.localpath from build as b
-        join build_artifact as ba on ba.build = b.id and b.main_binary = ba.id
-        where uuid = '$UUID';
-EOF
+    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+        JOIN build_artifact AS ba ON ba.build = b.id AND b.main_binary = ba.id
+        WHERE uuid = '$UUID';"
 }
 
-BIN="${DATA_DIR}/$(get_main_binary)"
+BIN="${DATA_DIR}/$(get_main_binary)" || die "Failed to get main binary from database"
 [ -z "${BIN}" ] && die "No main-binary found in db '$DB' for build '$UUID'"
 
 get_debug_binary () {
-    sqlite3 "${DB}" <<EOF
-        select ba.localpath from build as b
-        join build_artifact as ba on ba.build = b.id 
-        where 
+    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+        JOIN build_artifact AS ba ON ba.build = b.id
+        WHERE
           uuid = '$UUID'
-          and ba.localpath like '%.debug';
-EOF
+          AND ba.localpath LIKE '%.debug';"
 }
 
-DEBUG_BIN_RELATIVE="$(get_debug_binary)"
+DEBUG_BIN_RELATIVE="$(get_debug_binary)" || die "Failed to get debug binary from database"
 
 get_opam_switch () {
-    sqlite3 "${DB}" <<EOF
-        select ba.localpath from build as b
-        join build_artifact as ba on ba.build = b.id 
-        where 
+    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+        JOIN build_artifact AS ba ON ba.build = b.id
+        WHERE
           uuid = '$UUID'
-          and ba.filepath = 'opam-switch';
-EOF
+          AND ba.filepath = 'opam-switch';"
 }
 
-OPAM_SWITCH="$(get_opam_switch)"
+OPAM_SWITCH="$(get_opam_switch)" || die "Failed to get opam switch from database"
 [ -z "${OPAM_SWITCH}" ] && die "No 'opam-switch' found in db '$DB' for build '$UUID'"
 OPAM_SWITCH="${DATA_DIR}/${OPAM_SWITCH}"
-
-#START debug print values
-# echo "UUID = $UUID"
-# echo "CACHE_DIR = $CACHE_DIR"
-# echo "DATA_DIR = $DATA_DIR"
-# echo "DB = $DB"
-# echo "BIN = $BIN"
-# echo "DEBUG_BIN = $DEBUG_BIN"
-# echo "OPAM_SWITCH = $OPAM_SWITCH"
-#END debug print values
 
 OPAM_GRAPH="opam-graph"
 MODULECTOMY="modulectomy"
 
-LATEST_TREEMAPVIZ_VERSION="$($MODULECTOMY --version)"
-LATEST_DEPENDENCIESVIZ_VERSION="$($OPAM_GRAPH --version)"
+LATEST_TREEMAPVIZ_VERSION="$($MODULECTOMY --version)" || die "Failed to get modulectomy version"
+LATEST_DEPENDENCIESVIZ_VERSION="$($OPAM_GRAPH --version)" || die "Failed to get opam-graph version"
 
 TREEMAP_CACHE_DIR="${CACHE_DIR}/treemap_${LATEST_TREEMAPVIZ_VERSION}"
 DEPENDENCIES_CACHE_DIR="${CACHE_DIR}/dependencies_${LATEST_DEPENDENCIESVIZ_VERSION}"
@@ -152,21 +136,19 @@ trap cleanup EXIT
 # /// Dependencies viz
 
 if [ ! -d "${DEPENDENCIES_CACHE_DIR}" ]; then
-    mkdir "${DEPENDENCIES_CACHE_DIR}"
+    mkdir "${DEPENDENCIES_CACHE_DIR}" || die "Failed to create directory '$DEPENDENCIES_CACHE_DIR'"
 fi
 
 OPAM_SWITCH_FILEPATH='opam-switch'
 
 get_opam_switch_hash () {
-    sqlite3 "${DB}" <<EOF
-        select lower(hex(ba.sha256)) from build as b
-        join build_artifact as ba on ba.build = b.id
-        where uuid = '$UUID' 
-        and ba.filepath = '$OPAM_SWITCH_FILEPATH';
-EOF
+    sqlite3 "${DB}" "SELECT lower(hex(ba.sha256)) FROM build AS b
+        JOIN build_artifact AS ba ON ba.build = b.id
+        WHERE uuid = '$UUID'
+        AND ba.filepath = '$OPAM_SWITCH_FILEPATH';"
 }
 
-DEPENDENCIES_INPUT_HASH="$(get_opam_switch_hash)" 
+DEPENDENCIES_INPUT_HASH="$(get_opam_switch_hash)" || die "Failed to get opam-switch hash from database"
 DEPENDENCIES_VIZ_FILENAME="${DEPENDENCIES_CACHE_DIR}/${DEPENDENCIES_INPUT_HASH}.html"
 
 if [ -e "${DEPENDENCIES_VIZ_FILENAME}" ]; then
@@ -194,19 +176,17 @@ stat_aux () {
 SIZE="$(stat_aux "$BIN")"
 
 if [ ! -d "${TREEMAP_CACHE_DIR}" ]; then
-    mkdir "${TREEMAP_CACHE_DIR}"
+    mkdir "${TREEMAP_CACHE_DIR}" || die "Failed to create directory '$TREEMAP_CACHE_DIR'"
 fi
 
 get_debug_bin_hash () {
-    sqlite3 "${DB}" <<EOF
-        select lower(hex(ba.sha256)) from build as b
-        join build_artifact as ba on ba.build = b.id
-        where uuid = '$UUID' 
-        and ba.filepath like '%.debug';
-EOF
+    sqlite3 "${DB}" "SELECT lower(hex(ba.sha256)) FROM build AS b
+        JOIN build_artifact AS ba ON ba.build = b.id
+        WHERE uuid = '$UUID'
+        AND ba.filepath LIKE '%.debug';"
 }
 
-TREEMAP_INPUT_HASH="$(get_debug_bin_hash)" 
+TREEMAP_INPUT_HASH="$(get_debug_bin_hash)" || die "Failed to get treemap input hash from database"
 TREEMAP_VIZ_FILENAME="${TREEMAP_CACHE_DIR}/${TREEMAP_INPUT_HASH}.html"
 
 if [ -n "${DEBUG_BIN_RELATIVE}" ]; then
