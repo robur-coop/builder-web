@@ -414,40 +414,24 @@ let add_build
              r;
            e)) >>= function
   | None -> Lwt.return (Ok ())
-  | Some p ->
-    let main_binary = p.localpath
-    and `Hex sha256 = Hex.of_cstruct p.sha256
-    and uuid = Uuidm.to_string uuid
-    and time =
+  | Some main_binary ->
+    let time =
       let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
       Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
+    and uuid = Uuidm.to_string uuid
     and job = job.name
     and platform = job.platform
-    and debug_binary =
-      let bin = Fpath.base p.localpath in
-      List.find_opt
-        (fun p -> Fpath.(equal (bin + "debug") (base p.localpath)))
-        artifacts |>
-      Option.map (fun p -> p.localpath)
-    and opam_switch =
-      List.find_opt
-        (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
-        artifacts |>
-      Option.map (fun p -> p.localpath)
+    and `Hex sha256 = Hex.of_cstruct main_binary.sha256
     in
     let fp_str p = Fpath.(to_string (datadir // p)) in
-    let opt_str ~prefix p =
-      Option.fold ~none:[] ~some:(fun p -> [ "--" ^ prefix ^ "=" ^ fp_str p ]) p
-    in
     let args =
       String.concat " "
         (List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
-           ((opt_str ~prefix:"debug-binary" debug_binary) @
-            (opt_str ~prefix:"opam-switch" opam_switch) @
-            [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
-              "--uuid=" ^ uuid ; "--platform=" ^ platform ;
-              "--cache-dir=" ^ Fpath.to_string cachedir ;
-              fp_str main_binary ]))
+           [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
+             "--uuid=" ^ uuid ; "--platform=" ^ platform ;
+             "--cache-dir=" ^ Fpath.to_string cachedir ;
+             "--data-dir=" ^ Fpath.to_string datadir ;
+             fp_str main_binary.localpath ])
     in
     Log.debug (fun m -> m "executing hooks with %s" args);
     let dir = Fpath.(configdir / "upload-hooks") in

@@ -31,7 +31,6 @@ install -U $bdir/builder-web $libexecdir/builder-web
 
 install -U $bdir/builder-migrations $sbindir/builder-migrations
 install -U $bdir/builder-db $sbindir/builder-db
-install -U $bdir/builder-viz $sbindir/builder-viz
 
 # create +MANIFEST
 flatsize=$(find "$rootdir" -type f -exec stat -f %z {} + |

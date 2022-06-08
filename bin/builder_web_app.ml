@@ -78,7 +78,42 @@ let init_influx name data =
     in
     Lwt.async report
 
-let setup_app level influx port host datadir cachedir configdir =
+let run_batch_viz ~cachedir ~datadir ~configdir =
+  let open Rresult.R.Infix in
+  begin
+    let script = Fpath.(configdir / "batch-viz.sh") 
+    and script_log = Fpath.(cachedir / "batch-viz.log")
+    and viz_script = Fpath.(configdir / "upload-hooks" / "visualizations.sh") 
+    in
+    Bos.OS.File.exists script >>= fun script_exists ->
+    if not script_exists then begin
+      Logs.warn (fun m -> m "Didn't find %s" (Fpath.to_string script));
+      Ok ()
+    end else
+      let args = 
+        [ "--cache-dir=" ^ Fpath.to_string cachedir;
+          "--data-dir=" ^ Fpath.to_string datadir;
+          "--viz-script=" ^ Fpath.to_string viz_script ]
+        |> List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
+        |> String.concat " "
+      in
+      (*> Note: The reason for appending, is that else a new startup could 
+          overwrite an existing running batch's log*)
+      (Fpath.to_string script ^ " " ^ args
+       ^ " 2>&1 >> " ^ Fpath.to_string script_log
+       ^ " &")
+      |> Sys.command 
+      |> ignore
+      |> Result.ok
+  end
+  |> function
+  | Ok () -> ()
+  | Error err ->
+    Logs.warn (fun m ->
+        m "Error while starting batch-viz.sh: %a"
+          Rresult.R.pp_msg err)
+
+let setup_app level influx port host datadir cachedir configdir run_batch_viz_flag =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
   let cachedir =
@@ -86,6 +121,10 @@ let setup_app level influx port host datadir cachedir configdir =
   in
   let configdir = Fpath.v configdir in
   let () = init_influx "builder-web" influx in
+  let () =
+    if run_batch_viz_flag then
+      run_batch_viz ~cachedir ~datadir ~configdir
+  in
   match Builder_web.init dbpath datadir with
   | Error (#Caqti_error.load as e) ->
     Format.eprintf "Error: %a\n%!" Caqti_error.pp e;
@@ -140,19 +179,28 @@ let ip_port : (Ipaddr.V4.t * int) Arg.conv =
 
 let datadir =
   let doc = "data directory" in
-  Arg.(value & opt dir Builder_system.default_datadir & info [ "d"; "datadir" ] ~doc)
+  let docv = "DATA_DIR" in
+  Arg.(
+    value &
+    opt dir Builder_system.default_datadir &
+    info [ "d"; "datadir" ] ~doc ~docv
+  )
 
 let cachedir =
   let doc = "cache directory" in
+  let docv = "CACHE_DIR" in
   Arg.(
     value
     & opt (some ~none:"DATADIR/_cache" dir) None
-    & info [ "cachedir" ] ~doc
-  )
+    & info [ "cachedir" ] ~doc ~docv)
 
 let configdir =
   let doc = "config directory" in
-  Arg.(value & opt dir Builder_system.default_configdir & info [ "c"; "configdir" ] ~doc)
+  let docv = "CONFIG_DIR" in
+  Arg.(
+    value &
+    opt dir Builder_system.default_configdir &
+    info [ "c"; "configdir" ] ~doc ~docv)
 
 let port =
   let doc = "port" in
@@ -163,13 +211,25 @@ let host =
   Arg.(value & opt string "0.0.0.0" & info [ "h"; "host" ] ~doc)
 
 let influx =
-  let doc = "IP address and port (default: 8094) to report metrics to in influx line protocol" in
-  Arg.(value & opt (some ip_port) None & info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
+  let doc = "IP address and port (default: 8094) to report metrics to \
+             influx line protocol" in
+  Arg.(
+    value &
+    opt (some ip_port) None &
+    info [ "influx" ] ~doc ~docv:"INFLUXHOST[:PORT]")
+
+let run_batch_viz =
+  let doc = "Run CONFIG_DIR/batch-viz.sh on startup. \
+             Note that this is started in the background - so the user \
+             is in charge of not running several instances of this. A \
+             log is written to CACHE_DIR/batch-viz.log" in
+  Arg.(value & flag & info [ "run-batch-viz" ] ~doc)
+
 
 let () =
   let term =
     Term.(const setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $
-          cachedir $ configdir)
+          cachedir $ configdir $ run_batch_viz)
   in
   let info = Cmd.info "Builder web" ~doc:"Builder web" ~man:[] in
   Cmd.v info term

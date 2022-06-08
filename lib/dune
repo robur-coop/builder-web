@@ -1,9 +1,18 @@
 (library
  (name builder_web)
  (libraries
-  builder builder_db
-  dream tyxml bos duration hex caqti-lwt
-  opamdiff ptime.clock.os omd tar
+  builder
+  builder_db
+  dream
+  tyxml
+  bos
+  duration
+  hex
+  caqti-lwt
+  opamdiff
+  ptime.clock.os
+  omd
+  tar
   owee
   solo5-elftool
   uri

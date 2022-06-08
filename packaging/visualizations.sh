@@ -1,12 +1,18 @@
 #!/bin/sh
 
-set -ex
+set -e
+#set -x
 
 prog_NAME=$(basename "${0}")
 
 warn()
 {
     echo "${prog_NAME}: WARN: $*"
+}
+
+info()
+{
+    echo "${prog_NAME}: INFO: $*"
 }
 
 err()
@@ -23,60 +29,106 @@ die()
 usage()
 {
     cat <<EOM 1>&2
-usage: ${prog_NAME} [ OPTIONS ] FILE
+usage: ${prog_NAME} [ OPTIONS ]
 Generates visualizations
 Options:
-    --debug-binary=STRING
-        Path to debug binary.
-    --opam-switch=STRING
-        Path to opam switch.
     --uuid=STRING
         UUID of build.
+    --data-dir=STRING
+        Path to the data directory.
     --cache-dir=STRING
         Path to the cache directory.
 EOM
     exit 1
 }
 
-DEBUG=
-OPAM=
 UUID=
-CACHE=
+CACHE_DIR=
+DATA_DIR=
 
-while [ $# -gt 1 ]; do
+while [ $# -gt 0 ]; do
     OPT="$1"
 
     case "${OPT}" in
-        --debug-binary=*)
-            DEBUG="${OPT##*=}"
-            ;;
-        --opam-switch=*)
-            OPAM="${OPT##*=}"
-            ;;
         --uuid=*)
             UUID="${OPT##*=}"
             ;;
         --cache-dir=*)
-            CACHE="${OPT##*=}"
+            CACHE_DIR="${OPT##*=}"
             ;;
-        --*)
-            warn "Ignoring unknown option: '${OPT}'"
+        --data-dir=*)
+            DATA_DIR="${OPT##*=}"
             ;;
         *)
-            err "Unknown option: '${OPT}'"
-            usage
+            warn "Ignoring unknown option: '${OPT}' (Note that this script reads DB)"
             ;;
     esac
     shift
 done
 
 [ -z "${UUID}" ] && die "The --uuid option must be specified"
-[ -z "${CACHE}" ] && die "The --cache-dir option must be specified"
-[ -z "${OPAM}" ] && die "The --opam-switch option must be specified"
+[ -z "${CACHE_DIR}" ] && die "The --cache-dir option must be specified"
+[ -z "${DATA_DIR}" ] && die "The --data-dir option must be specified"
 
-FILENAME="${1}"
-CACHE_DIR="${CACHE}/${UUID}"
-BUILDER_VIZ="builder-viz"
+info "processing UUID '$UUID'"
+
+DB="${DATA_DIR}/builder.sqlite3"
+
+get_main_binary () {
+    sqlite3 "${DB}" <<EOF
+        select ba.localpath from build as b
+        join build_artifact as ba on ba.build = b.id and b.main_binary = ba.id
+        where uuid = '$UUID';
+EOF
+}
+
+BIN="${DATA_DIR}/$(get_main_binary)"
+[ -z "${BIN}" ] && die "No main-binary found in db '$DB' for build '$UUID'"
+
+get_debug_binary () {
+    sqlite3 "${DB}" <<EOF
+        select ba.localpath from build as b
+        join build_artifact as ba on ba.build = b.id 
+        where 
+          uuid = '$UUID'
+          and ba.localpath like '%.debug';
+EOF
+}
+
+DEBUG_BIN_RELATIVE="$(get_debug_binary)"
+
+get_opam_switch () {
+    sqlite3 "${DB}" <<EOF
+        select ba.localpath from build as b
+        join build_artifact as ba on ba.build = b.id 
+        where 
+          uuid = '$UUID'
+          and ba.filepath = 'opam-switch';
+EOF
+}
+
+OPAM_SWITCH="$(get_opam_switch)"
+[ -z "${OPAM_SWITCH}" ] && die "No 'opam-switch' found in db '$DB' for build '$UUID'"
+OPAM_SWITCH="${DATA_DIR}/${OPAM_SWITCH}"
+
+#START debug print values
+# echo "UUID = $UUID"
+# echo "CACHE_DIR = $CACHE_DIR"
+# echo "DATA_DIR = $DATA_DIR"
+# echo "DB = $DB"
+# echo "BIN = $BIN"
+# echo "DEBUG_BIN = $DEBUG_BIN"
+# echo "OPAM_SWITCH = $OPAM_SWITCH"
+#END debug print values
+
+OPAM_GRAPH="opam-graph"
+MODULECTOMY="modulectomy"
+
+LATEST_TREEMAPVIZ_VERSION="$($MODULECTOMY --version)"
+LATEST_DEPENDENCIESVIZ_VERSION="$($OPAM_GRAPH --version)"
+
+TREEMAP_CACHE_DIR="${CACHE_DIR}/treemap_${LATEST_TREEMAPVIZ_VERSION}"
+DEPENDENCIES_CACHE_DIR="${CACHE_DIR}/dependencies_${LATEST_DEPENDENCIESVIZ_VERSION}"
 
 mktemp_aux () {
     if [ "$(uname)" = "Linux" ]; then
@@ -84,24 +136,50 @@ mktemp_aux () {
     elif [ "$(uname)" = "FreeBSD" ]; then
         mktemp -t "$1"
     else
-        echo 'Unsupported platform'; exit 1
+        die 'Unsupported platform'
     fi
 }
-TMPTREE=$(mktemp_aux treeviz)
-TMPOPAM=$(mktemp_aux opamviz)
+
+TMPTREE=$(mktemp_aux viz_treemap)
+TMPDEPENDENCIES=$(mktemp_aux viz_dependencies)
+
 cleanup () {
-  rm -rf "${TMPTREE}" "${TMPOPAM}"
+  rm -rf "${TMPTREE}" "${TMPDEPENDENCIES}"
 }
 
 trap cleanup EXIT
 
-if [ -e "${CACHE_DIR}.dependencies.html" ]; then
-    echo "Dependency visualization already exists ${CACHE_DIR}.dependencies.html"
+# /// Dependencies viz
+
+if [ ! -d "${DEPENDENCIES_CACHE_DIR}" ]; then
+    mkdir "${DEPENDENCIES_CACHE_DIR}"
+fi
+
+OPAM_SWITCH_FILEPATH='opam-switch'
+
+get_opam_switch_hash () {
+    sqlite3 "${DB}" <<EOF
+        select lower(hex(ba.sha256)) from build as b
+        join build_artifact as ba on ba.build = b.id
+        where uuid = '$UUID' 
+        and ba.filepath = '$OPAM_SWITCH_FILEPATH';
+EOF
+}
+
+DEPENDENCIES_INPUT_HASH="$(get_opam_switch_hash)" 
+DEPENDENCIES_VIZ_FILENAME="${DEPENDENCIES_CACHE_DIR}/${DEPENDENCIES_INPUT_HASH}.html"
+
+if [ -e "${DEPENDENCIES_VIZ_FILENAME}" ]; then
+    info "Dependency visualization already exists: '${DEPENDENCIES_VIZ_FILENAME}'"
 else
-    if ${BUILDER_VIZ} dependencies "${OPAM}" > "${TMPOPAM}"; then
-        mv "${TMPOPAM}" "${CACHE_DIR}.dependencies.html"
+    if ${OPAM_GRAPH} --output-format=html "${OPAM_SWITCH}" > "${TMPDEPENDENCIES}"; then
+        mv "${TMPDEPENDENCIES}" "${DEPENDENCIES_VIZ_FILENAME}"
+    else
+        die "opam-graph failed to generate visualization"
     fi
 fi
+
+# /// Treemap viz
 
 stat_aux () {
     if [ "$(uname)" = "Linux" ]; then
@@ -109,20 +187,45 @@ stat_aux () {
     elif [ "$(uname)" = "FreeBSD" ]; then
         stat -f "%z" "$1"
     else
-        echo 'Unsupported platform'; exit 1
+        die 'Unsupported platform'
     fi
 }
 
-SIZE="$(stat_aux ${FILENAME})"
+SIZE="$(stat_aux "$BIN")"
 
-if [ ! -z "${DEBUG}" ]; then
-    if [ -e "${CACHE_DIR}.treemap.html" ]; then
-        echo "Treemap visualization already exists ${CACHE_DIR}.treemap.html"
+if [ ! -d "${TREEMAP_CACHE_DIR}" ]; then
+    mkdir "${TREEMAP_CACHE_DIR}"
+fi
+
+get_debug_bin_hash () {
+    sqlite3 "${DB}" <<EOF
+        select lower(hex(ba.sha256)) from build as b
+        join build_artifact as ba on ba.build = b.id
+        where uuid = '$UUID' 
+        and ba.filepath like '%.debug';
+EOF
+}
+
+TREEMAP_INPUT_HASH="$(get_debug_bin_hash)" 
+TREEMAP_VIZ_FILENAME="${TREEMAP_CACHE_DIR}/${TREEMAP_INPUT_HASH}.html"
+
+if [ -n "${DEBUG_BIN_RELATIVE}" ]; then
+    DEBUG_BIN="${DATA_DIR}/$(get_debug_binary)"
+    if [ -e "${TREEMAP_VIZ_FILENAME}" ]; then
+        info "Treemap visualization already exists: '${TREEMAP_VIZ_FILENAME}'"
     else
-        if ${BUILDER_VIZ} treemap "${DEBUG}" "${SIZE}" > "${TMPTREE}"; then
-            mv "${TMPTREE}" "${CACHE_DIR}.treemap.html"
+        if
+            ${MODULECTOMY} \
+                --robur-defaults \
+                --with-scale="${SIZE}" \
+                "${DEBUG_BIN}" \
+                > "${TMPTREE}"
+        then
+            mv "${TMPTREE}" "${TREEMAP_VIZ_FILENAME}"
+        else
+            die "modulectomy failed to generate visualization"
         fi
     fi
 else
-    echo "No --debug-binary provided, not producing any treemap"
+    info "No --debug-binary provided, not producing any treemap"
 fi
