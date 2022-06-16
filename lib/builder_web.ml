@@ -93,6 +93,159 @@ let get_uuid s =
        | None -> Error ("Bad uuid", `Bad_Request)
      else Error ("Bad uuid", `Bad_Request))
 
+
+let main_binary_of_uuid uuid db =
+  Model.build uuid db
+  |> if_error "Error getting job build"
+    ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
+  >>= fun (_id, build) ->
+  match build.Builder_db.Build.main_binary with
+  | None -> Lwt_result.fail ("Resource not found", `Not_Found)
+  | Some main_binary ->
+    Model.build_artifact_by_id main_binary db
+    |> if_error "Error getting main binary" 
+
+module Viz_aux = struct
+
+  let viz_type_to_string = function
+    | `Treemap -> "treemap"
+    | `Dependencies -> "dependencies"
+
+  let viz_dir ~cachedir ~viz_typ ~version =
+    let typ_str = viz_type_to_string viz_typ in
+    Fpath.(cachedir / Fmt.str "%s_%d" typ_str version)
+
+  let viz_path ~cachedir ~viz_typ ~version ~input_hash =
+    Fpath.(
+      viz_dir ~cachedir ~viz_typ ~version
+      / input_hash + "html"
+    )
+  
+  let choose_versioned_viz_path
+      ~cachedir
+      ~viz_typ
+      ~viz_input_hash
+      ~current_version =
+    let ( >>= ) = Result.bind in
+    let rec aux current_version = 
+      let path =
+        viz_path ~cachedir
+          ~viz_typ
+          ~version:current_version
+          ~input_hash:viz_input_hash in
+      Bos.OS.File.exists path >>= fun path_exists ->
+      if path_exists then Ok path else (
+        if current_version = 1 then
+          Error (`Msg (Fmt.str "viz '%s': There exist no version of the requested \
+                                visualization"
+                         (viz_type_to_string viz_typ)))
+        else 
+          aux @@ pred current_version
+      )
+    in
+    aux current_version
+
+  let get_viz_version_from_dirs ~cachedir ~viz_typ =
+    let ( >>= ) = Result.bind in
+    Bos.OS.Dir.contents cachedir >>= fun versioned_dirs ->
+    let max_cached_version = 
+      let viz_typ_str = viz_type_to_string viz_typ ^ "_" in
+      versioned_dirs
+      |> List.filter_map (fun versioned_dir ->
+          match Bos.OS.Dir.exists versioned_dir with
+          | Error (`Msg err) ->
+            Logs.warn (fun m -> m "%s" err);
+            None
+          | Ok false -> None
+          | Ok true -> 
+            let dir_str = Fpath.filename versioned_dir in
+            if not (String.starts_with ~prefix:viz_typ_str dir_str) then
+              None
+            else
+              try
+                String.(sub dir_str
+                          (length viz_typ_str)
+                          (length dir_str - length viz_typ_str))
+                |> int_of_string
+                |> Option.some
+              with Failure _ ->
+                Logs.warn (fun m ->
+                    m "Failed to read visualization-version from directory: '%s'"
+                      (Fpath.to_string versioned_dir));
+                None
+        )
+      |> List.fold_left Int.max (-1)
+    in
+    if max_cached_version = -1 then
+      Result.error @@
+      `Msg (Fmt.str "Couldn't find any visualization-version of %s"
+              (viz_type_to_string viz_typ))
+    else
+      Result.ok max_cached_version
+
+  let hash_viz_input ~uuid typ db =
+    let open Builder_db in
+    let hex cstruct =
+      let `Hex hex_str = Hex.of_cstruct cstruct in
+      hex_str
+    in
+    main_binary_of_uuid uuid db >>= fun main_binary ->
+    Model.build uuid db
+    |> if_error "Error getting build" >>= fun (build_id, _build) ->
+    Model.build_artifacts build_id db
+    |> if_error "Error getting build artifacts" >>= fun artifacts ->
+    match typ with
+    | `Treemap ->
+      let debug_binary = 
+        let bin = Fpath.base main_binary.localpath in
+        List.find_opt
+          (fun p -> Fpath.(equal (bin + "debug") (base p.localpath)))
+          artifacts
+      in
+      begin
+        match debug_binary with
+        | None -> Lwt_result.fail ("Error getting debug-binary", `Not_Found)
+        | Some debug_binary ->
+          debug_binary.sha256
+          |> hex
+          |> Lwt_result.return
+      end 
+    | `Dependencies -> 
+      let opam_switch =
+        List.find_opt
+          (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
+          artifacts
+      in
+      match opam_switch with
+      | None -> Lwt_result.fail ("Error getting opam-switch", `Not_Found)
+      | Some opam_switch ->
+        opam_switch.sha256
+        |> hex
+        |> Lwt_result.return
+
+  let try_load_cached_visualization ~cachedir ~uuid viz_typ db =
+    Lwt.return (get_viz_version_from_dirs ~cachedir ~viz_typ)
+    |> if_error "Error getting visualization version" >>= fun latest_viz_version ->
+    hash_viz_input ~uuid viz_typ db >>= fun viz_input_hash ->
+    (choose_versioned_viz_path
+       ~cachedir
+       ~current_version:latest_viz_version
+       ~viz_typ
+       ~viz_input_hash
+     |> Lwt.return
+     |> if_error "Error finding a version of the requested visualization")
+    >>= fun viz_path ->
+    Lwt_result.catch (
+      Lwt_io.with_file ~mode:Lwt_io.Input
+        (Fpath.to_string viz_path)
+        Lwt_io.read
+    )
+    |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
+    |> if_error "Error getting cached visualization"
+
+end
+
+
 let routes ~datadir ~cachedir ~configdir =
   let builds req =
     Dream.sql req Model.jobs_with_section_synopsis
@@ -163,18 +316,6 @@ let routes ~datadir ~cachedir ~configdir =
     |> Lwt_result.ok
   in
 
-  let main_binary_of_uuid uuid db =
-    Model.build uuid db
-    |> if_error "Error getting job build"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (_id, build) ->
-    match build.Builder_db.Build.main_binary with
-    | None -> Lwt_result.fail ("Resource not found", `Not_Found)
-    | Some main_binary ->
-      Model.build_artifact_by_id main_binary db
-      |> if_error "Error getting main binary" 
-  in
-
   let redirect_main_binary req =
     let job_name = Dream.param req "job"
     and build = Dream.param req "build" in
@@ -186,117 +327,11 @@ let routes ~datadir ~cachedir ~configdir =
     |> Lwt_result.ok
   in
 
-  let hash_viz_input ~uuid typ db =
-    let open Builder_db in
-    let hex cstruct =
-      let `Hex hex_str = Hex.of_cstruct cstruct in
-      hex_str
-    in
-    main_binary_of_uuid uuid db >>= fun main_binary ->
-    Model.build uuid db
-    |> if_error "Error getting build" >>= fun (build_id, _build) ->
-    Model.build_artifacts build_id db
-    |> if_error "Error getting build artifacts" >>= fun artifacts ->
-    match typ with
-    | `Treemap ->
-      let debug_binary = 
-        let bin = Fpath.base main_binary.localpath in
-        List.find_opt
-          (fun p -> Fpath.(equal (bin + "debug") (base p.localpath)))
-          artifacts
-      in
-      begin
-        match debug_binary with
-        | None -> Lwt_result.fail ("Error getting debug-binary", `Not_Found)
-        | Some debug_binary ->
-          debug_binary.sha256
-          |> hex
-          |> Lwt_result.return
-      end 
-    | `Dependencies -> 
-      let opam_switch =
-        List.find_opt
-          (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
-          artifacts
-      in
-      match opam_switch with
-      | None -> Lwt_result.fail ("Error getting opam-switch", `Not_Found)
-      | Some opam_switch ->
-        opam_switch.sha256
-        |> hex
-        |> Lwt_result.return
-  in
-
-  let get_viz_version ~cachedir ~viz_typ_str =
-    Lwt.return (Bos.OS.Dir.contents cachedir) >>= fun versioned_dirs ->
-    let max_cached_version = 
-      let viz_typ_str = viz_typ_str ^ "_" in
-      versioned_dirs
-      |> List.filter_map (fun versioned_dir ->
-          let dir_str = Fpath.filename versioned_dir in
-          if not (String.starts_with ~prefix:viz_typ_str dir_str) then
-            None
-          else
-            try
-              String.(sub dir_str
-                        (length viz_typ_str)
-                        (length dir_str - length viz_typ_str))
-              |> int_of_string
-              |> Option.some
-            with Failure _ ->
-              Logs.warn (fun m ->
-                  m "Failed to read visualization-version from directory: '%s'"
-                    (Fpath.to_string versioned_dir));
-              None
-        )
-      |> List.fold_left Int.max (-1)
-    in
-    if max_cached_version = -1 then
-      Lwt_result.fail @@
-      `Msg (Fmt.str "Couldn't find any visualization-version of %s" viz_typ_str)
-    else
-      Lwt_result.return max_cached_version
-  in
-  
-  let try_load_cached_visualization ~cachedir ~uuid typ db =
-    let viz_typ_str = match typ with
-      | `Treemap -> "treemap"
-      | `Dependencies -> "dependencies"
-    in
-    get_viz_version ~cachedir ~viz_typ_str
-    |> if_error "Error getting visualization version" >>= fun latest_viz_version ->
-    hash_viz_input ~uuid typ db >>= fun viz_input_hash ->
-    let rec choose_versioned_viz_path current_version = 
-      let path = Fpath.(
-          cachedir
-          / Fmt.str "%s_%d" viz_typ_str current_version
-          / viz_input_hash + "html"
-        ) in
-      Lwt.return (Bos.OS.File.exists path) >>= fun path_exists ->
-      if path_exists then Lwt_result.return path else (
-        if current_version = 1 then
-          Lwt_result.fail (`Msg "There exist no version of the requested visualization")
-        else 
-          choose_versioned_viz_path (pred current_version)
-      )
-    in
-    (choose_versioned_viz_path latest_viz_version
-     |> if_error "Error finding a version of the requested visualization")
-    >>= fun viz_path ->
-    Lwt_result.catch (
-      Lwt_io.with_file ~mode:Lwt_io.Input
-        (Fpath.to_string viz_path)
-        Lwt_io.read
-    )
-    |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
-    |> if_error "Error getting cached visualization"
-  in
-
   let job_build_viz viz_typ req =
     let _job_name = Dream.param req "job"
     and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
-    Dream.sql req (try_load_cached_visualization ~cachedir ~uuid viz_typ)
+    Dream.sql req (Viz_aux.try_load_cached_visualization ~cachedir ~uuid viz_typ)
     >>= fun svg_html ->
     Lwt_result.ok (Dream.html svg_html)
   in
