@@ -147,12 +147,17 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
       | Some App -> None
     in
     Dream.initialize_log ?level ();
+    let dream_routes = Builder_web.(
+        routes ~datadir ~cachedir ~configdir
+        |> to_dream_routes
+      )
+    in
     Dream.run ~port ~interface:host ~tls:false
     @@ Dream.logger
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
     @@ Http_status_metrics.handle
     @@ Builder_web.Middleware.remove_trailing_url_slash
-    @@ Dream.router (Builder_web.routes ~datadir ~cachedir ~configdir)
+    @@ Dream.router dream_routes
 
 open Cmdliner
 

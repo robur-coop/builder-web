@@ -591,26 +591,32 @@ let routes ~datadir ~cachedir ~configdir =
   let w f req = or_error_response (f req) in
 
   [
-    Dream.get "/" (w builds);
-    Dream.get "/job" (w redirect_parent);
-    Dream.get "/job/:job" (w job);
-    Dream.get "/job/:job/build" (w redirect_parent);
-    Dream.get "/job/:job/failed" (w job_with_failed);
-    Dream.get "/job/:job/build/latest/**" (w redirect_latest);
-    Dream.get "/job/:job/build/:build" (w job_build);
-    Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
-    Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
-    Dream.get "/job/:job/build/:build/viztreemap" (w @@ job_build_viz `Treemap);
-    Dream.get "/job/:job/build/:build/vizdependencies" (w @@ job_build_viz `Dependencies);
-    Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
-    Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
-    Dream.get "/failed-builds" (w failed_builds);
-    Dream.get "/job/:job/build/:build/all.tar.gz" (w job_build_targz);
-    Dream.get "/hash" (w hash);
-    Dream.get "/compare/:build_left/:build_right" (w compare_builds);
-    Dream.post "/upload" (Authorization.authenticate (w upload));
-    Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
+    `Get, "/", (w builds);
+    `Get, "/job", (w redirect_parent);
+    `Get, "/job/:job", (w job);
+    `Get, "/job/:job/build", (w redirect_parent);
+    `Get, "/job/:job/failed", (w job_with_failed);
+    `Get, "/job/:job/build/latest/**", (w redirect_latest);
+    `Get, "/job/:job/build/:build", (w job_build);
+    `Get, "/job/:job/build/:build/f/**", (w job_build_file);
+    `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
+    `Get, "/job/:job/build/:build/viztreemap", (w @@ job_build_viz `Treemap);
+    `Get, "/job/:job/build/:build/vizdependencies", (w @@ job_build_viz `Dependencies);
+    `Get, "/job/:job/build/:build/script", (w (job_build_static_file `Script));
+    `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
+    `Get, "/failed-builds", (w failed_builds);
+    `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
+    `Get, "/hash", (w hash);
+    `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Post, "/upload", (Authorization.authenticate (w upload));
+    `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   ]
+
+let to_dream_route = function
+  | `Get, path, handler -> Dream.get path handler
+  | `Post, path, handler -> Dream.post path handler
+
+let to_dream_routes l = List.map to_dream_route l
 
 let routeprefix_ignorelist_when_removing_trailing_slash = [
   "/job/:job/build/:build/f"
