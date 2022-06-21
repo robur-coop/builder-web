@@ -432,7 +432,7 @@ let routes ~datadir ~cachedir ~configdir =
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
-  let job_build_tar req =
+  let job_build_targz req =
     let _job_name = Dream.param req "job"
     and build = Dream.param req "build" in
     get_uuid build >>= fun build ->
@@ -443,8 +443,8 @@ let routes ~datadir ~cachedir ~configdir =
     Ptime.diff build.finish Ptime.epoch |> Ptime.Span.to_int_s
     |> Option.to_result ~none:(`Msg "bad finish time") |> Result.map Int64.of_int
     |> Lwt.return |> if_error "Internal server error" >>= fun finish ->
-    Dream.stream ~headers:["Content-Type", "application/x-tar"]
-      (Dream_tar.tar_response datadir finish artifacts)
+    Dream.stream ~headers:["Content-Type", "application/tar+gzip"]
+      (Dream_tar.targz_response datadir finish artifacts)
     |> Lwt_result.ok
   in
 
@@ -605,7 +605,7 @@ let routes ~datadir ~cachedir ~configdir =
     Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
     Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
     Dream.get "/failed-builds" (w failed_builds);
-    Dream.get "/job/:job/build/:build/all.tar" (w job_build_tar);
+    Dream.get "/job/:job/build/:build/all.tar.gz" (w job_build_targz);
     Dream.get "/hash" (w hash);
     Dream.get "/compare/:build_left/:build_right" (w compare_builds);
     Dream.post "/upload" (Authorization.authenticate (w upload));

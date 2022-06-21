@@ -15,5 +15,7 @@
   tar
   owee
   solo5-elftool
+  decompress.de
+  decompress.gz
   uri
   ))
