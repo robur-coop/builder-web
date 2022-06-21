@@ -644,3 +644,5 @@ module Middleware = struct
         | _ (* /... *) -> handler req
 
 end
+
+module Link = Link

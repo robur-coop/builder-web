@@ -7,3 +7,14 @@
  (name markdown_to_html)
  (modules markdown_to_html)
  (libraries builder_web alcotest))
+
+(test
+ (name router)
+ (modules router)
+ (libraries builder_web fmt dream yojson alcotest)
+ (preprocess
+  (pps
+   ppx_deriving.std
+   ppx_deriving_yojson
+   ))
+ )
