@@ -11,18 +11,19 @@ basedir=$(realpath "$(dirname "$0")"/../..)
 bdir=$basedir/_build/install/default/bin
 tmpd=$basedir/_build/stage
 rootdir=$tmpd/rootdir
-bindir=$rootdir/usr/bin
+sbindir=$rootdir/usr/sbin
 systemddir=$rootdir/usr/lib/systemd/system
 debiandir=$rootdir/DEBIAN
+libexecdir=$rootdir/usr/libexec
 
 trap 'rm -rf $tmpd' 0 INT EXIT
 
-mkdir -p "$bindir" "$debiandir" "$systemddir"
+mkdir -p "$sbindir" "$debiandir" "$systemddir" "$libexecdir"
 
 # stage app binaries
-install $bdir/builder-web $bindir/builder-web
-install $bdir/builder-migrations $bindir/builder-migrations
-install $bdir/builder-db $bindir/builder-db
+install "$bdir/builder-web" "$libexecdir/builder-web"
+install "$bdir/builder-migrations" "$sbindir/builder-migrations"
+install "$bdir/builder-db" "$sbindir/builder-db"
 
 # service script
 install -m 0644 $basedir/packaging/debian/builder-web.service $systemddir/builder-web.service
