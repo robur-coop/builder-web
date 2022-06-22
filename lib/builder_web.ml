@@ -9,8 +9,8 @@ let pp_error ppf = function
   | #Model.error as e -> Model.pp_error ppf e
   | `Wrong_version (application_id, version) ->
     if application_id = Builder_db.application_id
-    then Format.fprintf ppf "Wrong database version: %Ld" version
-    else Format.fprintf ppf "Wrong database application id: %ld" application_id
+    then Format.fprintf ppf "Wrong database version: %Ld, expected %Ld" version Builder_db.current_version
+    else Format.fprintf ppf "Wrong database application id: %ld, expected %ld" application_id Builder_db.application_id
 
 let init_datadir datadir =
   let ( let* ) = Result.bind and ( let+ ) x f = Result.map f x in
