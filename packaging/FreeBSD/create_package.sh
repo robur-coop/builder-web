@@ -24,13 +24,13 @@ trap 'rm -rf $tmpd' 0 INT EXIT
 mkdir -p "$sbindir" "$libexecdir" "$rcdir"
 
 # stage service scripts
-install -U $pdir/rc.d/builder_web $rcdir/builder_web
+install -U "$pdir/rc.d/builder_web" "$rcdir/builder_web"
 
 # stage app binaries
-install -U $bdir/builder-web $libexecdir/builder-web
+install -U "$bdir/builder-web" "$libexecdir/builder-web"
 
-install -U $bdir/builder-migrations $sbindir/builder-migrations
-install -U $bdir/builder-db $sbindir/builder-db
+install -U "$bdir/builder-migrations" "$sbindir/builder-migrations"
+install -U "$bdir/builder-db" "$sbindir/builder-db"
 
 # create +MANIFEST
 flatsize=$(find "$rootdir" -type f -exec stat -f %z {} + |
@@ -48,7 +48,7 @@ sed -e "s:%%FLATSIZE%%:${flatsize}:" -e "/^[Vv]ersion:/s/-/./g" "$pdir/MANIFEST"
 } | sed -e "s:${rootdir}::" >> "$manifest"
 
 export SOURCE_DATE_EPOCH=$(git log -1 --pretty=format:%ct)
-pkg create -r "$rootdir" -M "$manifest" -o $basedir/
-mv $basedir/builder-web-*.pkg $basedir/builder-web.pkg
-echo 'bin: [ "builder-web.pkg" ]' > $basedir/builder-web.install
-echo 'doc: [ "README.md" ]' >> $basedir/builder-web.install
+pkg create -r "$rootdir" -M "$manifest" -o "$basedir/"
+mv "$basedir/builder-web-*.pkg" "$basedir/builder-web.pkg"
+echo 'bin: [ "builder-web.pkg" ]' > "$basedir/builder-web.install"
+echo 'doc: [ "README.md" ]' >> "$basedir/builder-web.install"
