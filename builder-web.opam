@@ -47,11 +47,9 @@ depends: [
   "uri"
   "fmt" {>= "0.8.7"}
   "omd"
-  "modulectomy"
-  "opam-graph"
   "tar"
   "owee"
-  "solo5-elftool"
+  "solo5-elftool" {>= "0.3.0"}
   "decompress"
 ]
 
