@@ -15,10 +15,13 @@ sbindir=$rootdir/usr/sbin
 systemddir=$rootdir/usr/lib/systemd/system
 debiandir=$rootdir/DEBIAN
 libexecdir=$rootdir/usr/libexec
+sharedir=$rootdir/usr/share/builder-web
+confdir=$rootdir/etc/builder-web
 
 trap 'rm -rf $tmpd' 0 INT EXIT
 
-mkdir -p "$sbindir" "$debiandir" "$systemddir" "$libexecdir"
+mkdir -p "$sbindir" "$debiandir" "$systemddir" "$libexecdir" "$sharedir" \
+	"$confdir" "$confdir/upload-hooks"
 
 # stage app binaries
 install "$bdir/builder-web" "$libexecdir/builder-web"
@@ -28,10 +31,19 @@ install "$bdir/builder-db" "$sbindir/builder-db"
 # service script
 install -m 0644 "$basedir/packaging/debian/builder-web.service" "$systemddir/builder-web.service"
 
+# visualizations scripts
+install "$basedir/packaging/batch-viz.sh" "$confdir/batch-viz.sh"
+install "$basedir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh"
+
+# example repo scripts
+install "$basedir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
+install "$basedir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh"
+
 # install debian metadata
 install -m 0644 "$basedir/packaging/debian/control" "$debiandir/control"
 install -m 0644 "$basedir/packaging/debian/changelog" "$debiandir/changelog"
 install -m 0644 "$basedir/packaging/debian/copyright" "$debiandir/copyright"
+install -m 0644 "$basedir/packaging/debian/conffiles" "$debiandir/conffiles"
 install "$basedir/packaging/debian/postinst" "$debiandir/postinst"
 
 ARCH=$(dpkg-architecture -q DEB_TARGET_ARCH)

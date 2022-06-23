@@ -18,10 +18,12 @@ rootdir=$tmpd/rootdir
 sbindir=$rootdir/usr/local/sbin
 rcdir=$rootdir/usr/local/etc/rc.d
 libexecdir=$rootdir/usr/local/libexec
+sharedir=$rootdir/usr/local/share/builder-web
+confdir=$rootdir/usr/local/etc/builder-web
 
 trap 'rm -rf $tmpd' 0 INT EXIT
 
-mkdir -p "$sbindir" "$libexecdir" "$rcdir"
+mkdir -p "$sbindir" "$libexecdir" "$rcdir" "$sharedir" "$confdir/upload-hooks"
 
 # stage service scripts
 install -U "$pdir/rc.d/builder_web" "$rcdir/builder_web"
@@ -31,6 +33,14 @@ install -U "$bdir/builder-web" "$libexecdir/builder-web"
 
 install -U "$bdir/builder-migrations" "$sbindir/builder-migrations"
 install -U "$bdir/builder-db" "$sbindir/builder-db"
+
+# stage visualization scripts
+install -U "$bdir/packaging/batch-viz.sh" "$confdir/batch-viz.sh"
+install -U "$bdir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh"
+
+# example repo scripts
+install -U "$bdir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
+install -U "$bdir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh"
 
 # create +MANIFEST
 flatsize=$(find "$rootdir" -type f -exec stat -f %z {} + |
