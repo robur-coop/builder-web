@@ -53,6 +53,8 @@ depends: [
   "alcotest" {with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
+  "conan-unix" {>= "0.0.2"}
+  "conan-database" {>= "0.0.2"}
 ]
 
 synopsis: "Web interface for builder"
