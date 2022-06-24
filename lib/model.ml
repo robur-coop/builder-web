@@ -315,7 +315,7 @@ let add_build
   let job_name = job.Builder.name in
   let staging_dir = Fpath.(staging datadir / Uuidm.to_string uuid) in
   let or_cleanup x =
-    Lwt_result.map_err (fun e ->
+    Lwt_result.map_error (fun e ->
         Bos.OS.Dir.delete ~recurse:true staging_dir
         |> Result.iter_error (fun e ->
             Log.err (fun m -> m "Failed to remove staging dir %a: %a"
@@ -405,7 +405,7 @@ let add_build
     commit_files datadir staging_dir job_name uuid >|= fun () ->
     main_binary
   in
-  Lwt_result.bind_lwt_err (or_cleanup r)
+  Lwt_result.bind_lwt_error (or_cleanup r)
     (fun e ->
        Db.rollback ()
        |> Lwt.map (fun r ->
