@@ -235,7 +235,7 @@ let page_not_found ~target ~referer =
   )
   |> layout ~title:"Page not found"
 
-let viz_not_found ~target =
+let viz_not_found =
   let title = "Visualization not found" in
   let content =
     [

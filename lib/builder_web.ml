@@ -673,13 +673,11 @@ let error_template error _debug_info suggested_response =
     | None -> "?"
     | Some req -> Dream.target req in
   let referer =
-    error.Dream.request
-    |> Option.map (fun req -> Dream.header req "referer")
-    |> Option.value ~default:None
+    Option.bind error.Dream.request (fun req -> Dream.header req "referer")
   in
   let html =
     if is_iframe_page ~req:error.Dream.request then
-      Views.viz_not_found ~target 
+      Views.viz_not_found
     else 
       Views.page_not_found ~target ~referer
   in
