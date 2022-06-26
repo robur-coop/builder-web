@@ -146,13 +146,14 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
       | Some Error -> Some `Error
       | Some App -> None
     in
+    let error_handler = Dream.error_template Builder_web.error_template in
     Dream.initialize_log ?level ();
     let dream_routes = Builder_web.(
         routes ~datadir ~cachedir ~configdir
         |> to_dream_routes
       )
     in
-    Dream.run ~port ~interface:host ~tls:false
+    Dream.run ~port ~interface:host ~tls:false ~error_handler
     @@ Dream.logger
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
     @@ Http_status_metrics.handle

@@ -216,12 +216,12 @@ let resource_not_found ~text =
   ]
   |> layout ~title:"Resource not found"
 
-let page_not_found ~path ~referer =
+let page_not_found ~target ~referer =
   [
     H.h2 ~a:[ H.a_style "padding-top: 33vh" ]
       [ txtf "This page does not exist" ];
     H.p [
-      H.txt @@ Fmt.str "You requested the page %s" path
+      H.txt @@ Fmt.str "You requested the page %s" target
     ];
   ] @ (
     match referer with
@@ -234,6 +234,40 @@ let page_not_found ~path ~referer =
       ]
   )
   |> layout ~title:"Page not found"
+
+let viz_not_found ~target =
+  let title = "Visualization not found" in
+  let content =
+    [
+      H.h2 ~a:[ H.a_style "\
+        padding-top: 41vh;\
+        text-align: center;\
+      "]
+        [ txtf "%s" title ];
+      (* H.p [
+       *   H.txt @@ Fmt.str "You requested the page %s" target
+       * ]; *)
+    ]
+  in
+  let static_css = static_css :: [ Tyxml.Html.Unsafe.data "\
+    body {\
+      background: rgb(191,191,191);\
+    }\
+    "]
+  in
+  let body =
+    let style = H.a_style "\
+    "
+    in
+    [ H.div ~a:[ style ] content ]
+  in
+  H.html
+    (H.head (H.title (H.txt title))
+       [H.style ~a:H.[a_mime_type "text/css"] static_css])
+    (H.body [
+        H.main body
+      ])
+
 
 module Builds = struct
 
