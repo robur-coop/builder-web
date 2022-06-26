@@ -244,23 +244,13 @@ let viz_not_found ~target =
         text-align: center;\
       "]
         [ txtf "%s" title ];
-      (* H.p [
-       *   H.txt @@ Fmt.str "You requested the page %s" target
-       * ]; *)
     ]
   in
   let static_css = static_css :: [ Tyxml.Html.Unsafe.data "\
-    body {\
-      background: rgb(191,191,191);\
-    }\
-    "]
+    body { background: rgb(191,191,191); }\
+  "]
   in
-  let body =
-    let style = H.a_style "\
-    "
-    in
-    [ H.div ~a:[ style ] content ]
-  in
+  let body = [ H.div content ] in
   H.html
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
