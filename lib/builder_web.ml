@@ -245,6 +245,16 @@ module Viz_aux = struct
 
 end
 
+let get_postfix_target req =
+  let target = Dream.target req in
+  let len_target = String.length target in
+  let len_prefix = String.length @@ Dream.prefix req in
+  let postfix_target = String.sub target len_prefix (len_target - len_prefix) in
+  if String.starts_with ~prefix:"/" postfix_target then
+    String.sub postfix_target 1 (String.length postfix_target - 1)
+  else 
+    postfix_target
+
 
 let routes ~datadir ~cachedir ~configdir =
   let builds req =
@@ -304,15 +314,14 @@ let routes ~datadir ~cachedir ~configdir =
 
   let redirect_latest req =
     let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    (* FIXME *)
-    let path = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+    let platform = Dream.query req "platform" 
+    and postfix_target = get_postfix_target req in
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+      (Fmt.str "/job/%s/build/%a/%s" job_name Uuidm.pp build postfix_target)
     |> Lwt_result.ok
   in
 
@@ -371,18 +380,17 @@ let routes ~datadir ~cachedir ~configdir =
       ~latest ~next ~previous
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
-
+  
   let job_build_file req =
     let _job_name = Dream.param req "job"
     and build = Dream.param req "build"
-    (* FIXME *)
-    and filepath = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+    and postfix_target = get_postfix_target req in
     let if_none_match = Dream.header req "if-none-match" in
     (* XXX: We don't check safety of [file]. This should be fine however since
      * we don't use [file] for the filesystem but is instead used as a key for
      * lookup in the data table of the 'full' file. *)
     get_uuid build >>= fun build ->
-    Fpath.of_string filepath |> Lwt_result.lift
+    Fpath.of_string postfix_target |> Lwt_result.lift
     |> if_error ~status:`Not_Found "File not found" >>= fun filepath ->
     Dream.sql req (Model.build_artifact build filepath)
     |> if_error "Error getting build artifact" >>= fun file ->
