@@ -35,12 +35,12 @@ install -U "$bdir/builder-migrations" "$sbindir/builder-migrations"
 install -U "$bdir/builder-db" "$sbindir/builder-db"
 
 # stage visualization scripts
-install -U "$bdir/packaging/batch-viz.sh" "$confdir/batch-viz.sh"
-install -U "$bdir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh"
+install -U "$basedir/packaging/batch-viz.sh" "$confdir/batch-viz.sh"
+install -U "$basedir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh"
 
 # example repo scripts
-install -U "$bdir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
-install -U "$bdir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh"
+install -U "$basedir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
+install -U "$basedir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh"
 
 # create +MANIFEST
 flatsize=$(find "$rootdir" -type f -exec stat -f %z {} + |
