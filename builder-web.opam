@@ -29,7 +29,6 @@ depends: [
   "pbkdf"
   "mirage-crypto-rng"
   "scrypt-kdf"
-  "alcotest" {with-test}
   "opam-core"
   "opam-format" {>= "2.1.0"}
   "metrics" {>= "0.3.0"}
@@ -51,6 +50,9 @@ depends: [
   "owee"
   "solo5-elftool" {>= "0.3.0"}
   "decompress"
+  "alcotest" {with-test}
+  "ppx_deriving" {with-test}
+  "ppx_deriving_yojson" {with-test}
 ]
 
 synopsis: "Web interface for builder"
@@ -59,8 +61,3 @@ Builder-web takes in submissions of builds, typically from [builder](https://git
 Produced binaries can be downloaded and executed.
 [builds.robur.coop](https://builds.robur.coop/) itself runs builder-web.
 """
-
-pin-depends: [
-  ["modulectomy.dev" "git+https://github.com/roburio/modulectomy.git"]
-  ["opam-graph.dev" "git+https://git.robur.io/robur/opam-graph.git"]
-]
