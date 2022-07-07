@@ -302,11 +302,7 @@ let routes ~datadir ~cachedir ~configdir =
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
-  let redirect_latest req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    (* FIXME *)
-    let artifact = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+  let redirect_latest req ~job_name ~platform ~artifact =
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
@@ -316,13 +312,32 @@ let routes ~datadir ~cachedir ~configdir =
     |> Lwt_result.ok
   in
 
+  let redirect_latest req =
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    let artifact =
+      (* FIXME Dream.path deprecated *)
+      let path = begin[@alert "-deprecated"] Dream.path req end in
+      if path = [] then
+        "" (* redirect without trailing slash *)
+      else
+        "/" ^ (List.map Uri.pct_encode path |> String.concat "/")
+    in
+    redirect_latest req ~job_name ~platform ~artifact
+
+  and redirect_latest_no_slash req =
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    redirect_latest req ~job_name ~platform ~artifact:""
+  in
+
   let redirect_main_binary req =
     let job_name = Dream.param req "job"
     and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     Dream.sql req (main_binary_of_uuid uuid) >>= fun main_binary ->
-    let filepath = main_binary.Builder_db.filepath in
-    Link.Job_build_f.make ~job_name ~build:uuid ~filepath ()
+    let artifact = `File main_binary.Builder_db.filepath in
+    Link.Job_build_artifact.make ~job_name ~build:uuid ~artifact ()
     |> Dream.redirect req
     |> Lwt_result.ok
   in
@@ -597,6 +612,7 @@ let routes ~datadir ~cachedir ~configdir =
     `Get, "/job/:job/build", (w redirect_parent);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
+    `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
     `Get, "/job/:job/build/:build", (w job_build);
     `Get, "/job/:job/build/:build/f/**", (w job_build_file);
     `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
@@ -619,7 +635,8 @@ let to_dream_route = function
 let to_dream_routes l = List.map to_dream_route l
 
 let routeprefix_ignorelist_when_removing_trailing_slash = [
-  "/job/:job/build/:build/f"
+  "/job/:job/build/:build/f";
+  "/job/:job/build/latest";
 ]
 
 module Middleware = struct

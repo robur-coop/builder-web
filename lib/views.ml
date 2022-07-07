@@ -191,10 +191,10 @@ let artifact
     ~file:{ Builder_db.filepath; localpath = _; sha256; size }
   =
   let artifact_link =
-    Link.Job_build_f.make
+    Link.Job_build_artifact.make
       ~job_name
       ~build:build.Builder_db.Build.uuid
-      ~filepath ()
+      ~artifact:(`File filepath) ()
   in
   [
     H.a ~a:H.[a_href artifact_link] [
@@ -476,10 +476,10 @@ module Job_build = struct
       let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
       [
         H.dt [
-          H.a ~a:H.[a_href @@ Link.Job_build_f.make
+          H.a ~a:H.[a_href @@ Link.Job_build_artifact.make
                       ~job_name
                       ~build:build_uuid
-                      ~filepath:file.filepath ()
+                      ~artifact:(`File file.filepath) ()
                    ]
             [H.code [txtf "%a" Fpath.pp file.filepath]] ];
         H.dd ([

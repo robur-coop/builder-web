@@ -52,15 +52,16 @@ end
 module Job_build_artifact = struct
 
   let encode_artifact = function
-    | `Main_binary -> "main-binary"
-    | `Viz_treemap -> "viztreemap"
-    | `Viz_dependencies -> "vizdependencies"
-    | `Script -> "script"
-    | `Console -> "console"
-    | `All_targz -> "all.tar.gz"
+    | `Main_binary -> "/main-binary"
+    | `Viz_treemap -> "/viztreemap"
+    | `Viz_dependencies -> "/vizdependencies"
+    | `Script -> "/script"
+    | `Console -> "/console"
+    | `All_targz -> "/all.tar.gz"
+    | `File f -> "/f/" ^ Fmt.to_to_string fpath_url_pp f
 
   let make_from_string ~job_name ~build ~artifact () =
-    Fmt.str "/job/%a/build/%a/%s"
+    Fmt.str "/job/%a/build/%a%s"
       pctencode job_name
       Uuidm.pp build
       artifact
@@ -68,16 +69,6 @@ module Job_build_artifact = struct
   let make ~job_name ~build ~artifact () =
     let artifact = encode_artifact artifact in
     make_from_string ~job_name ~build ~artifact ()
-
-end
-
-module Job_build_f = struct
-
-  let make ~job_name ~build ~filepath () =
-    Fmt.str "/job/%a/build/%a/f/%a"
-      pctencode job_name
-      Uuidm.pp build
-      fpath_url_pp filepath
 
 end
 
