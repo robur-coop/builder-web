@@ -31,8 +31,6 @@ type nav = [
 
 let pp_platform =
   Fmt.(option ~none:(any "") (append (any "on ") string))
-let pp_platform_query =
-  Fmt.(option ~none:(any "") (append (any "?platform=") string))
 
 let static_css = Tyxml.Html.Unsafe.data {|
 body {
@@ -93,29 +91,28 @@ let make_breadcrumbs nav =
   | `Default ->
     to_nav [H.txt "Home", "/"]
   | `Job (job_name, platform) ->
+    let queries =
+      platform |> Option.map (fun v -> `Platform v) |> Option.to_list in
     to_nav [
       H.txt "Home", "/";
-      txtf "Job %s" job_name, Fmt.str "/job/%s" job_name ;
+      txtf "Job %s" job_name, Link.Job.make ~job_name ();
       (
         txtf "%a" pp_platform platform,
-        Fmt.str "/job/%s/%a" job_name pp_platform_query platform
+        Link.Job.make ~job_name ~queries () 
       )
     ]
   | `Build (job_name, build) ->
     to_nav [
       H.txt "Home", "/";
-      txtf "Job %s" job_name, Fmt.str "/job/%s" job_name;
+      txtf "Job %s" job_name, Link.Job.make ~job_name ();
       (
         txtf "%a" pp_platform (Some build.Builder_db.Build.platform),
-        Fmt.str "/job/%s/%a"
-          job_name
-          pp_platform_query (Some build.Builder_db.Build.platform)
+        Link.Job.make ~job_name
+          ~queries:[ `Platform build.Builder_db.Build.platform ] ()
       );
       (
         txtf "Build %a" pp_ptime build.Builder_db.Build.start,
-        Fmt.str "/job/%s/build/%a"
-          job_name
-          Uuidm.pp build.Builder_db.Build.uuid
+        Link.Job_build.make ~job_name ~build:build.Builder_db.Build.uuid ()
       );
     ]
   | `Comparison ((job_left, build_left), (job_right, build_right)) ->
@@ -125,9 +122,9 @@ let make_breadcrumbs nav =
         txtf "Comparison between %s@%a and %s@%a"
           job_left pp_ptime build_left.Builder_db.Build.start
           job_right pp_ptime build_right.Builder_db.Build.start,
-        Fmt.str "/compare/%a/%a"
-          Uuidm.pp build_left.uuid
-          Uuidm.pp build_right.uuid
+        Link.Compare_builds.make 
+          ~left:build_left.uuid
+          ~right:build_right.uuid ()
       );
     ]
 
@@ -194,10 +191,10 @@ let artifact
     ~file:{ Builder_db.filepath; localpath = _; sha256; size }
   =
   let artifact_link =
-    Fmt.str "/job/%s/build/%a/f/%a"
-      job_name
-      Uuidm.pp build.Builder_db.Build.uuid
-      Fpath.pp filepath
+    Link.Job_build_artifact.make
+      ~job_name
+      ~build:build.Builder_db.Build.uuid
+      ~artifact:(`File filepath) ()
   in
   [
     H.a ~a:H.[a_href artifact_link] [
@@ -297,15 +294,15 @@ have questions or suggestions.
       check_icon latest_build.Builder_db.Build.result;
       H.txt " ";
       H.a ~a:[
-        Fmt.kstr H.a_href "/job/%s/%a"
-          job_name
-          pp_platform_query (Some platform)]
+        H.a_href @@ Link.Job.make ~job_name
+          ~queries:[ `Platform platform ] ()
+      ]
         [H.txt platform];
       H.txt " ";
       H.a ~a:[
-        Fmt.kstr H.a_href "/job/%s/build/%a/"
-          job_name
-          Uuidm.pp latest_build.Builder_db.Build.uuid]
+        H.a_href @@ Link.Job_build.make
+          ~job_name
+          ~build:latest_build.Builder_db.Build.uuid ()]
         [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
       H.txt " ";
     ]
@@ -382,9 +379,9 @@ module Job = struct
         check_icon build.Builder_db.Build.result;
         txtf " %s " build.platform;
         H.a ~a:H.[
-            Fmt.kstr a_href "/job/%s/build/%a"
-              job_name
-              Uuidm.pp build.Builder_db.Build.uuid ]
+            a_href @@ Link.Job_build.make 
+              ~job_name
+              ~build:build.Builder_db.Build.uuid () ]
           [
             txtf "%a" pp_ptime build.Builder_db.Build.start;
           ];
@@ -407,13 +404,14 @@ module Job = struct
       H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
       H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
       H.ul (builds |> List.map (make_build ~job_name));
+      let queries =
+        platform |> Option.map (fun p -> `Platform p) |> Option.to_list
+      in
       if failed then
         H.p [
           H.txt "Excluding failed builds " ;
           H.a ~a:H.[
-              a_href @@ Fmt.str "/job/%s%a" 
-                job_name
-                pp_platform_query platform
+              a_href @@ Link.Job.make ~job_name ~queries ()
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -421,9 +419,7 @@ module Job = struct
         H.p [
           H.txt "Including failed builds " ; 
           H.a ~a:H.[
-              a_href @@ Fmt.str "/job/%s/failed%a"
-                job_name
-                pp_platform_query platform
+              a_href @@ Link.Job.make_failed ~job_name ~queries ()
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -480,10 +476,10 @@ module Job_build = struct
       let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
       [
         H.dt [
-          H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a/f/%a"
-                      job_name
-                      Uuidm.pp build_uuid
-                      Fpath.pp file.filepath
+          H.a ~a:H.[a_href @@ Link.Job_build_artifact.make
+                      ~job_name
+                      ~build:build_uuid
+                      ~artifact:(`File file.filepath) ()
                    ]
             [H.code [txtf "%a" Fpath.pp file.filepath]] ];
         H.dd ([
@@ -502,7 +498,7 @@ module Job_build = struct
     ]
 
   let make_reproductions
-      ~name
+      ~job_name
       ~(build:Builder_db.Build.t)
       ~same_input_same_output
       ~different_input_same_output
@@ -511,7 +507,7 @@ module Job_build = struct
       List.map (fun (build:Builder_db.Build.t) ->
           H.li [
             txtf "on %s, same input, " build.platform;
-            H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a" name Uuidm.pp build.uuid]
+            H.a ~a:H.[a_href @@ Link.Job_build.make ~job_name ~build:build.uuid ()]
               [txtf "%a" pp_ptime build.start]
           ])
         same_input_same_output
@@ -521,9 +517,9 @@ module Job_build = struct
           H.li [
             txtf "on %s, different input, " build'.platform;
             H.a ~a:H.[
-                Fmt.kstr a_href "/compare/%a/%a"
-                  Uuidm.pp build'.uuid
-                  Uuidm.pp build.uuid]
+                a_href @@ Link.Compare_builds.make
+                  ~left:build'.uuid
+                  ~right:build.uuid ()]
               [txtf "%a" pp_ptime build'.start]
           ])
         different_input_same_output
@@ -551,9 +547,9 @@ module Job_build = struct
               H.li [
                 txtf "on %s, " build'.platform ;
                 H.a ~a:H.[
-                    Fmt.kstr a_href "/compare/%a/%a"
-                      Uuidm.pp build'.uuid
-                      Uuidm.pp build.uuid]
+                    a_href @@ Link.Compare_builds.make
+                      ~left:build'.uuid
+                      ~right:build.uuid ()]
                   [txtf "%a" pp_ptime build'.start]
               ])
             same_input_different_output)
@@ -572,9 +568,9 @@ module Job_build = struct
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
           [ H.li [ H.txt ctx;
                    H.a ~a:[
-                     Fmt.kstr H.a_href "/compare/%a/%a"
-                       Uuidm.pp b.uuid
-                       Uuidm.pp build.uuid ]
+                     H.a_href @@ Link.Compare_builds.make 
+                       ~left:b.uuid
+                       ~right:build.uuid () ]
                      [txtf "%a" pp_ptime b.start]]
           ]
         | _ -> []
@@ -587,7 +583,7 @@ module Job_build = struct
     ]
 
   let make_build_info
-      ~name
+      ~job_name
       ~delta
       ~(build:Builder_db.Build.t)
       ~artifacts
@@ -607,24 +603,30 @@ module Job_build = struct
       H.ul [
         H.li [
           H.a ~a:H.[
-              Fmt.kstr a_href "/job/%s/build/%a/console" name Uuidm.pp build.uuid
+              a_href @@ Link.Job_build_artifact.make
+                ~job_name
+                ~build:build.uuid
+                ~artifact:`Console ()
             ] [H.txt "Console output"];
         ];
         H.li [
           H.a ~a:H.[
-              Fmt.kstr a_href "/job/%s/build/%a/script" name Uuidm.pp build.uuid
+              a_href @@ Link.Job_build_artifact.make
+                ~job_name
+                ~build:build.uuid
+                ~artifact:`Script ()
             ] [H.txt "Build script"];
         ]
       ];
     ]
     @ make_artifacts
-      ~job_name:name
+      ~job_name
       ~build_uuid:build.uuid
       ~artifacts
       ~main_binary
       ~solo5_manifest
     @ make_reproductions
-      ~name
+      ~job_name
       ~build
       ~same_input_same_output
       ~different_input_same_output
@@ -664,10 +666,11 @@ module Job_build = struct
           "
       ]
   
-  let make_viz_section ~name ~artifacts ~uuid =
+  let make_viz_section ~job_name ~artifacts ~uuid =
     let viz_deps = 
       let iframe = 
-        let src = Fmt.str "/job/%s/build/%a/vizdependencies" name Uuidm.pp uuid in
+        let src = Link.Job_build_artifact.make ~job_name ~build:uuid
+            ~artifact:`Viz_dependencies () in
         H.iframe ~a:H.[
             a_src src;
             a_title "Opam dependencies";
@@ -698,7 +701,8 @@ dependency.\
     in
     let viz_treemap = lazy (
       let iframe = 
-        let src = Fmt.str "/job/%s/build/%a/viztreemap" name Uuidm.pp uuid in
+        let src = Link.Job_build_artifact.make ~job_name ~build:uuid
+            ~artifact:`Viz_treemap () in
         H.iframe ~a:H.[
             a_src src;
             a_title "Binary dissection";
@@ -726,7 +730,7 @@ and the rest of the unaccounted data.\
     ]
 
   let make
-      ~name
+      ~job_name
       ~(build:Builder_db.Build.t)
       ~artifacts
       ~main_binary
@@ -737,10 +741,10 @@ and the rest of the unaccounted data.\
       ~latest ~next ~previous
     =
     let delta = Ptime.diff build.finish build.start in
-    let right_column = make_viz_section ~name ~artifacts ~uuid:build.uuid in
+    let right_column = make_viz_section ~job_name ~artifacts ~uuid:build.uuid in
     let left_column =
       make_build_info
-        ~name
+        ~job_name
         ~delta
         ~build
         ~artifacts
@@ -756,7 +760,7 @@ and the rest of the unaccounted data.\
       H.a_style "width: 45em; min-width: 43em;" in
     let style_col_right = H.a_style "width: 50%" in
     let body = [
-        H.h1 [txtf "Job %s" name];
+        H.h1 [txtf "Job %s" job_name];
         H.div~a:[ style_grid ] [
           H.div~a:[ style_col_left ]  left_column;
           H.div~a:[ style_col_right ] right_column
@@ -764,8 +768,8 @@ and the rest of the unaccounted data.\
     ]
     in
     layout
-      ~nav:(`Build (name, build))
-      ~title:(Fmt.str "Job %s %a" name pp_ptime build.start)
+      ~nav:(`Build (job_name, build))
+      ~title:(Fmt.str "Job %s %a" job_name pp_ptime build.start)
       ~manual_width:true
       body
 
@@ -840,28 +844,28 @@ let compare_builds
       H.h1 [H.txt "Comparing builds"];
       H.h2 [
         H.txt "Builds ";
-        H.a ~a:H.[a_href
-                    (Fmt.str "/job/%s/build/%a"
-                       job_left
-                       Uuidm.pp build_left.uuid)]
+        H.a ~a:H.[ a_href @@
+                   Link.Job_build.make
+                     ~job_name:job_left
+                     ~build:build_left.uuid () ]
           [ txtf "%s@%a %a"
               job_left
               pp_ptime build_left.start
               pp_platform (Some build_left.platform)];
         H.txt " and ";
-        H.a ~a:H.[a_href
-                    (Fmt.str "/job/%s/build/%a"
-                       job_right
-                       Uuidm.pp build_right.uuid)]
+        H.a ~a:H.[ a_href @@
+                   Link.Job_build.make
+                     ~job_name:job_right
+                     ~build:build_right.uuid () ]
           [ txtf "%s@%a %a"
               job_right
               pp_ptime build_right.start
               pp_platform (Some build_right.platform)];
       ];
       H.h3 [ H.a ~a:H.[
-          Fmt.kstr a_href "/compare/%a/%a"
-            Uuidm.pp build_right.uuid
-            Uuidm.pp build_left.uuid ]
+          a_href @@ Link.Compare_builds.make
+            ~left:build_right.uuid
+            ~right:build_left.uuid () ]
           [H.txt "Compare in reverse direction"]] ;
       H.ul [
         H.li [
@@ -947,7 +951,7 @@ let failed_builds ~start ~count builds =
     H.li [
       check_icon build.Builder_db.Build.result;
       txtf " %s %a " job_name pp_platform (Some build.platform);
-      H.a ~a:H.[Fmt.kstr a_href "/job/%s/build/%a" job_name Uuidm.pp build.uuid]
+      H.a ~a:H.[ a_href @@ Link.Job_build.make ~job_name ~build:build.uuid () ]
         [txtf "%a" pp_ptime build.start];
       txtf " %a" Builder.pp_execution_result build.result;
     ]
@@ -958,8 +962,8 @@ let failed_builds ~start ~count builds =
       H.ul (List.map build builds);
       H.p [ txtf "View the next %d failed builds " count;
             H.a ~a:H.[
-                Fmt.kstr a_href "/failed-builds/?count=%d&start=%d"
-                  count (start + count) ]
+                a_href @@ Link.Failed_builds.make
+                  ~count ~start:(start + count) () ]
               [ H.txt "here"];
             H.txt ".";
           ]

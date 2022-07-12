@@ -302,18 +302,33 @@ let routes ~datadir ~cachedir ~configdir =
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
-  let redirect_latest req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    (* FIXME *)
-    let path = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
+  let redirect_latest req ~job_name ~platform ~artifact =
     (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/%s" job_name Uuidm.pp build path)
+      (Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact ())
     |> Lwt_result.ok
+  in
+
+  let redirect_latest req =
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    let artifact =
+      (* FIXME Dream.path deprecated *)
+      let path = begin[@alert "-deprecated"] Dream.path req end in
+      if path = [] then
+        "" (* redirect without trailing slash *)
+      else
+        "/" ^ (List.map Uri.pct_encode path |> String.concat "/")
+    in
+    redirect_latest req ~job_name ~platform ~artifact
+
+  and redirect_latest_no_slash req =
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    redirect_latest req ~job_name ~platform ~artifact:""
   in
 
   let redirect_main_binary req =
@@ -321,9 +336,9 @@ let routes ~datadir ~cachedir ~configdir =
     and build = Dream.param req "build" in
     get_uuid build >>= fun uuid ->
     Dream.sql req (main_binary_of_uuid uuid) >>= fun main_binary ->
-    Dream.redirect req
-      (Fmt.str "/job/%s/build/%a/f/%a" job_name Uuidm.pp uuid
-         Fpath.pp main_binary.Builder_db.filepath)
+    let artifact = `File main_binary.Builder_db.filepath in
+    Link.Job_build_artifact.make ~job_name ~build:uuid ~artifact ()
+    |> Dream.redirect req
     |> Lwt_result.ok
   in
 
@@ -360,7 +375,7 @@ let routes ~datadir ~cachedir ~configdir =
     >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
     let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
     Views.Job_build.make
-      ~name:job_name
+      ~job_name
       ~build
       ~artifacts
       ~main_binary
@@ -488,7 +503,7 @@ let routes ~datadir ~cachedir ~configdir =
     Dream.sql req (Model.build_hash hash) >>= Model.not_found
     |> if_error "Internal server error" >>= fun (job_name, build) ->
     Dream.redirect req
-      (Fmt.str "/job/%s/build/%a" job_name Uuidm.pp build.Builder_db.Build.uuid)
+      (Link.Job_build.make ~job_name ~build:build.Builder_db.Build.uuid ())
     |> Lwt_result.ok
   in
 
@@ -591,29 +606,37 @@ let routes ~datadir ~cachedir ~configdir =
   let w f req = or_error_response (f req) in
 
   [
-    Dream.get "/" (w builds);
-    Dream.get "/job" (w redirect_parent);
-    Dream.get "/job/:job" (w job);
-    Dream.get "/job/:job/build" (w redirect_parent);
-    Dream.get "/job/:job/failed" (w job_with_failed);
-    Dream.get "/job/:job/build/latest/**" (w redirect_latest);
-    Dream.get "/job/:job/build/:build" (w job_build);
-    Dream.get "/job/:job/build/:build/f/**" (w job_build_file);
-    Dream.get "/job/:job/build/:build/main-binary" (w redirect_main_binary);
-    Dream.get "/job/:job/build/:build/viztreemap" (w @@ job_build_viz `Treemap);
-    Dream.get "/job/:job/build/:build/vizdependencies" (w @@ job_build_viz `Dependencies);
-    Dream.get "/job/:job/build/:build/script" (w (job_build_static_file `Script));
-    Dream.get "/job/:job/build/:build/console" (w (job_build_static_file `Console));
-    Dream.get "/failed-builds" (w failed_builds);
-    Dream.get "/job/:job/build/:build/all.tar.gz" (w job_build_targz);
-    Dream.get "/hash" (w hash);
-    Dream.get "/compare/:build_left/:build_right" (w compare_builds);
-    Dream.post "/upload" (Authorization.authenticate (w upload));
-    Dream.post "/job/:job/platform/:platform/upload" (Authorization.authenticate (w upload_binary));
+    `Get, "/", (w builds);
+    `Get, "/job", (w redirect_parent);
+    `Get, "/job/:job", (w job);
+    `Get, "/job/:job/build", (w redirect_parent);
+    `Get, "/job/:job/failed", (w job_with_failed);
+    `Get, "/job/:job/build/latest/**", (w redirect_latest);
+    `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
+    `Get, "/job/:job/build/:build", (w job_build);
+    `Get, "/job/:job/build/:build/f/**", (w job_build_file);
+    `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
+    `Get, "/job/:job/build/:build/viztreemap", (w @@ job_build_viz `Treemap);
+    `Get, "/job/:job/build/:build/vizdependencies", (w @@ job_build_viz `Dependencies);
+    `Get, "/job/:job/build/:build/script", (w (job_build_static_file `Script));
+    `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
+    `Get, "/failed-builds", (w failed_builds);
+    `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
+    `Get, "/hash", (w hash);
+    `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Post, "/upload", (Authorization.authenticate (w upload));
+    `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   ]
 
+let to_dream_route = function
+  | `Get, path, handler -> Dream.get path handler
+  | `Post, path, handler -> Dream.post path handler
+
+let to_dream_routes l = List.map to_dream_route l
+
 let routeprefix_ignorelist_when_removing_trailing_slash = [
-  "/job/:job/build/:build/f"
+  "/job/:job/build/:build/f";
+  "/job/:job/build/latest";
 ]
 
 module Middleware = struct
@@ -638,3 +661,5 @@ module Middleware = struct
         | _ (* /... *) -> handler req
 
 end
+
+module Link = Link
