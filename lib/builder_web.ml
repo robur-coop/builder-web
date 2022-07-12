@@ -240,7 +240,7 @@ module Viz_aux = struct
         (Fpath.to_string viz_path)
         Lwt_io.read
     )
-    |> Lwt_result.map_err (fun exn -> `Msg (Printexc.to_string exn))
+    |> Lwt_result.map_error (fun exn -> `Msg (Printexc.to_string exn))
     |> if_error "Error getting cached visualization"
 
 end
