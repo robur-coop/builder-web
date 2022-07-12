@@ -21,8 +21,8 @@ module Param_verification = struct
     let is_uuid = function
       | Some (param, value) ->
         begin match Uuidm.of_string value with
-          | Some _ -> None
-          | None -> Some {
+          | Some _ when String.length value = 36 -> None
+          | _ -> Some {
               param;
               expected = "Uuidm.t"
             }
@@ -32,7 +32,9 @@ module Param_verification = struct
   end
   
   let param req tag =
-    try Some (tag, Dream.param req tag) with _ -> None
+    match Dream.param req tag with
+    | param -> Some (tag, param)
+    | exception _ -> None
 
   let ( &&& ) v v' =
     match v with
@@ -41,11 +43,11 @@ module Param_verification = struct
 
   let verify req =
     let verified_params = 
-          (param req "job" |> P.is_string)
-      &&& (param req "build" |> P.is_uuid)
-      &&& (param req "build_left" |> P.is_uuid)
-      &&& (param req "build_right" |> P.is_uuid)
-      &&& (param req "platform" |> P.is_string)
+      P.is_string (param req "job")
+      &&& P.is_uuid (param req "build")
+      &&& P.is_uuid (param req "build_left")
+      &&& P.is_uuid (param req "build_right")
+      &&& P.is_string (param req "platform")
     in
     let response_json =
       verified_params |> to_yojson |> Yojson.Safe.to_string
@@ -55,13 +57,18 @@ module Param_verification = struct
 end
                    
 let router =
-  let tmp = Fpath.v "/tmp" in
-  Builder_web.routes ~datadir:tmp ~cachedir:tmp ~configdir:tmp
+  (* XXX: this relies on [Builder_web.routes] only using {data,cache,config}dir
+   * in the handlers which are never called here. The path /nonexistant is
+   * assumed to not exist. *)
+  let nodir = Fpath.v "/nonexistant" in
+  Builder_web.routes ~datadir:nodir ~cachedir:nodir ~configdir:nodir
   |> List.map (fun (meth, route, _handler) ->
       meth, route, Param_verification.verify)
   |> Builder_web.to_dream_routes
   |> Dream.router
-  |> Builder_web.Middleware.remove_trailing_url_slash
+  (* XXX: we test without remove_trailing_url_slash to ensure we don't produce
+   * urls with trailing slashes: *)
+  (* |> Builder_web.Middleware.remove_trailing_url_slash *)
   |> Dream.test
 
 let test_link method_ target () =
@@ -74,10 +81,9 @@ let test_link method_ target () =
     |> Lwt_main.run
     |> Yojson.Safe.from_string
     |> Param_verification.of_yojson
-    |> Result.get_ok
   in
-  Alcotest.(check' Param_verification.alcotyp ~msg:"param-verification"
-              ~actual:body ~expected:None)
+  Alcotest.(check' (result Param_verification.alcotyp string) ~msg:"param-verification"
+              ~actual:body ~expected:(Ok None))
 
 let test_link_artifact artifact = 
   let job_name = "test" in
