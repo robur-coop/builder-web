@@ -675,14 +675,18 @@ let error_template error _debug_info suggested_response =
   let referer =
     Option.bind error.Dream.request (fun req -> Dream.header req "referer")
   in
-  let html =
-    if is_iframe_page ~req:error.Dream.request then
-      Views.viz_not_found
-    else 
-      Views.page_not_found ~target ~referer
-  in
-  Dream.set_header suggested_response "Content-Type" Dream.text_html;
-  Dream.set_body suggested_response @@ string_of_html html;
-  Lwt.return suggested_response
+  match Dream.status suggested_response with
+  | `Not_Found ->
+    let html =
+      if is_iframe_page ~req:error.Dream.request then
+        Views.viz_not_found
+      else
+        Views.page_not_found ~target ~referer
+    in
+    Dream.set_header suggested_response "Content-Type" Dream.text_html;
+    Dream.set_body suggested_response @@ string_of_html html;
+    Lwt.return suggested_response
+  | _ ->
+    Lwt.return suggested_response
 
 module Link = Link
