@@ -126,14 +126,23 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
       run_batch_viz ~cachedir ~datadir ~configdir
   in
   match Builder_web.init dbpath datadir with
+  | exception Sqlite3.Error e ->
+    Format.eprintf "Error: @[@,%s.\
+                    @,Does the database file exist? Create with `builder-db migrate`.@]\n%!"
+      e;
+    exit 2
   | Error (#Caqti_error.load as e) ->
     Format.eprintf "Error: %a\n%!" Caqti_error.pp e;
     exit 2
+          | Error (`Wrong_version _ as e) ->
+    Format.eprintf "Error: @[@,%a.\
+                    @,Migrate database version with `builder-migrations`,\
+                    @,or start with a fresh database with `builder-db migrate`.@]\n%!"
+      Builder_web.pp_error e;
   | Error (
       #Caqti_error.connect
     | #Caqti_error.call_or_retrieve
-    | `Msg _
-    | `Wrong_version _ as e
+    | `Msg _ as e
     ) ->
     Format.eprintf "Error: %a\n%!" Builder_web.pp_error e;
     exit 1
