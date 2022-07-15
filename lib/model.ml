@@ -15,7 +15,7 @@ let pp_error ppf = function
     Caqti_error.pp ppf e
 
 let not_found = function
-  | None -> Lwt.return (Error `Not_found :> (_, [> error ]) result)
+  | None -> Lwt_result.fail `Not_found
   | Some v -> Lwt_result.return v
 
 let staging datadir = Fpath.(datadir / "_staging")

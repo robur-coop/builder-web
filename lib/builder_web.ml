@@ -85,6 +85,13 @@ let if_error
     Lwt_result.fail (message, status)
   | Ok _ as r -> Lwt.return r
 
+let not_found_error r =
+  let* r = r in
+  match r with
+  | Error `Not_found ->
+    Lwt_result.fail ("Resource not found", `Not_Found)
+  | Ok _ as r -> Lwt.return r
+
 let get_uuid s =
   Lwt.return
     (if String.length s = 36 then
@@ -99,11 +106,11 @@ let main_binary_of_uuid uuid db =
   |> if_error "Error getting job build"
     ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
   >>= fun (_id, build) ->
-  match build.Builder_db.Build.main_binary with
-  | None -> Lwt_result.fail ("Resource not found", `Not_Found)
-  | Some main_binary ->
-    Model.build_artifact_by_id main_binary db
-    |> if_error "Error getting main binary" 
+  Model.not_found build.Builder_db.Build.main_binary
+  |> not_found_error
+  >>= fun main_binary ->
+  Model.build_artifact_by_id main_binary db
+  |> if_error "Error getting main binary"
 
 module Viz_aux = struct
 
@@ -203,12 +210,11 @@ module Viz_aux = struct
           artifacts
       in
       begin
-        match debug_binary with
-        | None -> Lwt_result.fail ("Error getting debug-binary", `Not_Found)
-        | Some debug_binary ->
-          debug_binary.sha256
-          |> hex
-          |> Lwt_result.return
+        Model.not_found debug_binary
+        |> not_found_error >>= fun debug_binary ->
+        debug_binary.sha256
+        |> hex
+        |> Lwt_result.return
       end 
     | `Dependencies -> 
       let opam_switch =
@@ -216,12 +222,11 @@ module Viz_aux = struct
           (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
           artifacts
       in
-      match opam_switch with
-      | None -> Lwt_result.fail ("Error getting opam-switch", `Not_Found)
-      | Some opam_switch ->
-        opam_switch.sha256
-        |> hex
-        |> Lwt_result.return
+      Model.not_found opam_switch
+      |> not_found_error >>= fun opam_switch ->
+      opam_switch.sha256
+      |> hex
+      |> Lwt_result.return
 
   let try_load_cached_visualization ~cachedir ~uuid viz_typ db =
     Lwt.return (get_viz_version_from_dirs ~cachedir ~viz_typ)

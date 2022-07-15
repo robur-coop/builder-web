@@ -2,7 +2,7 @@ type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.
 
 val pp_error : Format.formatter -> error -> unit
 
-val not_found : 'a option -> ('a, [> error ]) result Lwt.t
+val not_found : 'a option -> ('a, [> `Not_found ]) result Lwt.t
 
 val staging : Fpath.t -> Fpath.t
 
