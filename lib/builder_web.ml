@@ -64,9 +64,6 @@ let or_error_response r =
   let* r = r in
   match r with
   | Ok response -> Lwt.return response
-  | Error (text, `Not_Found) ->
-    Views.resource_not_found ~text
-    |> string_of_html |> Dream.html ~status:`Not_Found
   | Error (text, status) -> Dream.respond ~status text
 
 let default_log_warn ~status e =
@@ -85,6 +82,13 @@ let if_error
     Lwt_result.fail (message, status)
   | Ok _ as r -> Lwt.return r
 
+let not_found_error r =
+  let* r = r in
+  match r with
+  | Error `Not_found ->
+    Lwt_result.fail ("Resource not found", `Not_Found)
+  | Ok _ as r -> Lwt.return r
+
 let get_uuid s =
   Lwt.return
     (if String.length s = 36 then
@@ -99,11 +103,11 @@ let main_binary_of_uuid uuid db =
   |> if_error "Error getting job build"
     ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
   >>= fun (_id, build) ->
-  match build.Builder_db.Build.main_binary with
-  | None -> Lwt_result.fail ("Resource not found", `Not_Found)
-  | Some main_binary ->
-    Model.build_artifact_by_id main_binary db
-    |> if_error "Error getting main binary" 
+  Model.not_found build.Builder_db.Build.main_binary
+  |> not_found_error
+  >>= fun main_binary ->
+  Model.build_artifact_by_id main_binary db
+  |> if_error "Error getting main binary"
 
 module Viz_aux = struct
 
@@ -203,12 +207,11 @@ module Viz_aux = struct
           artifacts
       in
       begin
-        match debug_binary with
-        | None -> Lwt_result.fail ("Error getting debug-binary", `Not_Found)
-        | Some debug_binary ->
-          debug_binary.sha256
-          |> hex
-          |> Lwt_result.return
+        Model.not_found debug_binary
+        |> not_found_error >>= fun debug_binary ->
+        debug_binary.sha256
+        |> hex
+        |> Lwt_result.return
       end 
     | `Dependencies -> 
       let opam_switch =
@@ -216,12 +219,11 @@ module Viz_aux = struct
           (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
           artifacts
       in
-      match opam_switch with
-      | None -> Lwt_result.fail ("Error getting opam-switch", `Not_Found)
-      | Some opam_switch ->
-        opam_switch.sha256
-        |> hex
-        |> Lwt_result.return
+      Model.not_found opam_switch
+      |> not_found_error >>= fun opam_switch ->
+      opam_switch.sha256
+      |> hex
+      |> Lwt_result.return
 
   let try_load_cached_visualization ~cachedir ~uuid viz_typ db =
     Lwt.return (get_viz_version_from_dirs ~cachedir ~viz_typ)
@@ -661,5 +663,32 @@ module Middleware = struct
         | _ (* /... *) -> handler req
 
 end
+
+let is_iframe_page ~req =
+  match Option.bind req (fun r -> Dream.header r "Sec-Fetch-Dest") with
+  | Some "iframe" -> true
+  | _ -> false
+
+let error_template error _debug_info suggested_response =
+  let target =
+    match error.Dream.request with
+    | None -> "?"
+    | Some req -> Dream.target req in
+  let referer =
+    Option.bind error.Dream.request (fun req -> Dream.header req "referer")
+  in
+  match Dream.status suggested_response with
+  | `Not_Found ->
+    let html =
+      if is_iframe_page ~req:error.Dream.request then
+        Views.viz_not_found
+      else
+        Views.page_not_found ~target ~referer
+    in
+    Dream.set_header suggested_response "Content-Type" Dream.text_html;
+    Dream.set_body suggested_response @@ string_of_html html;
+    Lwt.return suggested_response
+  | _ ->
+    Lwt.return suggested_response
 
 module Link = Link
