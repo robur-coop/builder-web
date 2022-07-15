@@ -64,9 +64,6 @@ let or_error_response r =
   let* r = r in
   match r with
   | Ok response -> Lwt.return response
-  | Error (text, `Not_Found) ->
-    Views.resource_not_found ~text
-    |> string_of_html |> Dream.html ~status:`Not_Found
   | Error (text, status) -> Dream.respond ~status text
 
 let default_log_warn ~status e =
