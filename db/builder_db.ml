@@ -412,7 +412,7 @@ module Build = struct
 
   let get_platforms_for_job =
     id `job ->* Caqti_type.string @@
-    "SELECT DISTINCT platform FROM build WHERE job = ?"
+    "SELECT DISTINCT platform FROM build WHERE job = ? ORDER BY platform"
 
   let add =
     t ->. Caqti_type.unit @@
