@@ -159,5 +159,39 @@ let () =
         "/f/bin/unikernel.hvt";
         "/";
         "";
-      ]
+      ];
+    "Albatross hardcoded links",
+    [
+      (*> Note: these links can be found in
+          albatross/command-line/albatross_client_update.ml
+          .. to find them I follewed the trails of 'Albatross_cli.http_host'
+      *)
+      begin
+        let `Hex sha_str =
+          Cstruct.of_string "foo"
+          |> Mirage_crypto.Hash.SHA256.digest
+          |> Hex.of_cstruct
+        in
+        Fmt.str "/hash?sha256=%s" sha_str
+      end;
+      begin
+        let jobname = "foo" in
+        "/job/" ^ jobname ^ "/build/latest/"
+      end;
+      begin
+        let job = "foo" in
+        let build = Uuidm.(v `V4 |> to_string) in
+        "/job/" ^ job ^ "/build/" ^ build ^ "/main-binary"
+      end;
+      begin
+        let old_uuid = Uuidm.(v `V4 |> to_string) in
+        let new_uuid = Uuidm.(v `V4 |> to_string) in
+        (*> todo: this is the link hardcoded, but test fails as we don't use
+            the remove trailing slash middleware *)
+        (* Fmt.str "/compare/%s/%s/" old_uuid new_uuid *)
+        Fmt.str "/compare/%s/%s" old_uuid new_uuid
+      end;
+    ]
+    |> List.map Alcotest.(fun p ->
+        test_case ("…" ^ p) `Quick (test_link `GET p))
   ]
