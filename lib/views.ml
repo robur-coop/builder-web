@@ -413,10 +413,30 @@ module Job = struct
             build.Builder_db.Build.result ]
     )
 
-  let make_builds ~failed ~job_name ~platform builds =
+  let make_builds ~failed ~job_name ~platform ~platforms builds =
+    let all_platforms =
+      H.option ~a:H.[ a_value "" ] (H.txt "All platforms")
+    in
     [
       H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
-      H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
+      (* H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"]; *)
+      H.form ~a:H.[
+          a_action @@ "";
+          a_method `Get;
+        ] [
+        H.label ~a:H.[a_label_for "filter-platform"] [H.txt "Filter platform: "];
+        H.select ~a:H.[
+            a_name "platform";
+            a_id "filter-platform";
+          ]
+          (all_platforms :: (platforms |> List.map (fun platform -> 
+               H.option ~a:H.[ a_value platform ] (H.txt platform)
+             )));
+        H.input ~a:H.[
+            a_input_type `Submit;
+            a_value "Apply";
+          ] ();
+      ];
       H.ul (builds |> List.map (make_build ~job_name));
       let queries =
         platform |> Option.map (fun p -> `Platform p) |> Option.to_list
@@ -439,14 +459,15 @@ module Job = struct
           H.txt "." ]
     ]
 
-  let make_body ~failed ~job_name ~platform ~readme builds =
+  let make_body ~failed ~job_name ~platform ~platforms ~readme builds =
     make_header ~job_name ~platform ~readme
-    @ make_builds ~failed ~job_name ~platform builds
+    @ make_builds ~failed ~job_name ~platform ~platforms builds
 
-  let make ~failed ~job_name ~platform ~readme builds =
+  let make ~failed ~job_name ~platform ~readme ~platforms builds =
     let nav = `Job (job_name, platform) in
     let title = Fmt.str "Job %s %a" job_name pp_platform platform in
-    layout ~nav ~title @@ make_body ~failed ~job_name ~platform ~readme builds
+    layout ~nav ~title
+    @@ make_body ~failed ~job_name ~platform ~platforms ~readme builds
 
 
 end

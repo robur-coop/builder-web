@@ -278,29 +278,45 @@ let routes ~datadir ~cachedir ~configdir =
     Views.Builds.make jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
+  let remove_empty_param param_opt = 
+    Option.bind param_opt (fun p -> if p = "" then None else Some p)
+  in
+      
   let job req =
     let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
+    let platform = Dream.query req "platform" |> remove_empty_param in
     (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
+     Dream.sql req (Model.builds_grouped_by_output job_id None) >>= fun all_builds ->
+     let platforms =
+       all_builds
+       |> List.map (fun (build, _) -> build.Builder_db.Build.platform)
+       |> List.sort_uniq String.compare
+     in
      Dream.sql req (Model.builds_grouped_by_output job_id platform) >|= fun builds ->
-     (readme, builds))
+     (readme, builds, platforms))
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
-    >>= fun (readme, builds) ->
-    Views.Job.make ~failed:false ~job_name ~platform ~readme builds
+    >>= fun (readme, builds, platforms) ->
+    Views.Job.make ~failed:false ~job_name ~platform ~platforms ~readme builds
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_with_failed req =
     let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
+    let platform = Dream.query req "platform" |> remove_empty_param in
     (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
+     Dream.sql req (Model.builds_grouped_by_output job_id None) >>= fun all_builds ->
+     let platforms =
+       all_builds
+       |> List.map (fun (build, _) -> build.Builder_db.Build.platform)
+       |> List.sort_uniq String.compare
+     in
      Dream.sql req (Model.builds_grouped_by_output_with_failed job_id platform) >|= fun builds ->
-     (readme, builds))
+     (readme, builds, platforms))
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
-    >>= fun (readme, builds) ->
-    Views.Job.make ~failed:true ~job_name ~platform ~readme builds
+    >>= fun (readme, builds, platforms) ->
+    Views.Job.make ~failed:true ~job_name ~platform ~platforms ~readme builds
     |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
