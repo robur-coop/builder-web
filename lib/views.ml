@@ -848,7 +848,7 @@ let compare_builds
     ~(build_right : Builder_db.Build.t)
     ~env_diff:(added_env, removed_env, changed_env)
     ~pkg_diff:(added_pkgs, removed_pkgs, changed_pkgs)
-    ~opam_diff:(same, opam_diff, version_diff, left, right)
+    ~opam_diff:(opam_diff, version_diff, left, right)
   =
   layout
     ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
@@ -903,10 +903,6 @@ let compare_builds
                (List.length opam_diff)]
         ];
         H.li [
-          H.a ~a:H.[a_href "#opam-packages-unchanged"]
-            [txtf "%d opam packages unchanged" (OpamPackage.Set.cardinal same)]
-        ];
-        H.li [
           H.a ~a:H.[a_href "#env-added"]
             [ txtf "%d environment variables added" (List.length added_env)]
         ];
@@ -943,9 +939,6 @@ let compare_builds
       H.h3 ~a:H.[a_id "opam-packages-opam-diff"]
         [H.txt "Opam packages with changes in their opam file"]] @
       opam_diffs opam_diff @ [
-        H.h3 ~a:H.[a_id "opam-packages-unchanged"]
-          [H.txt "Unchanged opam packages"];
-        H.code (packages same);
         H.h3 ~a:H.[a_id "env-added"] [H.txt "Environment variables added"];
         H.code (key_values added_env);
         H.h3 ~a:H.[a_id "env-removed"] [H.txt "Environment variables removed"];

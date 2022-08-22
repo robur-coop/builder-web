@@ -102,12 +102,12 @@ let compare left right =
       l
   in
   let same_version = Set.inter packages_left packages_right in
-  let (same, opam_diff) =
-    Set.partition
+  let opam_diff =
+    Set.filter
       (fun p ->
          let find = OpamPackage.Name.Map.find p.name in
          let opam_left = find left.overlays and opam_right = find right.overlays in
-         OpamFile.OPAM.effectively_equal opam_left opam_right)
+         not (OpamFile.OPAM.effectively_equal opam_left opam_right))
       same_version
   and version_diff =
     List.filter_map (fun p1 ->
@@ -126,4 +126,4 @@ let compare left right =
   and right_pkgs = diff packages_right packages_left
   in
   let opam_diff = detailed_opam_diffs left right opam_diff in
-  (same, opam_diff, version_diff, left_pkgs, right_pkgs)
+  (opam_diff, version_diff, left_pkgs, right_pkgs)
