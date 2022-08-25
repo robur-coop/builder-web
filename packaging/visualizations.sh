@@ -155,7 +155,8 @@ if [ -e "${DEPENDENCIES_VIZ_FILENAME}" ]; then
     info "Dependency visualization already exists: '${DEPENDENCIES_VIZ_FILENAME}'"
 else
     if ${OPAM_GRAPH} --output-format=html "${OPAM_SWITCH}" > "${TMPDEPENDENCIES}"; then
-        mv "${TMPDEPENDENCIES}" "${DEPENDENCIES_VIZ_FILENAME}"
+        cp "${TMPDEPENDENCIES}" "${DEPENDENCIES_VIZ_FILENAME}"
+        rm "$TMPDEPENDENCIES"
     else
         die "opam-graph failed to generate visualization"
     fi
@@ -201,7 +202,8 @@ if [ -n "${DEBUG_BIN_RELATIVE}" ]; then
                 "${DEBUG_BIN}" \
                 > "${TMPTREE}"
         then
-            mv "${TMPTREE}" "${TREEMAP_VIZ_FILENAME}"
+            cp "${TMPTREE}" "${TREEMAP_VIZ_FILENAME}"
+            rm "$TMPTREE"
         else
             die "modulectomy failed to generate visualization"
         fi
