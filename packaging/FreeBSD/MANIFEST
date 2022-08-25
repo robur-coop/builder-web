@@ -18,6 +18,12 @@ deps {
     },
     sqlite3 {
         origin = "databases/sqlite3";
+    },
+    opam-graph {
+        origin = "local/opam-graph";
+    },
+    modulectomy {
+        origin = "local/modulectomy";
     }
 }
 scripts : {
