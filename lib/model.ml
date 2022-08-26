@@ -450,7 +450,7 @@ let add_build
         let rec go () =
           let next_file = Unix.readdir dh in
           let file = Fpath.(dir / next_file) in
-          if is_executable file then
+          if is_executable file && Fpath.has_ext ".sh" file then
             ignore (Sys.command (Fpath.to_string file ^ " " ^ args ^ " &"));
           go ()
         in

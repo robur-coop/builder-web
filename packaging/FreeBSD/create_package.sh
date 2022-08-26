@@ -35,8 +35,8 @@ install -U "$bdir/builder-migrations" "$sbindir/builder-migrations"
 install -U "$bdir/builder-db" "$sbindir/builder-db"
 
 # stage visualization scripts
-install -U "$basedir/packaging/batch-viz.sh" "$confdir/batch-viz.sh"
-install -U "$basedir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh"
+install -U "$basedir/packaging/batch-viz.sh" "$confdir/batch-viz.sh.sample"
+install -U "$basedir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh.sample"
 
 # example repo scripts
 install -U "$basedir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
