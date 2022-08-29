@@ -101,8 +101,8 @@ mv "${TMP}/usr" "${PKG_ROOT}"
 
 VERSION=$(jq -r '.version' "${MANIFEST}")
 # if we've a tagged version (1.5.0), append the number of commits and a dummy hash
-VERSION_GOOD=$(echo $VERSION | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+$')
-VERSION_WITH_COMMIT=$(echo $VERSION | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\.g[0-9a-fA-f]\+$')
+VERSION_GOOD=$(echo $VERSION | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+$') || true
+VERSION_WITH_COMMIT=$(echo $VERSION | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\.g[0-9a-fA-f]\+$') || true
 if [ $VERSION_GOOD -eq 0 -a $VERSION_WITH_COMMIT -eq 0 ]; then
     die "version does not conform to (MAJOR.MINOR.PATCH[.#NUM_COMMITS.g<HASH>])"
 fi
