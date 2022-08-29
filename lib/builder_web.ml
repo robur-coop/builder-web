@@ -470,7 +470,8 @@ let routes ~datadir ~cachedir ~configdir =
     Builder.Asn.exec_of_cs (Cstruct.of_string body) |> Lwt.return
     |> if_error ~status:`Bad_Request "Bad request"
       ~log:(fun e ->
-        Log.warn (fun m -> m "Received bad builder ASN.1: %a" pp_error e))
+          Log.warn (fun m -> m "Received bad builder ASN.1");
+          Log.debug (fun m -> m "Bad builder ASN.1: %a" pp_error e))
     >>= fun ((({ name ; _ } : Builder.script_job), uuid, _, _, _, _, _) as exec) ->
     Log.debug (fun m -> m "Received build %a" pp_exec exec);
     Authorization.authorized req name
