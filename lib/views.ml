@@ -809,6 +809,18 @@ let package_diffs diffs =
       ])
     diffs
 
+let duniverse_packages pkgs =
+  List.concat_map (fun p -> [
+        txtf "%a" Opamdiff.pp_duniverse_pkg p;
+        H.br ();
+      ]) pkgs
+
+let duniverse_diffs diffs =
+  List.concat_map (fun p -> [
+        txtf "%a" Opamdiff.pp_duniverse_diff p;
+        H.br ();
+      ]) diffs
+
 let opam_diffs diffs =
   List.concat_map (fun pd ->
       H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
@@ -848,7 +860,7 @@ let compare_builds
     ~(build_right : Builder_db.Build.t)
     ~env_diff:(added_env, removed_env, changed_env)
     ~pkg_diff:(added_pkgs, removed_pkgs, changed_pkgs)
-    ~opam_diff:(opam_diff, version_diff, left, right)
+    ~opam_diff:(opam_diff, version_diff, left, right, duniverse_version_diff, duniverse_left, duniverse_right)
   =
   layout
     ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
@@ -898,6 +910,21 @@ let compare_builds
                (List.length version_diff)]
         ];
         H.li [
+          H.a ~a:H.[a_href "#duniverse-packages-removed"]
+            [txtf "%d duniverse packages removed"
+               (List.length duniverse_left)]
+        ];
+        H.li [
+          H.a ~a:H.[a_href "#duniverse-packages-installed"]
+            [txtf "%d new duniverse packages installed"
+               (List.length duniverse_right)]
+        ];
+        H.li [
+          H.a ~a:H.[a_href "#duniverse-packages-version-diff"]
+            [txtf "%d duniverse packages with version changes"
+               (List.length duniverse_version_diff)]
+        ];
+        H.li [
           H.a ~a:H.[a_href "#opam-packages-opam-diff"]
             [txtf "%d opam packages with changes in their opam file"
                (List.length opam_diff)]
@@ -936,6 +963,15 @@ let compare_builds
       H.h3 ~a:H.[a_id "opam-packages-version-diff"]
         [H.txt "Opam packages with version changes"];
       H.code (package_diffs version_diff);
+      H.h3 ~a:H.[a_id "duniverse-packages-removed"]
+        [H.txt "Duniverse packages removed"];
+      H.code (duniverse_packages duniverse_left);
+      H.h3 ~a:H.[a_id "duniverse-packages-installed"]
+        [H.txt "New Duniverse packages installed"];
+      H.code (duniverse_packages duniverse_right);
+      H.h3 ~a:H.[a_id "duniverse-packages-version-diff"]
+        [H.txt "Duniverse packages with version changes"];
+      H.code (duniverse_diffs duniverse_version_diff);
       H.h3 ~a:H.[a_id "opam-packages-opam-diff"]
         [H.txt "Opam packages with changes in their opam file"]] @
       opam_diffs opam_diff @ [
