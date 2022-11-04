@@ -248,12 +248,25 @@ let infer_section_and_synopsis artifacts =
     | Some opam -> OpamFile.OPAM.synopsis opam, OpamFile.OPAM.descr_body opam
   in
   let infer_section switch root =
-    let root_pkg_name = OpamPackage.Name.to_string root.OpamPackage.name in
+    let root_pkg = root.OpamPackage.name in
+    let root_pkg_name = OpamPackage.Name.to_string root_pkg in
     if Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
-      let influx = OpamPackage.Name.of_string "metrics-influx" in
-      if OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
-           switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
-      then
+      let metrics_influx =
+        let influx = OpamPackage.Name.of_string "metrics-influx" in
+        OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
+          switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
+      in
+      let mirage_monitoring =
+        let monitoring = OpamPackage.Name.of_string "mirage-monitoring" in
+        match OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays with
+        | None -> false
+        | Some opam ->
+          let depends = OpamFile.OPAM.depends opam in
+          OpamFormula.fold_left (fun acc (n', _) ->
+              acc || OpamPackage.Name.equal n' monitoring)
+            false depends
+      in
+      if metrics_influx || mirage_monitoring then
         "Unikernels (with metrics reported to Influx)"
       else
         "Unikernels"
