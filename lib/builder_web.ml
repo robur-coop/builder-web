@@ -442,7 +442,7 @@ let routes ~datadir ~cachedir ~configdir =
     |> if_error "Error getting data"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting script or console data for build %a: %a"
                                   Uuidm.pp build pp_error e)) >>= fun data ->
-    let headers = [ "Content-Type", "text/plain" ] in
+    let headers = [ "Content-Type", "text/plain; charset=utf-8" ] in
     Dream.respond ~headers data |> Lwt_result.ok
   in
 
