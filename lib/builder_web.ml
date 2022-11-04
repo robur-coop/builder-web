@@ -46,16 +46,26 @@ let safe_seg path =
   else Fmt.kstr (fun s -> Error (`Msg s)) "unsafe path %S" path
 
 (* mime lookup with orb knowledge *)
+let append_charset = function
+  (* mime types from nginx:
+     http://nginx.org/en/docs/http/ngx_http_charset_module.html#charset_types *)
+  | "text/html" | "text/xml" | "text/plain" | "text/vnd.wap.wml"
+  | "application/javascript" | "application/rss+xml" | "application/atom+xml"
+  as content_type ->
+    content_type ^ "; charset=utf-8" (* default to utf-8 *)
+  | content_type -> content_type
+
 let mime_lookup path =
-  match Fpath.to_string path with
-  | "build-environment" | "opam-switch" | "system-packages" ->
-    "text/plain"
-  | _ ->
-    if Fpath.has_ext "build-hashes" path
-    then "text/plain"
-    else if Fpath.is_prefix Fpath.(v "bin/") path
-    then "application/octet-stream"
-    else Magic_mime.lookup (Fpath.to_string path)
+  append_charset
+    (match Fpath.to_string path with
+     | "build-environment" | "opam-switch" | "system-packages" ->
+       "text/plain"
+     | _ ->
+       if Fpath.has_ext "build-hashes" path
+       then "text/plain"
+       else if Fpath.is_prefix Fpath.(v "bin/") path
+       then "application/octet-stream"
+       else Magic_mime.lookup (Fpath.to_string path))
 
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
