@@ -79,7 +79,7 @@ let pp_duniverse_diff ppf { name ; urls ; hash } =
     (String.concat ", " (List.map (fun (h, l, r) ->
          OpamHash.string_of_kind h ^ " " ^ opt_hash l ^ "->" ^ opt_hash r) hash))
 
-let pp_duniverse_pkg ppf (dir, url) =
+let pp_duniverse_dir ppf (dir, url) =
   Format.fprintf ppf "%s (%s)" dir url
 
 let duniverse_diff l r =
@@ -105,14 +105,14 @@ let duniverse_diff l r =
         | Some l, Some r -> diff := (key, l, r) :: !diff; None)
       l r
   in
-  let pkg_only keys map =
+  let dir_only keys map =
     let only =
       M.filter (fun k _ -> List.mem k keys) map |> M.bindings
     in
     List.map (fun (key, (url, _)) -> key, url) only
   in
-  let l_only = pkg_only !keys_l_only l
-  and r_only = pkg_only !keys_r_only r
+  let l_only = dir_only !keys_l_only l
+  and r_only = dir_only !keys_r_only r
   and diff =
     List.map (fun (name, (url_l, hashes_l), (url_r, hashes_r)) ->
         let urls =
