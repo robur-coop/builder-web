@@ -8,6 +8,138 @@ let packages (switch : OpamFile.SwitchExport.t) =
   assert (Set.subset switch.selections.sel_roots switch.selections.sel_installed);
   switch.selections.sel_installed
 
+let duniverse_dir = "x-opam-monorepo-duniverse-dirs"
+
+module M = Map.Make(String)
+
+let duniverse_dirs_data =
+  (* the representation in the file is [ URL DIR [ HASH* ] ] *)
+  let open OpamParserTypes.FullPos in
+  let ( let* ) = Result.bind in
+  let string ~ctx = function
+    | { pelem = String s ; _ } -> Ok s
+    | _ -> Error (`Msg ("couldn't find a string " ^ ctx))
+  in
+  let extract_data = function
+    | { pelem = List { pelem = [ url ; dir ; hashes ] ; _ } ; _ } ->
+      let* url = string ~ctx:"url" url in
+      let* hashes =
+        match hashes with
+        | { pelem = List { pelem = hashes ; _ } ; _ } ->
+          List.fold_left (fun acc hash ->
+              let* acc = acc in
+              let* hash = string ~ctx:"hash" hash in
+              let* h = match OpamHash.of_string_opt hash with
+                | Some h -> Ok OpamHash.(kind h, contents h)
+                | None -> Error (`Msg ("couldn't decode opam hash in " ^ hash))
+              in
+              Ok (h :: acc))
+            (Ok []) hashes
+        | _ -> Error (`Msg "couldn't decode hashes")
+      in
+      let* dir = string ~ctx:"directory" dir in
+      Ok (url, dir, List.rev hashes)
+    | _ -> Error (`Msg "expected a string or identifier")
+  in
+  function
+  | { pelem = List { pelem = lbody ; _ } ; _ } ->
+    List.fold_left (fun acc v ->
+        let* acc = acc in
+        let* (url, dir, hashes) = extract_data v in
+        Ok (M.add dir (url, hashes) acc))
+      (Ok M.empty) lbody
+  | _ -> Error (`Msg "expected a list or a nested list")
+
+let duniverse (switch : OpamFile.SwitchExport.t) =
+  let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
+  if OpamPackage.Set.cardinal root = 1 then
+    let root = OpamPackage.Set.choose root in
+    Option.bind
+      OpamPackage.(Name.Map.find_opt root.name switch.OpamFile.SwitchExport.overlays)
+      (fun opam ->
+         match OpamFile.OPAM.extended opam duniverse_dir duniverse_dirs_data with
+         | None -> None
+         | Some Error _ -> None
+         | Some Ok v -> Some v)
+  else
+    None
+
+type duniverse_diff = {
+  name : string ;
+  urls : string * string option ;
+  hash : (OpamHash.kind * string option * string option) list ;
+}
+
+let pp_duniverse_diff ppf { name ; urls ; hash } =
+  let opt_hash = Option.value ~default:"NONE" in
+  Format.fprintf ppf "%s (%s%s) %s"
+    name
+    (fst urls)
+    (Option.fold ~none:"" ~some:(fun url -> "->" ^ url) (snd urls))
+    (String.concat ", " (List.map (fun (h, l, r) ->
+         OpamHash.string_of_kind h ^ " " ^ opt_hash l ^ "->" ^ opt_hash r) hash))
+
+let pp_duniverse_dir ppf (dir, url) =
+  Format.fprintf ppf "%s (%s)" dir url
+
+let duniverse_diff l r =
+  let l = Option.value l ~default:M.empty
+  and r = Option.value r ~default:M.empty
+  in
+  let keys_l_only = ref [] and keys_r_only = ref [] and diff = ref [] in
+  let equal_hashes l r =
+    (* l and r are lists of pairs, with the hash kind and its value *)
+    List.for_all (fun (h, v) ->
+        match List.assoc_opt h r with
+        | None -> true
+        | Some v' -> String.equal v v')
+      l
+  in
+  let _ =
+    M.merge (fun key l r ->
+        match l, r with
+        | None, Some _ -> keys_r_only := key :: !keys_r_only; None
+        | Some _, None -> keys_l_only := key :: !keys_l_only; None
+        | None, None -> None
+        | Some (_, l), Some (_, r) when equal_hashes l r -> None
+        | Some l, Some r -> diff := (key, l, r) :: !diff; None)
+      l r
+  in
+  let dir_only keys map =
+    let only =
+      M.filter (fun k _ -> List.mem k keys) map |> M.bindings
+    in
+    List.map (fun (key, (url, _)) -> key, url) only
+  in
+  let l_only = dir_only !keys_l_only l
+  and r_only = dir_only !keys_r_only r
+  and diff =
+    List.map (fun (name, (url_l, hashes_l), (url_r, hashes_r)) ->
+        let urls =
+          if String.equal url_l url_r then url_l, None else url_l, Some url_r
+        in
+        let hash =
+          List.fold_left (fun acc (h, v) ->
+              match List.assoc_opt h hashes_r with
+              | None -> (h, Some v, None) :: acc
+              | Some v' ->
+                if String.equal v v' then
+                  acc
+                else
+                  (h, Some v, Some v') :: acc)
+            [] hashes_l
+        in
+        let hash = List.fold_left (fun acc (h', v') ->
+            match List.assoc_opt h' hashes_l with
+            | None -> (h', None, Some v') :: acc
+            | Some _ -> acc)
+            hash hashes_r
+        in
+        { name ; urls ; hash })
+      !diff
+  in
+  l_only, r_only, diff
+
 type version_diff = {
   name : OpamPackage.Name.t;
   version_left : OpamPackage.Version.t;
@@ -126,4 +258,8 @@ let compare left right =
   and right_pkgs = diff packages_right packages_left
   in
   let opam_diff = detailed_opam_diffs left right opam_diff in
-  (opam_diff, version_diff, left_pkgs, right_pkgs)
+  let left_duniverse, right_duniverse, duniverse_diff =
+    duniverse_diff (duniverse left) (duniverse right)
+  in
+  (opam_diff, version_diff, left_pkgs, right_pkgs,
+   duniverse_diff, left_duniverse, right_duniverse)
