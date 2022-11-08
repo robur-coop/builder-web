@@ -864,10 +864,11 @@ let compare_builds
   =
   let items, data =
     List.fold_left (fun (items, data) (id, txt, amount, code) ->
+        let id_href = "#" ^ id in
         if amount = 0 then
           items, data
         else
-          H.li [ H.a ~a:[H.a_href id] [txtf "%d %s" amount txt] ] :: items,
+          H.li [ H.a ~a:[H.a_href id_href] [txtf "%d %s" amount txt] ] :: items,
           data @ H.h3 ~a:[H.a_id id] [H.txt txt] :: code)
       ([], [])
       [ ("opam-packages-removed", "Opam packages removed",
@@ -882,7 +883,7 @@ let compare_builds
          List.length duniverse_right, [ H.code (duniverse_dirs duniverse_right) ]) ;
         ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
          List.length duniverse_content_diff, [ H.code (duniverse_diffs duniverse_content_diff) ]) ;
-        ("#opam-packages-opam-diff", "Opam packages with changes in their opam file",
+        ("opam-packages-opam-diff", "Opam packages with changes in their opam file",
          List.length opam_diff, opam_diffs opam_diff) ;
         ("env-removed", "Environment variables removed",
          List.length removed_env, [ H.code (key_values removed_env) ]) ;
