@@ -876,11 +876,11 @@ let compare_builds
          OpamPackage.Set.cardinal right, [ H.code (packages right) ]) ;
         ("opam-packages-version-diff", "Opam packages with version changes",
          List.length version_diff, [ H.code (package_diffs version_diff) ]) ;
-        ("duniverse-packages-removed", "Duniverse packages removed",
+        ("duniverse-dirs-removed", "Duniverse directories removed",
          List.length duniverse_left, [ H.code (duniverse_dirs duniverse_left) ]) ;
-        ("duniverse-packages-installed", "New duniverse packages installed",
+        ("duniverse-dirs-installed", "New duniverse directories installed",
          List.length duniverse_right, [ H.code (duniverse_dirs duniverse_right) ]) ;
-        ("duniverse-packages-version-diff", "Duniverse packages with version changes",
+        ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
          List.length duniverse_content_diff, [ H.code (duniverse_diffs duniverse_content_diff) ]) ;
         ("#opam-packages-opam-diff", "Opam packages with changes in their opam file",
          List.length opam_diff, opam_diffs opam_diff) ;
