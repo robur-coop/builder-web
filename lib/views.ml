@@ -862,6 +862,43 @@ let compare_builds
     ~pkg_diff:(added_pkgs, removed_pkgs, changed_pkgs)
     ~opam_diff:(opam_diff, version_diff, left, right, duniverse_content_diff, duniverse_left, duniverse_right)
   =
+  let items, data =
+    List.fold_left (fun (items, data) (id, txt, amount, code) ->
+        let id_href = "#" ^ id in
+        if amount = 0 then
+          items, data
+        else
+          H.li [ H.a ~a:[H.a_href id_href] [txtf "%d %s" amount txt] ] :: items,
+          data @ H.h3 ~a:[H.a_id id] [H.txt txt] :: code)
+      ([], [])
+      [ ("opam-packages-removed", "Opam packages removed",
+         OpamPackage.Set.cardinal left, [ H.code (packages left) ]) ;
+        ("opam-packages-installede", "New opam packages installed",
+         OpamPackage.Set.cardinal right, [ H.code (packages right) ]) ;
+        ("opam-packages-version-diff", "Opam packages with version changes",
+         List.length version_diff, [ H.code (package_diffs version_diff) ]) ;
+        ("duniverse-dirs-removed", "Duniverse directories removed",
+         List.length duniverse_left, [ H.code (duniverse_dirs duniverse_left) ]) ;
+        ("duniverse-dirs-installed", "New duniverse directories installed",
+         List.length duniverse_right, [ H.code (duniverse_dirs duniverse_right) ]) ;
+        ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
+         List.length duniverse_content_diff, [ H.code (duniverse_diffs duniverse_content_diff) ]) ;
+        ("opam-packages-opam-diff", "Opam packages with changes in their opam file",
+         List.length opam_diff, opam_diffs opam_diff) ;
+        ("env-removed", "Environment variables removed",
+         List.length removed_env, [ H.code (key_values removed_env) ]) ;
+        ("env-added", "New environment variables added",
+         List.length added_env, [ H.code (key_values added_env) ]) ;
+        ("env-changed", "Environment variables changed",
+         List.length changed_env, [ H.code (key_value_changes changed_env) ]) ;
+        ("pkgs-removed", "System packages removed",
+         List.length removed_pkgs, [ H.code (key_values removed_pkgs) ]) ;
+        ("pkgs-added", "New system packages added",
+         List.length added_pkgs, [ H.code (key_values added_pkgs) ]) ;
+        ("pkgs-changed", "System packages changed",
+         List.length changed_pkgs, [ H.code (key_value_changes changed_pkgs) ]) ;
+      ]
+  in
   layout
     ~nav:(`Comparison ((job_left, build_left), (job_right, build_right)))
     ~title:(Fmt.str "Comparing builds %a and %a"
@@ -893,101 +930,7 @@ let compare_builds
             ~left:build_right.uuid
             ~right:build_left.uuid () ]
           [H.txt "Compare in reverse direction"]] ;
-      H.ul [
-        H.li [
-          H.a ~a:H.[a_href "#opam-packages-removed"]
-            [txtf "%d opam packages removed"
-               (OpamPackage.Set.cardinal left)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#opam-packages-installed"]
-            [txtf "%d new opam packages installed"
-               (OpamPackage.Set.cardinal right)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#opam-packages-version-diff"]
-            [txtf "%d opam packages with version changes"
-               (List.length version_diff)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#duniverse-packages-removed"]
-            [txtf "%d duniverse packages removed"
-               (List.length duniverse_left)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#duniverse-packages-installed"]
-            [txtf "%d new duniverse packages installed"
-               (List.length duniverse_right)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#duniverse-packages-version-diff"]
-            [txtf "%d duniverse packages with version changes"
-               (List.length duniverse_content_diff)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#opam-packages-opam-diff"]
-            [txtf "%d opam packages with changes in their opam file"
-               (List.length opam_diff)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#env-added"]
-            [ txtf "%d environment variables added" (List.length added_env)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#env-removed"]
-            [ txtf "%d environment variables removed" (List.length removed_env)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#env-changed"]
-            [ txtf "%d environment variables changed" (List.length changed_env)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#pkgs-added"]
-            [ txtf "%d system packages added" (List.length added_pkgs)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#pkgs-removed"]
-            [ txtf "%d system packages removed" (List.length removed_pkgs)]
-        ];
-        H.li [
-          H.a ~a:H.[a_href "#pkgs-changed"]
-            [ txtf "%d system packages changed" (List.length changed_pkgs)]
-        ];
-      ];
-      H.h3 ~a:H.[a_id "opam-packages-removed"]
-        [H.txt "Opam packages removed"];
-      H.code (packages left);
-      H.h3 ~a:H.[a_id "opam-packages-installed"]
-        [H.txt "New opam packages installed"];
-      H.code (packages right);
-      H.h3 ~a:H.[a_id "opam-packages-version-diff"]
-        [H.txt "Opam packages with version changes"];
-      H.code (package_diffs version_diff);
-      H.h3 ~a:H.[a_id "duniverse-dirs-removed"]
-        [H.txt "Duniverse directories removed"];
-      H.code (duniverse_dirs duniverse_left);
-      H.h3 ~a:H.[a_id "duniverse-dirs-installed"]
-        [H.txt "New Duniverse directories installed"];
-      H.code (duniverse_dirs duniverse_right);
-      H.h3 ~a:H.[a_id "duniverse-dirs-version-diff"]
-        [H.txt "Duniverse directories with content changes"];
-      H.code (duniverse_diffs duniverse_content_diff);
-      H.h3 ~a:H.[a_id "opam-packages-opam-diff"]
-        [H.txt "Opam packages with changes in their opam file"]] @
-      opam_diffs opam_diff @ [
-        H.h3 ~a:H.[a_id "env-added"] [H.txt "Environment variables added"];
-        H.code (key_values added_env);
-        H.h3 ~a:H.[a_id "env-removed"] [H.txt "Environment variables removed"];
-        H.code (key_values removed_env);
-        H.h3 ~a:H.[a_id "env-changed"] [H.txt "Environment variables changed"];
-        H.code (key_value_changes changed_env);
-        H.h3 ~a:H.[a_id "pkgs-added"] [H.txt "System packages added"];
-        H.code (key_values added_pkgs);
-        H.h3 ~a:H.[a_id "pkgs-removed"] [H.txt "System packages removed"];
-        H.code (key_values removed_pkgs);
-        H.h3 ~a:H.[a_id "pkgs-changed"] [H.txt "System packages changed"];
-        H.code (key_value_changes changed_pkgs);
-      ])
+      H.ul (List.rev items) ] @ data)
 
 let failed_builds ~start ~count builds =
   let build (job_name, build) =
