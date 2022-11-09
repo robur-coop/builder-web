@@ -943,15 +943,22 @@ let failed_builds ~start ~count builds =
     ]
   in
   layout ~title:"Failed builds"
-    ([
-      H.h1 [H.txt "Failed builds"];
-      H.ul (List.map build builds);
-      H.p [ txtf "View the next %d failed builds " count;
-            H.a ~a:H.[
-                a_href @@ Link.Failed_builds.make
-                  ~count ~start:(start + count) () ]
-              [ H.txt "here"];
-            H.txt ".";
-          ]
-    ])
+    (match builds with
+     | [] ->
+       [
+         H.h1 [H.txt "No failed builds to list"];
+         H.p [H.txt "🥳"];
+       ]
+     | _ :: _ ->
+       [
+         H.h1 [H.txt "Failed builds"];
+         H.ul (List.map build builds);
+         H.p [ txtf "View the next %d failed builds " count;
+               H.a ~a:H.[
+                   a_href @@ Link.Failed_builds.make
+                     ~count ~start:(start + count) () ]
+                 [ H.txt "here"];
+               H.txt ".";
+             ]
+       ])
 
