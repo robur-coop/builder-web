@@ -30,10 +30,15 @@ usage()
 {
     cat <<EOM 1>&2
 usage: ${prog_NAME} [ OPTIONS ]
-Starts up performance-test for supported jobs, and updates a plot of this.
+Starts up a performance-test if job is supported and the binary has not been tested before.
+In the end a new histogram-plot is generated containing all the results over time.
 Options:
     --uuid=STRING
         UUID of build.
+    --job=STRING
+        The job name of the build.
+    --sha256=STRING
+        The SHA256 hash of the main binary.
     --data-dir=STRING
         Path to the data directory.
     --cache-dir=STRING
