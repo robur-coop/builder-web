@@ -64,7 +64,7 @@ set terminal png size $DIMS
 set output '$OUT_IMG'
 set title 'Concurrent'
 set style data histograms
-plot '$DAT' using 4:xtic(1)
+plot '$DAT' using 3:xtic(1)
 EOF
 
 rm "$DAT"
