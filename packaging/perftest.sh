@@ -112,7 +112,7 @@ case "${JOB},${BIN_EXT}" in
         "$PERFSCRIPT_DIR"/plot.sh "$PERFDATA_DIR"
         ;;
     *)
-        info "Job '${JOB}' compiled to '${BIN_EXT}' target doesn't support performance-testing"
+        info "Job '${JOB}' compiled to the '${BIN_EXT}'-target doesn't support performance-testing"
         ;;
 esac
 
