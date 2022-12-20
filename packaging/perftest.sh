@@ -100,16 +100,17 @@ PERFDATA_DIR="$DATA_DIR/_performance/$JOB/$BIN_SHA256"
 PERFSCRIPT_DIR="$DATA_DIR/_performance/$JOB"
 #< goto think if this dir makes the most sense
 
+SERVER="not-defined"
+#< goto set test-server ip somewhere - environment variable, or manually set here?
+
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
         if [ -d "$PERFDATA_DIR" ]; then
             info "$PERFDATA_DIR already exists, exiting"
             exit 0
         fi;
-        #> goto pass [ server-ip; ]
-        "$PERFSCRIPT_DIR"/run-test.sh "$PERFDATA_DIR"
-        #> goto pass [ cache-dir; ]
-        "$PERFSCRIPT_DIR"/plot.sh "$PERFDATA_DIR"
+        "$PERFSCRIPT_DIR"/run-test.sh "$PERFDATA_DIR" "$PERFSCRIPT_DIR" "$SERVER" "$BIN" 
+        "$PERFSCRIPT_DIR"/plot.sh "$PERFDATA_DIR" "$CACHE_DIR" "$DB"
         ;;
     *)
         info "Job '${JOB}' compiled to the '${BIN_EXT}'-target doesn't support performance-testing"
