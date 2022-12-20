@@ -96,9 +96,21 @@ BIN_EXT=$(echo "$BIN_REL" | sed 's/.*\.\(.*\)/\1/')
 
 DB="${DATA_DIR}/builder.sqlite3"
 
-PERFDATA_DIR="$DATA_DIR/_performance/$JOB/$BIN_SHA256"
-PERFSCRIPT_DIR="$DATA_DIR/_performance/$JOB"
+DB="${DATA_DIR}/builder.sqlite3"
+[ ! -e "$DB" ] && die "The database doesn't exist: '$DB'"
+
+DB_VERSION="$(sqlite3 "$DB" "PRAGMA user_version;")"
+[ -z "$DB_VERSION" ] && die "Couldn't read database version from '$DB'"
+[ "$DB_VERSION" -lt 16 ] && die "The database version should be >= 16. It is '$DB_VERSION'"
+
+APP_ID="$(sqlite3 "$DB" "PRAGMA application_id;")"
+[ -z "$APP_ID" ] && die "Couldn't read application-id from '$DB'"
+[ "$APP_ID" -ne 1234839235 ] && die "The application-id should be = 1234839235. It is '$APP_ID'"
+
+PERFJOB_DIR="$DATA_DIR/_performance/$JOB"
+PERFSCRIPT_DIR="$PERFJOB_DIR"
 #< goto think if this dir makes the most sense
+PERFDATA_DIR="$PERFJOB_DIR/$BIN_SHA256"
 
 SERVER="not-defined"
 #< goto set test-server ip somewhere - environment variable, or manually set here?
@@ -109,8 +121,8 @@ case "${JOB},${BIN_EXT}" in
             info "$PERFDATA_DIR already exists, exiting"
             exit 0
         fi;
-        "$PERFSCRIPT_DIR"/run-test.sh "$PERFDATA_DIR" "$PERFSCRIPT_DIR" "$SERVER" "$BIN" 
-        "$PERFSCRIPT_DIR"/plot.sh "$PERFDATA_DIR" "$CACHE_DIR" "$DB"
+        "$PERFSCRIPT_DIR"/run-test.sh "$PERFDATA_DIR" "$PERFJOB_DIR" "$SERVER" "$BIN" 
+        "$PERFSCRIPT_DIR"/plot.sh "$PERFJOB_DIR" "$CACHE_DIR" "$DB" "$JOB" "$UUID"
         ;;
     *)
         info "Job '${JOB}' compiled to the '${BIN_EXT}'-target doesn't support performance-testing"
