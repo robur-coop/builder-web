@@ -35,6 +35,11 @@ while read UUID; do
     BIN_SHA256=$(get_bin_hash "$UUID")
     CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege.csv"
 
+    if [ ! -f "$CSV" ]; then
+        echo "Skipping build with uuid '$UUID'. Test-data doesn't exist: '$CSV'"
+        continue
+    fi
+    
     if [ $N = 1 ]; then
         echo -n "# Build UUID - "
         echo $(cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
