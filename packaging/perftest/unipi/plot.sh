@@ -35,19 +35,22 @@ while read UUID; do
     BIN_SHA256=$(get_bin_hash "$UUID")
     CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege.csv"
 
-    #goto prefix uuid title
     if [ $N = 1 ]; then
-        echo \# $(cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
-                      | sed 's/,//g' \
-                      | sed 's/ \+//' \
-                      | sed 's/\(  \+\)/ -\1/g' \
-             ) > "$DAT"
+        echo -n "# Build UUID - "
+        echo $(cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
+                   | sed 's/,//g' \
+                   | sed 's/ \+//' \
+                   | sed 's/\(  \+\)/ -\1/g' \
+            ) > "$DAT"
     fi
 
-    #goto prefix uuid data
+    #goto validate csv file, and on invalid: append error-data instead 
+    
+    echo -n "$UUID      " >> "$DAT"
     cat "$CSV" | tail +2 | cut -d, -f"$COLS" \
         | sed 's/,//g' \
         | sed 's/ \+//' >> "$DAT"
+    
     N=$(($N + 1))
 
 done < <(get_jobs_build-uuids)
