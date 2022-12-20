@@ -67,7 +67,7 @@ OUT_IMG="${CACHE_DIR}/perf/${JOB}/${PLOT_NAME}_${PLOT_VERSION}/${LATEST_UUID}.pn
 gnuplot <<EOF
 set terminal png size $DIMS
 set output '$OUT_IMG'
-set title 'Concurrent'
+set title '$PLOT_NAME'
 set style data histograms
 plot '$DAT' using 3:xtic(1)
 EOF
