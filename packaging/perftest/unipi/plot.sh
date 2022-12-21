@@ -42,11 +42,11 @@ while read UUID; do
     
     if [ $N = 1 ]; then
         echo -n "# Build UUID - "
-        echo $(cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
-                   | sed 's/,//g' \
-                   | sed 's/ \+//' \
-                   | sed 's/\(  \+\)/ -\1/g' \
-            ) > "$DAT"
+        cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
+            | sed 's/,//g' \
+            | sed 's/ \+//' \
+            | sed 's/\(  \+\)/ -\1/g' \
+                  > "$DAT"
     fi
 
     #goto validate csv file, and on invalid: append error-data instead 
@@ -54,7 +54,8 @@ while read UUID; do
     echo -n "$UUID      " >> "$DAT"
     cat "$CSV" | tail +2 | cut -d, -f"$COLS" \
         | sed 's/,//g' \
-        | sed 's/ \+//' >> "$DAT"
+        | sed 's/ \+//' \
+              >> "$DAT"
     
     N=$(($N + 1))
 
