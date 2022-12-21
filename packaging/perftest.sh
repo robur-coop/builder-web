@@ -112,16 +112,18 @@ PERFSCRIPT_DIR="$PERFJOB_DIR"
 #< goto think if this dir makes the most sense
 PERFDATA_DIR="$PERFJOB_DIR/$BIN_SHA256"
 
+if [ -d "$PERFDATA_DIR" ]; then
+    info "$PERFDATA_DIR already exists, exiting"
+    exit 0
+fi;
+#< goto maybe add a 'force' param to rerun test + regenerate plot
+
 SERVER="not-defined"
 #< goto set test-server ip somewhere - environment variable, or manually set here?
 
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
-        if [ -d "$PERFDATA_DIR" ]; then
-            info "$PERFDATA_DIR already exists, exiting"
-            exit 0
-        fi;
-        "$PERFSCRIPT_DIR"/run-test.sh "$PERFDATA_DIR" "$PERFJOB_DIR" "$SERVER" "$BIN" 
+        "$PERFSCRIPT_DIR"/run-test.sh "$PERFJOB_DIR" "$PERFDATA_DIR" "$BIN" "$SERVER"
         "$PERFSCRIPT_DIR"/plot.sh "$PERFJOB_DIR" "$CACHE_DIR" "$DB" "$JOB" "$UUID"
         ;;
     *)
