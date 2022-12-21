@@ -118,12 +118,15 @@ if [ -d "$PERFDATA_DIR" ]; then
 fi;
 #< goto maybe add a 'force' param to rerun test + regenerate plot
 
-SERVER="not-defined"
+SERVER="undefined"
 #< goto set test-server ip somewhere - environment variable, or manually set here?
+#< goto currently 'run-test.sh' depends on this containing user + test-dir too
+SERVER_DIR="undefined"
+#< goto choose a working-dir for running test
 
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
-        "$PERFSCRIPT_DIR"/run-test.sh "$PERFJOB_DIR" "$PERFDATA_DIR" "$BIN" "$SERVER"
+        "$PERFSCRIPT_DIR"/run-test-on-vm.sh "$PERFSCRIPT_DIR" "$PERFDATA_DIR" "$BIN" "$SERVER" "$SERVER_DIR"
         "$PERFSCRIPT_DIR"/plot.sh "$PERFJOB_DIR" "$CACHE_DIR" "$DB" "$JOB" "$UUID"
         ;;
     *)
