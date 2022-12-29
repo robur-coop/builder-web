@@ -249,8 +249,15 @@ let infer_section_and_synopsis artifacts =
   in
   let infer_section switch root =
     let root_pkg = root.OpamPackage.name in
+    let is_unikernel =
+      (* since mirage 4.2.0, the x-mirage-opam-lock-location is emitted *)
+      Option.value ~default:false
+        (Option.map (fun opam ->
+             OpamFile.OPAM.extended opam "x-mirage-opam-lock-location" Option.is_some)
+            (OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays))
+    in
     let root_pkg_name = OpamPackage.Name.to_string root_pkg in
-    if Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
+    if is_unikernel || Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
       let metrics_influx =
         let influx = OpamPackage.Name.of_string "metrics-influx" in
         OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
