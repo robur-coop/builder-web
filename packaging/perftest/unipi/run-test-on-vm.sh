@@ -41,17 +41,17 @@ scp "$PERFSCRIPT_DIR"/run-test.sh "$SERVER_W_DIR"
 scp "$PERFSCRIPT_DIR"/cleanup.sh "$SERVER_W_DIR"
 
 info initializing context for unikernel
-"$SSH" ./init.sh
+"$SSH" "$PERFSCRIPT_DIR"/init.sh
 
 info running unikernel in background
-"$SSH" ./run-unikernel.sh &
+"$SSH" "$PERFSCRIPT_DIR"/run-unikernel.sh &
 UNIKERNEL_PID=$!
 
 info sleeping a bit before test
 sleep 5
 
 info running test
-"$SSH" ./run-test.sh
+"$SSH" "$PERFSCRIPT_DIR"/run-test.sh
 
 info killing unikernel
 kill "$UNIKERNEL_PID"
@@ -60,7 +60,7 @@ info copying results to "$PERFDATA_DIR"
 scp "${SERVER_W_DIR}/results/*" "$PERFDATA_DIR"
 
 info running cleanup
-"$SSH" ./cleanup.sh
+"$SSH" "$PERFSCRIPT_DIR"/cleanup.sh
 
 info done
 
