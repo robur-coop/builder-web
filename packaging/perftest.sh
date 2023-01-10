@@ -3,6 +3,8 @@
 set -e
 #set -x
 
+CONF_DIR=$(dirname "${0}")
+
 prog_NAME=$(basename "${0}")
 
 warn()
@@ -107,9 +109,8 @@ APP_ID="$(sqlite3 "$DB" "PRAGMA application_id;")"
 [ -z "$APP_ID" ] && die "Couldn't read application-id from '$DB'"
 [ "$APP_ID" -ne 1234839235 ] && die "The application-id should be = 1234839235. It is '$APP_ID'"
 
-PERFJOB_DIR="$DATA_DIR/_performance/$JOB"
-PERFSCRIPT_DIR="$PERFJOB_DIR"
-#< goto think if this dir makes the most sense
+PERFJOB_DIR="$DATA_DIR/_perftest/$JOB"
+PERFSCRIPT_DIR="$CONF_DIR/perftest/$JOB"
 PERFDATA_DIR="$PERFJOB_DIR/$BIN_SHA256"
 
 if [ -d "$PERFDATA_DIR" ]; then
@@ -126,7 +127,7 @@ SERVER_DIR="undefined"
 
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
-        "$PERFSCRIPT_DIR"/run-test-on-vm.sh "$PERFSCRIPT_DIR" "$PERFDATA_DIR" "$BIN" "$SERVER" "$SERVER_DIR"
+        "$PERFSCRIPT_DIR"/run-test-remotely.sh "$PERFSCRIPT_DIR"/remote "$PERFDATA_DIR" "$BIN" "$SERVER" "$SERVER_DIR"
         "$PERFSCRIPT_DIR"/plot.sh "$PERFJOB_DIR" "$CACHE_DIR" "$DB" "$JOB" "$UUID"
         ;;
     *)

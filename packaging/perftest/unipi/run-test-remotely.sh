@@ -35,13 +35,11 @@ SERVER_W_DIR="$SERVER:$SERVER_DIR"
 SSH="ssh $SERVER"
 
 scp "$BIN" "$SERVER_W_DIR"
-scp "$PERFSCRIPT_DIR"/init.sh "$SERVER_W_DIR"
-scp "$PERFSCRIPT_DIR"/run-unikernel.sh "$SERVER_W_DIR"
-scp "$PERFSCRIPT_DIR"/run-test.sh "$SERVER_W_DIR"
-scp "$PERFSCRIPT_DIR"/cleanup.sh "$SERVER_W_DIR"
+scp -r "$PERFSCRIPT_DIR"/* "$SERVER_W_DIR"
 
 info initializing context for unikernel
-"$SSH" "$PERFSCRIPT_DIR"/init.sh
+"$SSH" "$PERFSCRIPT_DIR"/init.sh &
+INIT_PID=$!
 
 info running unikernel in background
 "$SSH" "$PERFSCRIPT_DIR"/run-unikernel.sh &
@@ -55,6 +53,9 @@ info running test
 
 info killing unikernel
 kill "$UNIKERNEL_PID"
+
+info killing init-daemon
+kill "$INIT_PID"
 
 info copying results to "$PERFDATA_DIR"
 scp "${SERVER_W_DIR}/results/*" "$PERFDATA_DIR"
