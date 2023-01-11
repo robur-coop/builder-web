@@ -17,7 +17,7 @@ DAT="${PERFJOB_DIR}/tmp.dat"
 get_jobs_build-uuids () {
     sqlite3 "$DB" "select b.uuid from build as b \
         join job as j on j.id = b.job\
-        where j.name = 'albatross' \
+        where j.name = '$JOB' \
         order by b.id asc"
 }
 
@@ -33,7 +33,7 @@ N=0
 while read UUID; do
 
     BIN_SHA256=$(get_bin_hash "$UUID")
-    CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege.csv"
+    CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege_test01.csv"
 
     if [ ! -f "$CSV" ]; then
         echo "Skipping build with uuid '$UUID'. Test-data doesn't exist: '$CSV'"
@@ -63,9 +63,13 @@ done < <(get_jobs_build-uuids)
 
 PLOT_VERSION=1
 PLOT_NAME=throughput
-OUT_IMG="${CACHE_DIR}/perf/${JOB}/${PLOT_NAME}_${PLOT_VERSION}/${LATEST_UUID}.png"
+OUT_DIR="${CACHE_DIR}/perftest/${JOB}/${PLOT_NAME}_${PLOT_VERSION}"
+if [ ! -e "$OUT_DIR" ]; then
+    mkdir -p "$OUT_DIR"
+fi
+OUT_IMG="${OUT_DIR}/${LATEST_UUID}.png"
 
-gnuplot <<EOF
+gnuplot >"$OUT_IMG" <<EOF
 set terminal png size $DIMS
 set output '$OUT_IMG'
 set title '$PLOT_NAME'

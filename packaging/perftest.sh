@@ -3,7 +3,8 @@
 set -e
 #set -x
 
-CONF_DIR=$(dirname "${0}")
+#> Note: this script lies within <conf-dir>/upload_hooks
+CONF_DIR="$(dirname "${0}")"/..
 
 prog_NAME=$(basename "${0}")
 
@@ -55,7 +56,7 @@ BIN_SHA256=
 CACHE_DIR=
 DATA_DIR=
 
-while [ $# -gt 0 ]; do
+while [ $# -gt 1 ]; do
     OPT="$1"
 
     case "${OPT}" in
@@ -119,10 +120,10 @@ if [ -d "$PERFDATA_DIR" ]; then
 fi;
 #< goto maybe add a 'force' param to rerun test + regenerate plot
 
-SERVER="undefined"
+SERVER="starand"
 #< goto set test-server ip somewhere - environment variable, or manually set here?
 #< goto currently 'run-test.sh' depends on this containing user + test-dir too
-SERVER_DIR="undefined"
+SERVER_DIR="0tmp/robur_perftest"
 #< goto choose a working-dir for running test
 
 case "${JOB},${BIN_EXT}" in

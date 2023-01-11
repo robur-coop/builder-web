@@ -37,31 +37,37 @@ SSH="ssh $SERVER"
 scp "$BIN" "$SERVER_W_DIR"
 scp -r "$PERFSCRIPT_DIR"/* "$SERVER_W_DIR"
 
+#> goto problem: backgrounding a task make it not fail this script :/
 info initializing context for unikernel
-"$SSH" "$PERFSCRIPT_DIR"/init.sh &
+$SSH "cd $SERVER_DIR; ./init.sh" &
 INIT_PID=$!
 
 info running unikernel in background
-"$SSH" "$PERFSCRIPT_DIR"/run-unikernel.sh &
+$SSH "cd $SERVER_DIR; ./run-unikernel.sh" &
 UNIKERNEL_PID=$!
 
 info sleeping a bit before test
 sleep 5
 
 info running test
-"$SSH" "$PERFSCRIPT_DIR"/run-test.sh
+$SSH "cd $SERVER_DIR; ./run-test.sh"
 
 info killing unikernel
-kill "$UNIKERNEL_PID"
+$SSH "cd $SERVER_DIR; kill "'$(cat run-unikernel.sh.PID)' || echo "couldn't kill: unikernel not running"
+#kill "$UNIKERNEL_PID"
 
 info killing init-daemon
-kill "$INIT_PID"
+$SSH "cd $SERVER_DIR; kill "'$(cat init.sh.PID)' || echo "couldn't kill: git daemon not running"
+#kill "$INIT_PID"
 
 info copying results to "$PERFDATA_DIR"
-scp "${SERVER_W_DIR}/results/*" "$PERFDATA_DIR"
+if [ ! -e "$PERFDATA_DIR" ]; then
+    mkdir -p "$PERFDATA_DIR"
+fi
+scp "${SERVER_W_DIR}/output/*" "$PERFDATA_DIR"/
 
 info running cleanup
-"$SSH" "$PERFSCRIPT_DIR"/cleanup.sh
+$SSH "cd $SERVER_DIR; ./cleanup.sh"
 
 info done
 
