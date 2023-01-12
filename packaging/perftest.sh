@@ -92,6 +92,11 @@ BIN_REL="$1"
 [ -z "${BIN_REL}" ] && \
     die "The main binarys localpath must be given as the first positional argument"
 
+# >>> CONFIGURE PER SYSTEM
+SERVER="starand"
+SERVER_DIR="0tmp/robur_perftest"
+# <<< --------------------
+
 info "processing UUID '$UUID'"
 
 BIN="${DATA_DIR}/$BIN_REL" 
@@ -119,12 +124,6 @@ if [ -d "$PERFDATA_DIR" ]; then
     exit 0
 fi;
 #< goto maybe add a 'force' param to rerun test + regenerate plot
-
-SERVER="starand"
-#< goto set test-server ip somewhere - environment variable, or manually set here?
-#< goto currently 'run-test.sh' depends on this containing user + test-dir too
-SERVER_DIR="0tmp/robur_perftest"
-#< goto choose a working-dir for running test
 
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
