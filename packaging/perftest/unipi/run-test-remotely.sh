@@ -40,11 +40,9 @@ scp -r "$PERFSCRIPT_DIR"/* "$SERVER_W_DIR"
 #> goto problem: backgrounding a task make it not fail this script :/
 info initializing context for unikernel
 $SSH "cd $SERVER_DIR; ./init.sh" &
-INIT_PID=$!
 
 info running unikernel in background
 $SSH "cd $SERVER_DIR; ./run-unikernel.sh" &
-UNIKERNEL_PID=$!
 
 info sleeping a bit before test
 sleep 5
@@ -54,11 +52,9 @@ $SSH "cd $SERVER_DIR; ./run-test.sh"
 
 info killing unikernel
 $SSH "cd $SERVER_DIR; kill "'$(cat run-unikernel.sh.PID)' || echo "couldn't kill: unikernel not running"
-#kill "$UNIKERNEL_PID"
 
 info killing init-daemon
 $SSH "cd $SERVER_DIR; kill "'$(cat init.sh.PID)' || echo "couldn't kill: git daemon not running"
-#kill "$INIT_PID"
 
 info copying results to "$PERFDATA_DIR"
 if [ ! -e "$PERFDATA_DIR" ]; then

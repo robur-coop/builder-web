@@ -30,7 +30,7 @@ get_bin_hash () {
 
 N=0
 
-while read UUID; do
+while read -r UUID; do
 
     BIN_SHA256=$(get_bin_hash "$UUID")
     CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege_test01.csv"
