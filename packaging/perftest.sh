@@ -88,9 +88,10 @@ done
 [ -z "${CACHE_DIR}" ] && die "The --cache-dir option must be specified"
 [ -z "${DATA_DIR}" ] && die "The --data-dir option must be specified"
 
-BIN_REL="$1"
-[ -z "${BIN_REL}" ] && \
+BIN="$1"
+[ -z "${BIN}" ] && \
     die "The main binarys localpath must be given as the first positional argument"
+BIN_EXT=$(echo "$BIN" | sed 's/.*\.\(.*\)/\1/')
 
 # >>> CONFIGURE PER SYSTEM
 SERVER="starand"
@@ -98,9 +99,6 @@ SERVER_DIR="0tmp/robur_perftest"
 # <<< --------------------
 
 info "processing UUID '$UUID'"
-
-BIN="${DATA_DIR}/$BIN_REL" 
-BIN_EXT=$(echo "$BIN_REL" | sed 's/.*\.\(.*\)/\1/')
 
 DB="${DATA_DIR}/builder.sqlite3"
 

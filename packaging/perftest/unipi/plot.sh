@@ -2,6 +2,29 @@
 
 set -e
 
+prog_NAME=$(basename "${0}")
+
+warn()
+{
+    echo "${prog_NAME}: WARN: $*"
+}
+
+info()
+{
+    echo "${prog_NAME}: INFO: $*"
+}
+
+err()
+{
+    echo "${prog_NAME}: ERROR: $*" 1>&2
+}
+
+die()
+{
+    echo "${prog_NAME}: ERROR: $*" 1>&2
+    exit 1
+}
+
 PERFJOB_DIR="$1"
 CACHE_DIR="$2"
 DB="$3"
@@ -14,11 +37,12 @@ COLS=5,7,8 #resp-time, throughput, concurrent
 
 DAT="${PERFJOB_DIR}/tmp.dat"
 
+#> Note: ordering desc for plot ordering left->right
 get_jobs_build-uuids () {
     sqlite3 "$DB" "select b.uuid from build as b \
         join job as j on j.id = b.job\
         where j.name = '$JOB' \
-        order by b.id asc"
+        order by b.id desc"
 }
 
 get_bin_hash () {
@@ -36,20 +60,22 @@ while read -r UUID; do
     CSV="${PERFJOB_DIR}/${BIN_SHA256}/siege_test01.csv"
 
     if [ ! -f "$CSV" ]; then
-        echo "Skipping build with uuid '$UUID'. Test-data doesn't exist: '$CSV'"
+        info "Skipping build with uuid '$UUID'. Test-data doesn't exist: '$CSV'"
         continue
     fi
     
-    if [ $N = 1 ]; then
-        echo -n "# Build UUID - "
+    if [ $N = 0 ]; then
+        echo -n "# Build UUID - " > "$DAT"
         cat "$CSV" | head -n1 | cut -d, -f"$COLS" \
             | sed 's/,//g' \
             | sed 's/ \+//' \
             | sed 's/\(  \+\)/ -\1/g' \
-                  > "$DAT"
+                  >> "$DAT"
     fi
 
-    #goto validate csv file, and on invalid: append error-data instead 
+    #goto validate csv file, and on invalid: append error-data instead
+
+    info appending line from "$CSV" of uuid "$UUID"
     
     echo -n "$UUID      " >> "$DAT"
     cat "$CSV" | tail +2 | cut -d, -f"$COLS" \
@@ -77,4 +103,4 @@ set style data histograms
 plot '$DAT' using 3:xtic(1)
 EOF
 
-rm "$DAT"
+#rm "$DAT"
