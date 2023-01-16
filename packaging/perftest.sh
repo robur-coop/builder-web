@@ -32,7 +32,7 @@ die()
 usage()
 {
     cat <<EOM 1>&2
-usage: ${prog_NAME} [ OPTIONS ]
+usage: ${prog_NAME} [ OPTIONS ] <main_binary_localpath>
 Starts up a performance-test if job is supported and the binary has not been tested before.
 In the end a new histogram-plot is generated containing all the results over time.
 Options:
@@ -99,8 +99,6 @@ SERVER_DIR="0tmp/robur_perftest"
 # <<< --------------------
 
 info "processing UUID '$UUID'"
-
-DB="${DATA_DIR}/builder.sqlite3"
 
 DB="${DATA_DIR}/builder.sqlite3"
 [ ! -e "$DB" ] && die "The database doesn't exist: '$DB'"
