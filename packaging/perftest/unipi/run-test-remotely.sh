@@ -37,9 +37,27 @@ SSH="ssh $SERVER"
 scp "$BIN" "$SERVER_W_DIR"
 scp -r "$PERFSCRIPT_DIR"/* "$SERVER_W_DIR"
 
-#> goto problem: backgrounding a task make it not fail this script :/
+cleanup () {
+    info killing unikernel
+    $SSH "cd $SERVER_DIR; kill "'$(cat run-unikernel.sh.PID)' || info .. unikernel not running
+
+    info killing git daemon
+    $SSH "cd $SERVER_DIR; kill "'$(cat init.sh.PID)' || info .. git daemon not running
+
+    info running cleanup.sh
+    $SSH "cd $SERVER_DIR; ./cleanup.sh"
+}
+
+trap cleanup EXIT
+
 info initializing context for unikernel
 $SSH "cd $SERVER_DIR; ./init.sh" &
+
+info sleeping before starting unipi
+sleep 5
+
+info checking if git daemon is still running
+$SSH "cd $SERVER_DIR; kill -0 "'$(cat init.sh.PID)' 
 
 info running unikernel in background
 $SSH "cd $SERVER_DIR; ./run-unikernel.sh" &
@@ -47,14 +65,11 @@ $SSH "cd $SERVER_DIR; ./run-unikernel.sh" &
 info sleeping a bit before test
 sleep 5
 
+info checking if unikernel is still running
+$SSH "cd $SERVER_DIR; kill -0 "'$(cat run-unikernel.sh.PID)'
+
 info running test
 $SSH "cd $SERVER_DIR; ./run-test.sh"
-
-info killing unikernel
-$SSH "cd $SERVER_DIR; kill "'$(cat run-unikernel.sh.PID)' || echo "couldn't kill: unikernel not running"
-
-info killing init-daemon
-$SSH "cd $SERVER_DIR; kill "'$(cat init.sh.PID)' || echo "couldn't kill: git daemon not running"
 
 info copying results to "$PERFDATA_DIR"
 if [ ! -e "$PERFDATA_DIR" ]; then
@@ -62,9 +77,6 @@ if [ ! -e "$PERFDATA_DIR" ]; then
 fi
 scp "${SERVER_W_DIR}/output/*" "$PERFDATA_DIR"/
 
-info running cleanup
-$SSH "cd $SERVER_DIR; ./cleanup.sh"
-
-info done
+info successfully run test
 
 
