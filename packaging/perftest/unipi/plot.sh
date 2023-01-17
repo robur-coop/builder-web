@@ -76,8 +76,9 @@ while read -r UUID; do
     #goto validate csv file, and on invalid: append error-data instead
 
     info appending line from "$CSV" of uuid "$UUID"
+    UUID_CUT=$(echo "$UUID" | cut -d- -f1)
     
-    echo -n "$UUID      " >> "$DAT"
+    echo -n "$UUID_CUT      " >> "$DAT"
     cat "$CSV" | tail +2 | cut -d, -f"$COLS" \
         | sed 's/,//g' \
         | sed 's/ \+//' \
@@ -88,19 +89,25 @@ while read -r UUID; do
 done < <(get_jobs_build-uuids)
 
 PLOT_VERSION=1
-PLOT_NAME=throughput
+PLOT_NAME="Throughput for 30 concurrent threads"
 OUT_DIR="${CACHE_DIR}/perftest/${JOB}/${PLOT_NAME}_${PLOT_VERSION}"
 if [ ! -e "$OUT_DIR" ]; then
     mkdir -p "$OUT_DIR"
 fi
 OUT_IMG="${OUT_DIR}/${LATEST_UUID}.png"
 
+info generating plot: "$OUT_IMG"
 gnuplot >"$OUT_IMG" <<EOF
-set terminal png size $DIMS
+set terminal png size $DIMS background rgb "gray40"
 set output '$OUT_IMG'
 set title '$PLOT_NAME'
 set style data histograms
+set style histogram clustered gap 2
+set style fill solid 1.0 border lt -1
+set ylabel "Throughput"
 plot '$DAT' using 3:xtic(1)
 EOF
 
 #rm "$DAT"
+
+info done
