@@ -89,7 +89,8 @@ while read -r UUID; do
 done < <(get_jobs_build-uuids)
 
 PLOT_VERSION=1
-PLOT_NAME="Throughput for 30 concurrent threads"
+PLOT_NAME="throughput"
+PLOT_TITLE="Throughput for 30 concurrent threads"
 OUT_DIR="${CACHE_DIR}/perftest/${JOB}/${PLOT_NAME}_${PLOT_VERSION}"
 if [ ! -e "$OUT_DIR" ]; then
     mkdir -p "$OUT_DIR"
@@ -100,11 +101,11 @@ info generating plot: "$OUT_IMG"
 gnuplot >"$OUT_IMG" <<EOF
 set terminal png size $DIMS background rgb "gray40"
 set output '$OUT_IMG'
-set title '$PLOT_NAME'
+set title '$PLOT_TITLE'
 set style data histograms
 set style histogram clustered gap 2
 set style fill solid 1.0 border lt -1
-set ylabel "Throughput"
+set ylabel "Avg. bytes/sec"
 plot '$DAT' using 3:xtic(1)
 EOF
 
