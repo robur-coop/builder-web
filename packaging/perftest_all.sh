@@ -1,4 +1,4 @@
-#!/bin/sh
+#!/bin/bash
 
 set -e
 
@@ -49,7 +49,7 @@ DATA_DIR=
 CACHE_DIR=
 CONF_DIR=
 
-while [ $# -gt 1 ]; do
+while [ $# -gt 0 ]; do
     OPT="$1"
 
     case "${OPT}" in
@@ -101,17 +101,21 @@ get_bin_localpath () {
         WHERE uuid = '$UUID'"
 }
 
+TMP_UUIDS=/tmp/perftest_uuids.txt
+get_jobs_build-uuids > "$TMP_UUIDS"
+
 while read -r UUID; do
     BIN="$DATA_DIR"/$(get_bin_localpath "$UUID")
     BIN_SHA256=$(get_bin_hash "$UUID")
 
-    "$CONF_DIR"/upload_hooks/perftest.sh \
+    "$CONF_DIR"/upload-hooks/perftest.sh \
                --uuid="$UUID" \
                --job="$JOB" \
                --sha256="$BIN_SHA256" \
                --data-dir="$DATA_DIR" \
                --cache-dir="$CACHE_DIR" \
                "$BIN"
-done < <(get_jobs_build-uuids)
+done < "$TMP_UUIDS"
 
+info done
 
