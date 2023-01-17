@@ -55,6 +55,7 @@ JOB=
 BIN_SHA256=
 CACHE_DIR=
 DATA_DIR=
+FORCE="false"
 
 while [ $# -gt 1 ]; do
     OPT="$1"
@@ -74,6 +75,9 @@ while [ $# -gt 1 ]; do
             ;;
         --data-dir=*)
             DATA_DIR="${OPT##*=}"
+            ;;
+        --force)
+            FORCE="true"
             ;;
         *)
             warn "Ignoring unknown option: '${OPT}' (Note that this script reads DB)"
@@ -115,11 +119,10 @@ PERFJOB_DIR="$DATA_DIR/_perftest/$JOB"
 PERFSCRIPT_DIR="$CONF_DIR/perftest/$JOB"
 PERFDATA_DIR="$PERFJOB_DIR/$BIN_SHA256"
 
-if [ -d "$PERFDATA_DIR" ]; then
+if [ -d "$PERFDATA_DIR" -o "$FORCE" = "true" ]; then
     info "$PERFDATA_DIR already exists, exiting"
     exit 0
-fi;
-#< goto maybe add a 'force' param to rerun test + regenerate plot
+fi
 
 case "${JOB},${BIN_EXT}" in
     unipi,hvt)
@@ -131,7 +134,7 @@ case "${JOB},${BIN_EXT}" in
         ;;
 esac
 
-
+info done
 
 
 
