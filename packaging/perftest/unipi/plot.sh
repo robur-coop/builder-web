@@ -32,7 +32,7 @@ JOB="$4"
 LATEST_UUID="$5"
 
 DIMS=1920,1080
-COLS=5,7,8 #resp-time, throughput, concurrent
+COLS=5,6,7,8 #resp-time, transaction-rate, throughput, concurrent
 #< Note: gnuplot can select the final columns
 
 DAT="${PERFJOB_DIR}/tmp.dat"
@@ -105,9 +105,55 @@ set title '$PLOT_TITLE'
 set style data histograms
 set style histogram clustered gap 2
 set style fill solid 1.0 border lt -1
+set xlabel "build UUID"
 set ylabel "Avg. bytes/sec"
+plot '$DAT' using 4:xtic(1)
+EOF
+
+PLOT_VERSION=1
+PLOT_NAME="transaction_rate"
+PLOT_TITLE="Transaction rate for 30 concurrent threads"
+OUT_DIR="${CACHE_DIR}/perftest/${JOB}/${PLOT_NAME}_${PLOT_VERSION}"
+if [ ! -e "$OUT_DIR" ]; then
+    mkdir -p "$OUT_DIR"
+fi
+OUT_IMG="${OUT_DIR}/${LATEST_UUID}.png"
+
+info generating plot: "$OUT_IMG"
+gnuplot >"$OUT_IMG" <<EOF
+set terminal png size $DIMS background rgb "gray40"
+set output '$OUT_IMG'
+set title '$PLOT_TITLE'
+set style data histograms
+set style histogram clustered gap 2
+set style fill solid 1.0 border lt -1
+set xlabel "build UUID"
+set ylabel "Avg. transactions/sec"
 plot '$DAT' using 3:xtic(1)
 EOF
+
+PLOT_VERSION=1
+PLOT_NAME="response_time"
+PLOT_TITLE="Response time for 30 concurrent threads"
+OUT_DIR="${CACHE_DIR}/perftest/${JOB}/${PLOT_NAME}_${PLOT_VERSION}"
+if [ ! -e "$OUT_DIR" ]; then
+    mkdir -p "$OUT_DIR"
+fi
+OUT_IMG="${OUT_DIR}/${LATEST_UUID}.png"
+
+info generating plot: "$OUT_IMG"
+gnuplot >"$OUT_IMG" <<EOF
+set terminal png size $DIMS background rgb "gray40"
+set output '$OUT_IMG'
+set title '$PLOT_TITLE'
+set style data histograms
+set style histogram clustered gap 2
+set style fill solid 1.0 border lt -1
+set xlabel "build UUID"
+set ylabel "Avg. response-time/req in ms"
+plot '$DAT' using 2:xtic(1)
+EOF
+
 
 #rm "$DAT"
 
