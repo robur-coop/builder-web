@@ -42,7 +42,7 @@ get_jobs_build-uuids () {
     sqlite3 "$DB" "select b.uuid from build as b \
         join job as j on j.id = b.job\
         where j.name = '$JOB' \
-        order by b.id desc"
+        order by b.start_d asc, b.start_ps asc"
 }
 
 get_bin_hash () {
