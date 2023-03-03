@@ -39,7 +39,11 @@ let duniverse_dirs_data =
       in
       let* dir = string ~ctx:"directory" dir in
       Ok (url, dir, List.rev hashes)
-    | _ -> Error (`Msg "expected a string or identifier")
+    | { pelem = List { pelem = [ url ; dir ] ; _ } ; _ } ->
+      let* url = string ~ctx:"url" url in
+      let* dir = string ~ctx:"directory" dir in
+      Ok (url, dir, [])
+    | _ -> Error (`Msg "expected a list of URL, DIR, [HASHES]")
   in
   function
   | { pelem = List { pelem = lbody ; _ } ; _ } ->
