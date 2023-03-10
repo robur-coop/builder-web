@@ -74,6 +74,30 @@ module Omd = struct
           Some (Omd.Definition_list (attr, def_elts))
       | Omd.Code_block _
       | Omd.Thematic_break _ as v -> Some v
+      | Omd.Table (attr, inline_alignments, inlines) ->
+        let inline_alignments =
+          List.fold_left (fun acc (cell, alignment) ->
+              match acc with
+              | None -> None
+              | Some xs ->
+                Option.map (fun cell -> xs @ [ cell, alignment ])
+                  (safe_inline cell))
+            (Some []) inline_alignments
+        in
+        Option.map
+          (fun inline_alignments ->
+             let inlines =
+               List.filter_map (fun row ->
+                   List.fold_left (fun acc cell ->
+                       match acc with
+                       | None -> None
+                       | Some xs -> Option.map (fun cell -> xs @ [ cell ])
+                                      (safe_inline cell))
+                     (Some []) row)
+                 inlines
+             in
+             Omd.Table (attr, inline_alignments, inlines))
+          inline_alignments
     and safe_def_elts { term ; defs } =
       let defs = List.filter_map safe_inline defs in
       safe_inline term
