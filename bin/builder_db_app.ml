@@ -693,6 +693,49 @@ let extract_full () datadir dest uuid =
   in
   or_die 1 r
 
+let time_size_graph () datadir jobname =
+  let dbpath = datadir ^ "/builder.sqlite3" in
+  let r =
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* job_id =
+      Result.bind (Db.find_opt Builder_db.Job.get_id_by_name jobname)
+        (Option.to_result ~none:(`Msg "job not found"))
+    in
+    let* shas =
+      Db.collect_list Builder_db.Build.get_all_artifact_sha (job_id, None)
+    in
+    let* builds =
+      List.fold_left (fun acc hash ->
+          match acc with
+          | Error _ as e -> e
+          | Ok builds ->
+            let* b =
+              Db.find Builder_db.Build.get_with_main_binary_by_hash hash
+            in
+            Ok (b :: builds))
+        (Ok []) shas
+    in
+    Printf.printf "# build times and binary sizes for job %s\n" jobname;
+    Printf.printf "# build start (seconds since epoch) <TAB> build duration (seconds) <TAB> binary size (bytes) # UUID\n";
+    List.iter (fun (build, file) ->
+        match file with
+        | None ->
+          Printf.eprintf "no file for build %s\n" (Uuidm.to_string build.Builder_db.Build.uuid)
+        | Some f ->
+          Printf.printf "%u\t%u\t%u\t# %s\n"
+            (match Ptime.Span.to_int_s (Ptime.to_span build.start) with
+             | None -> assert false | Some s -> s)
+            (match Ptime.Span.to_int_s (Ptime.diff build.finish build.start) with
+             | None -> assert false | Some s -> s)
+            f.Builder_db.size
+            (Uuidm.to_string build.Builder_db.Build.uuid))
+      builds;
+    Ok ()
+  in
+  or_die 1 r
+
 let help man_format cmds = function
   | None -> `Help (man_format, None)
   | Some cmd ->
@@ -876,6 +919,12 @@ let verify_cache_dir_cmd =
   let info = Cmd.info ~doc "verify-cache-dir" in
   Cmd.v info term
 
+let time_size_graph_cmd =
+  let doc = "output the build times and binary sizes of a job" in
+  let term = Term.(const time_size_graph $ setup_log $ datadir $ jobname) in
+  let info = Cmd.info ~doc "time-size-graph" in
+  Cmd.v info term
+
 let help_cmd =
   let topic =
     let doc = "Command to get help on" in
@@ -902,6 +951,7 @@ let () =
       verify_input_id_cmd;
       verify_data_dir_cmd;
       verify_cache_dir_cmd;
-      extract_full_cmd ]
+      extract_full_cmd;
+      time_size_graph_cmd ]
   |> Cmdliner.Cmd.eval
   |> exit
