@@ -3,12 +3,12 @@ let markdown_to_html = Builder_web__Utils.Omd.html_of_string
 let test_simple () =
   let markdown = {|# Hello world|} in
   let html = markdown_to_html markdown in
-  Alcotest.(check string "simple html" "<h1>Hello world</h1>\n" html)
+  Alcotest.(check string "simple html" "<h1 id=\"hello-world\">Hello world</h1>\n" html)
 
 let test_html_script () =
   let markdown = {|# <script>Hello world</script>|} in
   let html = markdown_to_html markdown in
-  Alcotest.(check string "html script header" "<h1>Hello world</h1>\n" html)
+  Alcotest.(check string "html script header" "<h1 id=\"hello-world\">Hello world</h1>\n" html)
 
 let test_preserve_span_content () =
   let markdown = {|* <span id="myref">My ref</span>
