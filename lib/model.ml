@@ -253,7 +253,7 @@ let infer_section_and_synopsis artifacts =
       (* since mirage 4.2.0, the x-mirage-opam-lock-location is emitted *)
       Option.value ~default:false
         (Option.map (fun opam ->
-             OpamFile.OPAM.extended opam "x-mirage-opam-lock-location" Option.is_some)
+             Option.is_some (OpamFile.OPAM.extended opam "x-mirage-opam-lock-location" Fun.id))
             (OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays))
     in
     let root_pkg_name = OpamPackage.Name.to_string root_pkg in
