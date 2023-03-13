@@ -127,8 +127,22 @@ fi
 ATTEMPTED_VIZS=0
 FAILED_VIZS=0
 
-for i in $(find "${DATA_DIR}" -type f -path \*output/bin\*); do
-    UUID=$(echo "${i}" | rev | cut -d '/' -f 4 | rev)
+distinct-input () {
+    {
+        sqlite3 "${DATA_DIR}/builder.sqlite3" "SELECT b.uuid
+            FROM build b
+            JOIN build_artifact opam ON opam.build = b.id
+            WHERE opam.filepath = 'opam-switch' AND b.main_binary NOT NULL
+            GROUP BY opam.sha256;"
+        sqlite3 "${DATA_DIR}/builder.sqlite3" "SELECT b.uuid
+            FROM build b
+            JOIN build_artifact debug ON debug.build = b.id
+            WHERE debug.filepath LIKE '%.debug' AND b.main_binary NOT NULL
+            GROUP BY debug.sha256;"
+    } | sort -u
+}
+
+for UUID in $(distinct-input); do
     if ! "$VISUALIZATIONS_CMD" \
          --data-dir="${DATA_DIR}" \
          --cache-dir="${CACHE_DIR}" \
