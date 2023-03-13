@@ -1,7 +1,5 @@
 module Set = OpamPackage.Set
 
-type package = OpamPackage.t
-
 let packages (switch : OpamFile.SwitchExport.t) =
   assert (Set.cardinal switch.selections.sel_pinned = 0);
   assert (Set.cardinal switch.selections.sel_compiler = 0);
@@ -58,15 +56,15 @@ let duniverse (switch : OpamFile.SwitchExport.t) =
   let root = switch.OpamFile.SwitchExport.selections.OpamTypes.sel_roots in
   if OpamPackage.Set.cardinal root = 1 then
     let root = OpamPackage.Set.choose root in
-    Option.bind
-      OpamPackage.(Name.Map.find_opt root.name switch.OpamFile.SwitchExport.overlays)
-      (fun opam ->
-         match OpamFile.OPAM.extended opam duniverse_dir duniverse_dirs_data with
-         | None -> None
-         | Some Error _ -> None
-         | Some Ok v -> Some v)
+    match OpamPackage.(Name.Map.find_opt root.name switch.OpamFile.SwitchExport.overlays) with
+    | None -> Error (`Msg "opam switch export doesn't contain the main package")
+    | Some opam ->
+      match OpamFile.OPAM.extended opam duniverse_dir duniverse_dirs_data with
+      | None -> Ok None
+      | Some Error e -> Error e
+      | Some Ok v -> Ok (Some v)
   else
-    None
+    Error (`Msg "not a single root package found in opam switch export")
 
 type duniverse_diff = {
   name : string ;
@@ -262,8 +260,9 @@ let compare left right =
   and right_pkgs = diff packages_right packages_left
   in
   let opam_diff = detailed_opam_diffs left right opam_diff in
-  let left_duniverse, right_duniverse, duniverse_diff =
-    duniverse_diff (duniverse left) (duniverse right)
+  let duniverse_ret =
+    match duniverse left, duniverse right with
+    | Ok l, Ok r -> Ok (duniverse_diff l r)
+    | Error _ as e, _ | _, (Error _ as e) -> e
   in
-  (opam_diff, version_diff, left_pkgs, right_pkgs,
-   duniverse_diff, left_duniverse, right_duniverse)
+  (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_ret)
