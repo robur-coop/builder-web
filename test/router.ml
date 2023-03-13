@@ -14,40 +14,30 @@ module Param_verification = struct
 
   module P = struct
 
-    let is_string : (string * string) option -> _ option  = function
-      | Some _ -> None
-      | None -> None
+    let is_string : (string * string) -> _ option  =
+      Fun.const None
 
-    let is_uuid = function
-      | Some (param, value) ->
-        begin match Uuidm.of_string value with
-          | Some _ when String.length value = 36 -> None
-          | _ -> Some {
-              param;
-              expected = "Uuidm.t"
-            }
-        end
-      | None -> None
+    let is_uuid (param, value) =
+      match Uuidm.of_string value with
+      | Some _ when String.length value = 36 -> None
+      | _ -> Some {
+          param;
+          expected = "Uuidm.t"
+        }
     
   end
   
-  let param req tag =
-    match Dream.param req tag with
-    | param -> Some (tag, param)
-    | exception _ -> None
-
-  let ( &&& ) v v' =
-    match v with
-    | None -> v'
-    | Some _ as some -> some
-
-  let verify req =
-    let verified_params = 
-      P.is_string (param req "job")
-      &&& P.is_uuid (param req "build")
-      &&& P.is_uuid (param req "build_left")
-      &&& P.is_uuid (param req "build_right")
-      &&& P.is_string (param req "platform")
+  let verify parameters req =
+    let verified_params =
+      List.fold_left (fun acc p ->
+        match acc with
+        | None ->
+          if String.starts_with ~prefix:"build" p then
+           P.is_uuid (p, Dream.param req p)
+          else
+            P.is_string (p, Dream.param req p)
+        | Some _ as x -> x)
+      None parameters
     in
     let response_json =
       verified_params |> to_yojson |> Yojson.Safe.to_string
@@ -55,6 +45,14 @@ module Param_verification = struct
     Dream.respond response_json
 
 end
+
+let find_parameters path =
+  List.filter_map (fun s ->
+      if String.length s > 0 && String.get s 0 = ':' then
+        Some (String.sub s 1 (String.length s - 1))
+      else
+        None)
+    (String.split_on_char '/' path)
                    
 let router =
   (* XXX: this relies on [Builder_web.routes] only using {data,cache,config}dir
@@ -63,7 +61,7 @@ let router =
   let nodir = Fpath.v "/nonexistant" in
   Builder_web.routes ~datadir:nodir ~cachedir:nodir ~configdir:nodir
   |> List.map (fun (meth, route, _handler) ->
-      meth, route, Param_verification.verify)
+      meth, route, Param_verification.verify (find_parameters route))
   |> Builder_web.to_dream_routes
   |> Dream.router
   (* XXX: we test without remove_trailing_url_slash to ensure we don't produce
@@ -159,5 +157,36 @@ let () =
         "/f/bin/unikernel.hvt";
         "/";
         "";
-      ]
+      ];
+    "Albatross hardcoded links",
+    [
+      (*> Note: these links can be found in
+          albatross/command-line/albatross_client_update.ml
+          .. to find them I follewed the trails of 'Albatross_cli.http_host'
+      *)
+      begin
+        let `Hex sha_str =
+          Cstruct.of_string "foo"
+          |> Mirage_crypto.Hash.SHA256.digest
+          |> Hex.of_cstruct
+        in
+        Fmt.str "/hash?sha256=%s" sha_str
+      end;
+      begin
+        let jobname = "foo" in
+        "/job/" ^ jobname ^ "/build/latest"
+      end;
+      begin
+        let job = "foo" in
+        let build = Uuidm.(v `V4 |> to_string) in
+        "/job/" ^ job ^ "/build/" ^ build ^ "/main-binary"
+      end;
+      begin
+        let old_uuid = Uuidm.(v `V4 |> to_string) in
+        let new_uuid = Uuidm.(v `V4 |> to_string) in
+        Fmt.str "/compare/%s/%s" old_uuid new_uuid
+      end;
+    ]
+    |> List.map Alcotest.(fun p ->
+        test_case ("…" ^ p) `Quick (test_link `GET p))
   ]
