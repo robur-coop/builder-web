@@ -33,7 +33,7 @@ procname="/usr/local/libexec/builder-web"
 
 builder_web_start () {
     echo "Starting ${name}."
-    /usr/sbin/daemon -S -p "${pidfile}" -u "${builder_web_user}" \
+    /usr/sbin/daemon -S -r -P "${pidfile}" -u "${builder_web_user}" \
 		     "${procname}" ${builder_web_flags}
 }
 
