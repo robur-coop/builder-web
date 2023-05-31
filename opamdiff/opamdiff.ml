@@ -93,9 +93,14 @@ let duniverse_diff l r =
     (* l and r are lists of pairs, with the hash kind and its value *)
     List.for_all (fun (h, v) ->
         match List.assoc_opt h r with
-        | None -> true
+        | None -> false
         | Some v' -> String.equal v v')
-      l
+      l &&
+    List.for_all (fun (h, v) ->
+        match List.assoc_opt h l with
+        | None -> false
+        | Some v' -> String.equal v v')
+      r
   in
   let _ =
     M.merge (fun key l r ->
