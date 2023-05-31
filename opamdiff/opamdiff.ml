@@ -91,6 +91,9 @@ let duniverse_diff l r =
   let keys_l_only = ref [] and keys_r_only = ref [] and diff = ref [] in
   let equal_hashes l r =
     (* l and r are lists of pairs, with the hash kind and its value *)
+    (* for a git remote, the hashes are empty lists *)
+    (match l with [] -> false | _ -> true) &&
+    (match r with [] -> false | _ -> true) &&
     List.for_all (fun (h, v) ->
         match List.assoc_opt h r with
         | None -> false
@@ -109,6 +112,7 @@ let duniverse_diff l r =
         | Some _, None -> keys_l_only := key :: !keys_l_only; None
         | None, None -> None
         | Some (_, l), Some (_, r) when equal_hashes l r -> None
+        | Some (url1, []), Some (url2, []) when String.equal url1 url2 -> None
         | Some l, Some r -> diff := (key, l, r) :: !diff; None)
       l r
   in
