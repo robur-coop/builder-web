@@ -4,9 +4,9 @@ Section: unknown
 Priority: optional
 Maintainer: Robur Team <team@robur.coop>
 Standards-Version: 4.4.1
-Homepage: https://git.robur.io/robur/builder-web
-Vcs-Browser: https://git.robur.io/robur/builder-web
-Vcs-Git: https://git.robur.io/robur/builder-web.git
+Homepage: https://git.robur.coop/robur/builder-web
+Vcs-Browser: https://git.robur.coop/robur/builder-web
+Vcs-Git: https://git.robur.coop/robur/builder-web.git
 Architecture: all
 Depends: libgmp10, libsqlite3-0, libev4, opam-graph, modulectomy
 Description: Web service for storing and presenting builds.

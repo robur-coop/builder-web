@@ -276,7 +276,7 @@ A persistent link to the latest successful build is available as
 `/job/*jobname*/build/latest/`. Each build can be reproduced with
 [orb](https://github.com/roburio/orb/). The builds are scheduled and executed
 daily by [builder](https://github.com/roburio/builder/). This web interface is
-[builder-web](https://git.robur.io/robur/builder-web/). Read further information
+[builder-web](https://git.robur.coop/robur/builder-web/). Read further information
 [on our project page](https://robur.coop/Projects/Reproducible_builds). This
 work has been funded by the European Union under the
 [NGI Pointer](https://pointer.ngi.eu) program. Contact team ATrobur.coop if you
