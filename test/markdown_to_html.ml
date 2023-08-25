@@ -1,4 +1,4 @@
-let markdown_to_html data = Cmarkit_html.of_doc ~safe:true (Cmarkit.Doc.of_string ~heading_auto_ids:true data)
+let markdown_to_html = Builder_web__Utils.md_to_html
 
 let test_simple () =
   let markdown = {|# Hello world|} in

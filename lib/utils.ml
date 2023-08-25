@@ -45,6 +45,30 @@ let compare_pkgs p1 p2 =
   in
   diff_map (parse_pkgs p1) (parse_pkgs p2)
 
+let md_to_html ?adjust_heading ?(safe = true) data =
+  let open Cmarkit in
+  let doc = Doc.of_string ~heading_auto_ids:true data in
+  let doc =
+    Option.fold ~none:doc
+      ~some:(fun lvl ->
+          let block _m = function
+            | Block.Heading (h, meta) ->
+              let open Block.Heading in
+              let level = level h
+              and id = id h
+              and layout = layout h
+              and inline = inline h
+              in
+              let h' = make ?id ~layout ~level:(level + lvl) inline in
+              Mapper.ret (Block.Heading (h', meta))
+            | _ -> Mapper.default
+          in
+          let mapper = Mapper.make ~block () in
+          Mapper.map_doc mapper doc)
+      adjust_heading
+  in
+  Cmarkit_html.of_doc ~safe doc
+
 module Path = struct
 
   let to_url ~path ~queries =

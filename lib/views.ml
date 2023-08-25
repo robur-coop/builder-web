@@ -285,7 +285,7 @@ have questions or suggestions.
 
   let make_header =
     [
-      H.Unsafe.data (Cmarkit_html.of_doc ~safe:true (Cmarkit.Doc.of_string ~heading_auto_ids:true data));
+      H.Unsafe.data (Utils.md_to_html data);
       H.form ~a:H.[a_action "/hash"; a_method `Get] [
         H.label [
           H.txt "Search artifact by SHA256";
@@ -383,7 +383,7 @@ module Job = struct
         [
           H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
           H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
-          H.Unsafe.data (Cmarkit_html.of_doc ~safe:true (Cmarkit.Doc.of_string ~heading_auto_ids:true data))
+          H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
         ]
     )
 
