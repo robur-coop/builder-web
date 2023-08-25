@@ -11,7 +11,7 @@
   caqti-lwt
   opamdiff
   ptime.clock.os
-  omd
+  cmarkit
   tar
   owee
   solo5-elftool
