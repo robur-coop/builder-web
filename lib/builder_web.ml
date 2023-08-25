@@ -247,7 +247,7 @@ module Viz_aux = struct
      |> Lwt.return
      |> if_error "Error finding a version of the requested visualization")
     >>= fun viz_path ->
-    Lwt_result.catch (
+    Lwt_result.catch (fun () ->
       Lwt_io.with_file ~mode:Lwt_io.Input
         (Fpath.to_string viz_path)
         Lwt_io.read

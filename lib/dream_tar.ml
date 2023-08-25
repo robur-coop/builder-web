@@ -15,7 +15,7 @@ module Writer = struct
       | `Await gz -> state.gz <- gz ; Lwt.return_unit
       | `Flush gz ->
         let max = Cstruct.length oc - Gz.Def.dst_rem gz in
-        let str = Cstruct.copy oc 0 max in
+        let str = Cstruct.to_string ~len:max oc in
         Dream.write stream str >>= fun () ->
         let { Cstruct.buffer; off= cs_off; len= cs_len; } = oc in
         until_await (Gz.Def.dst gz buffer cs_off cs_len)
@@ -76,7 +76,7 @@ let targz_response datadir finish (files : Builder_db.file list) (stream : Dream
     | `Await _gz -> assert false
     | `Flush gz | `End gz as flush_or_end ->
       let max = Cstruct.length state.oc - Gz.Def.dst_rem gz in
-      let str = Cstruct.copy state.oc 0 max in
+      let str = Cstruct.to_string ~len:max state.oc in
       Dream.write stream str >>= fun () -> match flush_or_end with
       | `Flush gz ->
         let { Cstruct.buffer; off= cs_off; len= cs_len; } = state.oc in

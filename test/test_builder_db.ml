@@ -3,7 +3,7 @@ let ( >>| ) x f = Result.map f x
 
 module type CONN = Caqti_blocking.CONNECTION
 
-let () = Mirage_crypto_rng_unix.initialize ()
+let () = Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna)
 
 let iter f xs = List.fold_left (fun r x -> r >>= fun () -> f x) (Ok ()) xs
 let get_opt message = function

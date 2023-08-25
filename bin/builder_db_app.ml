@@ -892,7 +892,7 @@ let default_cmd, default_info =
   Cmd.info ~doc "builder-db"
 
 let () =
-  Mirage_crypto_rng_unix.initialize ();
+  Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna);
   Cmdliner.Cmd.group
     ~default:default_cmd default_info
     [ help_cmd; migrate_cmd;
