@@ -22,12 +22,12 @@ depends: [
   "cstruct" {>= "6.0.0"}
   "bos"
   "hex"
-  "lwt" {>= "5.6.0"}
+  "lwt" {>= "5.7.0"}
   "caqti" {>= "1.8.0"}
   "caqti-lwt"
   "caqti-driver-sqlite3"
   "pbkdf"
-  "mirage-crypto-rng"
+  "mirage-crypto-rng" {>= "0.11.0"}
   "scrypt-kdf"
   "opam-core"
   "opam-format" {>= "2.1.0"}
