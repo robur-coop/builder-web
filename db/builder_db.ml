@@ -333,6 +333,7 @@ module Build = struct
        FROM build b
        WHERE b.job = $1 AND b.result_code = 0
          AND ($2 IS NULL OR b.platform = $2)
+         AND b.main_binary IS NOT NULL
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
     |}
