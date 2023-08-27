@@ -602,27 +602,11 @@ let routes ~datadir ~cachedir ~configdir =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
-  let redirect_parent req =
-    let queries = Dream.all_queries req in
-    let parent_url =
-      let parent_path =
-        Dream.target req
-        |> Utils.Path.of_url
-        |> List.rev |> List.tl |> List.rev
-      in
-      Utils.Path.to_url ~path:parent_path ~queries
-    in
-    Dream.redirect ~status:`Temporary_Redirect req parent_url
-    |> Lwt_result.ok
-  in
-
   let w f req = or_error_response (f req) in
 
   [
     `Get, "/", (w builds);
-    `Get, "/job", (w redirect_parent);
     `Get, "/job/:job", (w job);
-    `Get, "/job/:job/build", (w redirect_parent);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
     `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
@@ -633,8 +617,8 @@ let routes ~datadir ~cachedir ~configdir =
     `Get, "/job/:job/build/:build/vizdependencies", (w @@ job_build_viz `Dependencies);
     `Get, "/job/:job/build/:build/script", (w (job_build_static_file `Script));
     `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
-    `Get, "/failed-builds", (w failed_builds);
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
+    `Get, "/failed-builds", (w failed_builds);
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
     `Post, "/upload", (Authorization.authenticate (w upload));
@@ -670,7 +654,7 @@ module Middleware = struct
           let queries = Dream.all_queries req in
           let url = Utils.Path.to_url ~path ~queries in
           (*> Note: See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location*)
-          Dream.redirect ~status:`Permanent_Redirect req url
+          Dream.redirect ~status:`Moved_Permanently req url
         | _ (* /... *) -> handler req
 
 end
