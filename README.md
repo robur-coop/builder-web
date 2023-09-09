@@ -1,13 +1,13 @@
 # Builder-web - a web frontend for reproducible builds
 
-Builder-web takes in submissions of builds, typically from [builder](https://github.com/roburio/builder/), and displays the produced artifacts in a way that makes it easy to compare checksums and build status.
+Builder-web takes in submissions of builds, typically from [builder](https://github.com/robur-coop/builder/), and displays the produced artifacts in a way that makes it easy to compare checksums and build status.
 Produced binaries can be downloaded and executed.
 [builds.robur.coop](https://builds.robur.coop/) itself runs builder-web.
 
 ## Overview
 
 Builder-web is a single binary web server using a sqlite3 database with versioned schemas.
-Finished builds from [builder](https://github.com/roburio/builder/) are uploaded to builder-web, stored and indexed in the database and presented in the web interface to the user.
+Finished builds from [builder](https://github.com/robur-coop/builder/) are uploaded to builder-web, stored and indexed in the database and presented in the web interface to the user.
 Users can:
 
 * Get an overview of *jobs* - a job is typically script or opam package that is run and builds an artifact,

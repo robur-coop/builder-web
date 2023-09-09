@@ -274,8 +274,8 @@ The filename suffix of the unikernel binary indicate the expected execution envi
 
 A persistent link to the latest successful build is available as
 `/job/*jobname*/build/latest/`. Each build can be reproduced with
-[orb](https://github.com/roburio/orb/). The builds are scheduled and executed
-daily by [builder](https://github.com/roburio/builder/). This web interface is
+[orb](https://github.com/robur-coop/orb/). The builds are scheduled and executed
+daily by [builder](https://github.com/robur-coop/builder/). This web interface is
 [builder-web](https://git.robur.coop/robur/builder-web/). Read further information
 [on our project page](https://robur.coop/Projects/Reproducible_builds). This
 work has been funded by the European Union under the
