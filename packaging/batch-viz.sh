@@ -26,7 +26,7 @@ die()
 usage()
 {
     cat <<EOM 1>&2
-usage: ${prog_NAME} [ OPTIONS ] 
+usage: ${prog_NAME} [ OPTIONS ]
 Generates visualizations of all things
     --data-dir=STRING
         Path to the data directory.
@@ -85,7 +85,7 @@ APP_ID="$(sqlite3 "$DB" "PRAGMA application_id;")"
 [ -z "$APP_ID" ] && die "Couldn't read application-id from '$DB'"
 [ "$APP_ID" -ne 1234839235 ] && die "The application-id should be = 1234839235. It is '$APP_ID'"
 
-echo 
+echo
 echo "-----------------------------------------------------------------------------"
 info "Starting batch creation of visualizations: $(date)"
 
