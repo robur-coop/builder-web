@@ -283,8 +283,7 @@ module Build = struct
          b.main_binary, b.input_id, b.user, b.job
        FROM build b
        INNER JOIN job ON job.id = b.job
-       WHERE (b.result_code <> 0 OR (b.result_code = 0 AND b.main_binary IS NULL))
-         AND ($3 IS NULL OR b.platform = $3)
+       WHERE b.main_binary IS NULL AND ($3 IS NULL OR b.platform = $3)
        ORDER BY start_d DESC, start_ps DESC
        LIMIT $2
        OFFSET $1
@@ -306,7 +305,7 @@ module Build = struct
               platform, main_binary, input_id, user, job
        FROM build
        WHERE job = $1
-         AND (result_code <> 0 OR (result_code = 0 AND main_binary IS NULL))
+         AND main_binary IS NULL
          AND ($2 IS NULL OR platform = $2)
        ORDER BY start_d DESC, start_ps DESC
     |}
@@ -321,7 +320,7 @@ module Build = struct
        FROM build b
        LEFT JOIN build_artifact a ON
          b.main_binary = a.id
-       WHERE b.job = $1 AND b.platform = $2 AND b.result_code = 0
+       WHERE b.job = $1 AND b.platform = $2
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
     |}
@@ -333,7 +332,7 @@ module Build = struct
          b.result_code, b.result_msg, b.console, b.script,
          b.platform, b.main_binary, b.input_id, b.user, b.job
        FROM build b
-       WHERE b.job = $1 AND b.result_code = 0
+       WHERE b.job = $1
          AND ($2 IS NULL OR b.platform = $2)
          AND b.main_binary IS NOT NULL
        ORDER BY b.start_d DESC, b.start_ps DESC
@@ -349,7 +348,6 @@ module Build = struct
        FROM build b, build b0, build_artifact a, build_artifact a0
        WHERE b0.id = ? AND b0.job = b.job AND
          b.platform = b0.platform AND
-         b.result_code = 0 AND
          a.id = b.main_binary AND a0.id = b0.main_binary AND
          a.sha256 <> a0.sha256 AND
          (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
@@ -366,7 +364,6 @@ module Build = struct
        FROM build b, build b0, build_artifact a, build_artifact a0
        WHERE b0.id = ? AND b0.job = b.job AND
          b.platform = b0.platform AND
-         b.result_code = 0 AND
          a.id = b.main_binary AND a0.id = b0.main_binary AND
          a.sha256 <> a0.sha256 AND
          (b0.start_d < b.start_d OR b0.start_d = b.start_d AND b0.start_ps < b.start_ps)
@@ -588,7 +585,7 @@ let migrate = [
   Caqti_type.unit ->. Caqti_type.unit @@
   "CREATE INDEX idx_build_job_start ON build(job, start_d DESC, start_ps DESC)";
   Caqti_type.unit ->. Caqti_type.unit @@
-  "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE result_code <> 0";
+  "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) WHERE main_binary IS NULL";
   Caqti_type.unit ->. Caqti_type.unit @@
   "CREATE INDEX idx_build_input_id ON build(input_id)";
   Caqti_type.unit ->. Caqti_type.unit @@
