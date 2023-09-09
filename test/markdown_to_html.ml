@@ -80,6 +80,30 @@ let test_fragment_link () =
   let html = markdown_to_html markdown in
   Alcotest.(check string "fragment link" "<p><a href=\"#fragment\">fragment</a></p>\n" html)
 
+let test_heading_adjustment () =
+  let markdown = {|# foo
+## bar
+# baz
+## bazbar
+### bazbarbar
+#### bazbarbarbar
+##### bazbarbarbarbar
+###### bazbarbarbarbarbar
+|}
+  in
+  let html = markdown_to_html ~adjust_heading:2 markdown in
+  (* NB: the maximum heading is 6 in cmarkit, thus we reduce the structure *)
+  let exp = {|<h3 id="foo"><a class="anchor" aria-hidden="true" href="#foo"></a>foo</h3>
+<h4 id="bar"><a class="anchor" aria-hidden="true" href="#bar"></a>bar</h4>
+<h3 id="baz"><a class="anchor" aria-hidden="true" href="#baz"></a>baz</h3>
+<h4 id="bazbar"><a class="anchor" aria-hidden="true" href="#bazbar"></a>bazbar</h4>
+<h5 id="bazbarbar"><a class="anchor" aria-hidden="true" href="#bazbarbar"></a>bazbarbar</h5>
+<h6 id="bazbarbarbar"><a class="anchor" aria-hidden="true" href="#bazbarbarbar"></a>bazbarbarbar</h6>
+<h6 id="bazbarbarbarbar"><a class="anchor" aria-hidden="true" href="#bazbarbarbarbar"></a>bazbarbarbarbar</h6>
+<h6 id="bazbarbarbarbarbar"><a class="anchor" aria-hidden="true" href="#bazbarbarbarbarbar"></a>bazbarbarbarbarbar</h6>
+|} in
+  Alcotest.(check string "header adjustment works fine" exp html)
+
 let markdown_tests = [
   Alcotest.test_case "Simple" `Quick test_simple;
   Alcotest.test_case "script header" `Quick test_html_script;
@@ -94,6 +118,7 @@ let markdown_tests = [
   Alcotest.test_case "relative image" `Quick test_relative_image;
   Alcotest.test_case "absolute image with script alt" `Quick test_absolute_image_script_alt;
   Alcotest.test_case "fragment link" `Quick test_fragment_link;
+  Alcotest.test_case "heading adjustment" `Quick test_heading_adjustment;
 ]
 
 let () =
