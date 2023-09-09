@@ -283,7 +283,8 @@ module Build = struct
          b.main_binary, b.input_id, b.user, b.job
        FROM build b
        INNER JOIN job ON job.id = b.job
-       WHERE b.result_code <> 0 AND ($3 IS NULL OR b.platform = $3)
+       WHERE (b.result_code <> 0 OR (b.result_code = 0 AND b.main_binary IS NULL))
+         AND ($3 IS NULL OR b.platform = $3)
        ORDER BY start_d DESC, start_ps DESC
        LIMIT $2
        OFFSET $1
@@ -304,7 +305,8 @@ module Build = struct
               result_code, result_msg, console, script,
               platform, main_binary, input_id, user, job
        FROM build
-       WHERE job = $1 AND result_code <> 0
+       WHERE job = $1
+         AND (result_code <> 0 OR (result_code = 0 AND main_binary IS NULL))
          AND ($2 IS NULL OR platform = $2)
        ORDER BY start_d DESC, start_ps DESC
     |}
