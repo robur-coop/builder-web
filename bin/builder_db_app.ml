@@ -454,6 +454,7 @@ module Verify_cache_dir = struct
         ba_opam_switch.sha256 hash_opam_switch,
         ba_debug_bin.sha256 hash_debug_bin
       FROM build AS b
+      WHERE b.main_binary IS NOT NULL
       LEFT JOIN build_artifact AS ba_opam_switch ON
         ba_opam_switch.build = b.id
         AND ba_opam_switch.filepath = 'opam-switch'
