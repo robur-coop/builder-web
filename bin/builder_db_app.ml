@@ -306,7 +306,7 @@ let verify_data_dir () datadir =
     files_untracked;
   or_die 1 r
 
-module Verify_cache_dir = struct 
+module Verify_cache_dir = struct
 
   let verify_dir_exists d =
     let* dir_exists = Bos.OS.Dir.exists d in
@@ -322,7 +322,7 @@ module Verify_cache_dir = struct
   let string_is_int s = match int_of_string_opt s with
     | None -> false
     | Some _ -> true
-  
+
   let verify_cache_subdir ~cachedir d =
     match Bos.OS.Dir.exists Fpath.(cachedir // d) with
     | Ok false -> ()
@@ -337,7 +337,7 @@ module Verify_cache_dir = struct
             let prefix = viz_prefix ^ "_" in
             let has_prefix = String.starts_with ~prefix dir_str in
             let has_valid_ending =
-              if not has_prefix then false else 
+              if not has_prefix then false else
                 let ending =
                   String.(sub dir_str
                             (length prefix)
@@ -353,7 +353,7 @@ module Verify_cache_dir = struct
             m "Invalid cache subdirectory name: '%s'" dir_str)
 
   let get_latest_viz_version viz_typ =
-    let* v_str, run_status = begin match viz_typ with 
+    let* v_str, run_status = begin match viz_typ with
       | `Treemap ->
         let cmd = Bos.Cmd.(v "modulectomy" % "--version") in
         Bos.OS.Cmd.(cmd |> run_out |> out_string)
@@ -362,7 +362,7 @@ module Verify_cache_dir = struct
         Bos.OS.Cmd.(cmd |> run_out |> out_string)
     end in
     match run_status with
-    | (cmd_info, `Exited 0) -> 
+    | (cmd_info, `Exited 0) ->
       begin try Ok (int_of_string v_str) with Failure _ ->
         let msg =
           Fmt.str "Couldn't parse latest version from %a: '%s'"
@@ -372,7 +372,7 @@ module Verify_cache_dir = struct
         Error (`Msg msg)
       end
     | (cmd_info, _) ->
-      let msg = 
+      let msg =
         Fmt.str "Error running visualization cmd: '%a'"
           Bos.Cmd.pp (Bos.OS.Cmd.run_info_cmd cmd_info)
       in
@@ -482,7 +482,7 @@ module Verify_cache_dir = struct
 
   let verify_viz_file_vizdeps ~cachedir build =
     match build.Build.hash_opam_switch with
-    | None -> 
+    | None ->
       Logs.warn (fun m ->
           m "%s: uuid '%a': Doesn't support dependencies viz because of \
              missing 'opam-switch'"
@@ -491,7 +491,7 @@ module Verify_cache_dir = struct
     | Some hash_opam_switch ->
       match
         check_viz_nonempty
-          ~cachedir 
+          ~cachedir
           ~viz_typ:`Dependencies
           ~hash:hash_opam_switch
       with
@@ -512,7 +512,7 @@ module Verify_cache_dir = struct
           ~cachedir
           ~viz_typ:`Treemap
           ~hash:hash_debug_bin
-      with 
+      with
       | Ok () -> ()
       | Error (`Msg err) ->
         Logs.warn (fun m ->
@@ -567,18 +567,18 @@ module Verify_cache_dir = struct
               Fpath.pp viz_path)
 
   type msg = [ `Msg of string ]
-  
+
   let open_error_msg : ('a, msg) result -> ('a, [> msg]) result =
     function
     | Ok _ as v -> v
     | Error e -> Error (e : msg :> [> msg])
-  
+
   let verify () datadir cachedir =
     let module Viz_aux = Builder_web.Viz_aux in
     begin
       let* datadir = Fpath.of_string datadir |> open_error_msg in
       let* cachedir = match cachedir with
-        | Some d -> Fpath.of_string d |> open_error_msg 
+        | Some d -> Fpath.of_string d |> open_error_msg
         | None -> Ok Fpath.(datadir / "_cache")
       in
       let* () = verify_dir_exists cachedir in
