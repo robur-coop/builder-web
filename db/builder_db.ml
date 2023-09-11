@@ -5,7 +5,7 @@ open Caqti_request.Infix
 let application_id = 1234839235l
 
 (* Please update this when making changes! *)
-let current_version = 16L
+let current_version = 17L
 
 type 'a id = 'a Rep.id
 
