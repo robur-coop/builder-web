@@ -13,8 +13,4 @@
  (modules router)
  (libraries builder_web fmt dream yojson alcotest)
  (preprocess
-  (pps
-   ppx_deriving.std
-   ppx_deriving_yojson
-   ))
- )
+  (pps ppx_deriving.std ppx_deriving_yojson)))

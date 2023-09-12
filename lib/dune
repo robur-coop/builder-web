@@ -1,21 +1,5 @@
 (library
  (name builder_web)
- (libraries
-  builder
-  builder_db
-  dream
-  tyxml
-  bos
-  duration
-  hex
-  caqti-lwt
-  opamdiff
-  ptime.clock.os
-  cmarkit
-  tar
-  owee
-  solo5-elftool
-  decompress.de
-  decompress.gz
-  uri
-  ))
+ (libraries builder builder_db dream tyxml bos duration hex caqti-lwt
+   opamdiff ptime.clock.os cmarkit tar owee solo5-elftool decompress.de
+   decompress.gz uri))
