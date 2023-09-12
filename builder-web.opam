@@ -49,10 +49,11 @@ depends: [
   "tar"
   "owee"
   "solo5-elftool" {>= "0.3.0"}
-  "decompress"
+  "decompress" {>= "1.5.0"}
   "alcotest" {with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
+  "yojson" {with-test}
 ]
 
 synopsis: "Web interface for builder"
