@@ -145,29 +145,17 @@ let fail_if_none a =
   Option.to_result ~none:(`Msg "Failed to retrieve") a
 
 let add_test_build user_id (module Db : CONN) =
-  let r =
-    let open Builder_db in
-    Db.start () >>= fun () ->
-    Db.exec Job.try_add job_name >>= fun () ->
-    Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-    Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
-                        main_binary = None; input_id = None; user_id; job_id } >>= fun () ->
-    Db.find last_insert_rowid () >>= fun id ->
-    Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
-    Db.find last_insert_rowid () >>= fun main_binary_id ->
-    Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
-    Db.commit ()
-  in
-  Result.fold r
-    ~ok:Result.ok
-    ~error:(fun e ->
-        let () =
-          match e with
-          | `Msg e -> Printf.eprintf "%s\n%!" e
-          | #Caqti_error.t as e ->
-            Fmt.epr "%a" Caqti_error.pp e
-        in
-        Db.rollback ())
+  let open Builder_db in
+  Db.start () >>= fun () ->
+  Db.exec Job.try_add job_name >>= fun () ->
+  Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
+  Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
+                      main_binary = None; input_id = None; user_id; job_id } >>= fun () ->
+  Db.find last_insert_rowid () >>= fun id ->
+  Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+  Db.find last_insert_rowid () >>= fun main_binary_id ->
+  Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
+  Db.commit ()
 
 let with_build_db f () =
   or_fail
