@@ -5,6 +5,8 @@ val pp_error : Format.formatter -> error -> unit
 val not_found : 'a option -> ('a, [> `Not_found ]) result Lwt.t
 
 val staging : Fpath.t -> Fpath.t
+val artifacts_dir : Fpath.t -> Fpath.t
+val artifact_path : Builder_db.file -> Fpath.t
 
 val cleanup_staging : Fpath.t -> Caqti_lwt.connection ->
   (unit, [> `Msg of string ]) result Lwt.t

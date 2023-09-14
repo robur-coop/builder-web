@@ -211,9 +211,9 @@ module Viz_aux = struct
     match typ with
     | `Treemap ->
       let debug_binary = 
-        let bin = Fpath.base main_binary.localpath in
+        let bin = Fpath.base main_binary.filepath in
         List.find_opt
-          (fun p -> Fpath.(equal (bin + "debug") (base p.localpath)))
+          (fun p -> Fpath.(equal (bin + "debug") (base p.filepath)))
           artifacts
       in
       begin
@@ -226,7 +226,7 @@ module Viz_aux = struct
     | `Dependencies -> 
       let opam_switch =
         List.find_opt
-          (fun p -> Fpath.(equal (v "opam-switch") (base p.localpath)))
+          (fun p -> Fpath.(equal (v "opam-switch") (base p.filepath)))
           artifacts
       in
       Model.not_found opam_switch
@@ -435,8 +435,8 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     | _ ->
       Model.build_artifact_data datadir file
       |> if_error "Error getting build artifact"
-          ~log:(fun e -> Log.warn (fun m -> m "Error getting build artifact data for file %a in %a: %a"
-                           Fpath.pp file.Builder_db.filepath Fpath.pp file.Builder_db.localpath
+          ~log:(fun e -> Log.warn (fun m -> m "Error getting build artifact data for file %a: %a"
+                           Fpath.pp file.Builder_db.filepath
                            pp_error e)) >>= fun data ->
       let headers = [
         "Content-Type", mime_lookup file.Builder_db.filepath;

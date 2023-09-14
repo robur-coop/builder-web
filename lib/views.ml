@@ -188,7 +188,7 @@ let artifact
     ~basename
     ~job_name
     ~build
-    ~file:{ Builder_db.filepath; localpath = _; sha256; size }
+    ~file:{ Builder_db.filepath; sha256; size }
   =
   let artifact_link =
     Link.Job_build_artifact.make
