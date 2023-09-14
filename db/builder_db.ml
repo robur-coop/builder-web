@@ -172,7 +172,7 @@ module Build_artifact = struct
 
   let exists =
     cstruct ->! Caqti_type.bool @@
-    "SELECT EXISTS(SELECT 1 FROM build_artifact WHERE sha256 = ?"
+    "SELECT EXISTS(SELECT 1 FROM build_artifact WHERE sha256 = ?)"
 
   let add =
     Caqti_type.(tup2 file (id `build)) ->. Caqti_type.unit @@
