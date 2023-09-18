@@ -59,7 +59,7 @@ let router =
    * in the handlers which are never called here. The path /nonexistant is
    * assumed to not exist. *)
   let nodir = Fpath.v "/nonexistant" in
-  Builder_web.routes ~datadir:nodir ~cachedir:nodir ~configdir:nodir
+  Builder_web.routes ~datadir:nodir ~cachedir:nodir ~configdir:nodir ~expired_jobs:0
   |> List.map (fun (meth, route, _handler) ->
       meth, route, Param_verification.verify (find_parameters route))
   |> Builder_web.to_dream_routes

@@ -113,7 +113,7 @@ let run_batch_viz ~cachedir ~datadir ~configdir =
         m "Error while starting batch-viz.sh: %a"
           Rresult.R.pp_msg err)
 
-let setup_app level influx port host datadir cachedir configdir run_batch_viz_flag =
+let setup_app level influx port host datadir cachedir configdir run_batch_viz_flag expired_jobs =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
   let cachedir =
@@ -159,7 +159,7 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
     let error_handler = Dream.error_template Builder_web.error_template in
     Dream.initialize_log ?level ();
     let dream_routes = Builder_web.(
-        routes ~datadir ~cachedir ~configdir
+        routes ~datadir ~cachedir ~configdir ~expired_jobs
         |> to_dream_routes
       )
     in
@@ -241,11 +241,15 @@ let run_batch_viz =
              log is written to CACHE_DIR/batch-viz.log" in
   Arg.(value & flag & info [ "run-batch-viz" ] ~doc)
 
+let expired_jobs =
+  let doc = "Amount of days after which a job is considered to be inactive if \
+             no successful build has been achieved (use 0 for infinite)" in
+  Arg.(value & opt int 30 & info [ "expired-jobs" ] ~doc)
 
 let () =
   let term =
     Term.(const setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $
-          cachedir $ configdir $ run_batch_viz)
+          cachedir $ configdir $ run_batch_viz $ expired_jobs)
   in
   let info = Cmd.info "Builder web" ~doc:"Builder web" ~man:[] in
   Cmd.v info term

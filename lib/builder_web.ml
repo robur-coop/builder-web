@@ -258,7 +258,7 @@ module Viz_aux = struct
 end
 
 
-let routes ~datadir ~cachedir ~configdir =
+let routes ~datadir ~cachedir ~configdir ~expired_jobs =
   let builds ~filter_builds_later_than req =
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
@@ -610,17 +610,20 @@ let routes ~datadir ~cachedir ~configdir =
 
   let w f req = or_error_response (f req) in
 
-  let thirty_days_ago =
-    let thirty = Ptime.Span.v (30, 0L) in
-    let now = Ptime_clock.now () in
-    Ptime.Span.sub (Ptime.to_span now) thirty |> Ptime.of_span |>
-    Option.fold
-      ~none:Ptime.epoch
-      ~some:Fun.id
+  let n_days_ago =
+    if expired_jobs = 0 then
+      Ptime.epoch
+    else
+      let n = Ptime.Span.v (expired_jobs, 0L) in
+      let now = Ptime_clock.now () in
+      Ptime.Span.sub (Ptime.to_span now) n |> Ptime.of_span |>
+      Option.fold
+        ~none:Ptime.epoch
+        ~some:Fun.id
   in
 
   [
-    `Get, "/", (w (builds ~filter_builds_later_than:thirty_days_ago));
+    `Get, "/", (w (builds ~filter_builds_later_than:n_days_ago));
     `Get, "/job/:job", (w job);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
