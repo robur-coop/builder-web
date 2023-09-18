@@ -361,7 +361,11 @@ have questions or suggestions.
           H.txt "View the latest failed builds ";
           H.a ~a:H.[a_href "/failed-builds"]
             [H.txt "here"];
-          H.txt "."
+          H.txt ".";
+          H.txt "View all jobs ";
+          H.a ~a:H.[a_href "/all-builds"]
+            [H.txt "here"];
+          H.txt ".";
         ]]
 
   let make section_job_map =
