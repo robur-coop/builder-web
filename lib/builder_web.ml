@@ -259,7 +259,16 @@ end
 
 
 let routes ~datadir ~cachedir ~configdir ~expired_jobs =
-  let builds ~filter_builds_later_than req =
+  let builds ?(filter_builds_later_than = 0) req =
+    let than =
+      if filter_builds_later_than = 0 then
+        Ptime.epoch
+      else
+        let n = Ptime.Span.v (filter_builds_later_than, 0L) in
+        let now = Ptime_clock.now () in
+        Ptime.Span.sub (Ptime.to_span now) n |> Ptime.of_span |>
+        Option.fold ~none:Ptime.epoch ~some:Fun.id
+    in
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
@@ -272,7 +281,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
            r >>= fun acc ->
            Dream.sql req (Model.build_with_main_binary job_id platform) >>= function
            | Some (build, artifact) ->
-             if Ptime.is_later ~than:filter_builds_later_than build.finish then
+             if Ptime.is_later ~than build.finish then
                Lwt_result.return ((platform, build, artifact) :: acc)
              else
                Lwt_result.return acc
@@ -610,20 +619,8 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
 
   let w f req = or_error_response (f req) in
 
-  let n_days_ago =
-    if expired_jobs = 0 then
-      Ptime.epoch
-    else
-      let n = Ptime.Span.v (expired_jobs, 0L) in
-      let now = Ptime_clock.now () in
-      Ptime.Span.sub (Ptime.to_span now) n |> Ptime.of_span |>
-      Option.fold
-        ~none:Ptime.epoch
-        ~some:Fun.id
-  in
-
   [
-    `Get, "/", (w (builds ~filter_builds_later_than:n_days_ago));
+    `Get, "/", (w (builds ~filter_builds_later_than:expired_jobs));
     `Get, "/job/:job", (w job);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
@@ -637,7 +634,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
     `Get, "/failed-builds", (w failed_builds);
-    `Get, "/all-builds", (w (builds ~filter_builds_later_than:Ptime.epoch));
+    `Get, "/all-builds", (w builds);
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
     `Post, "/upload", (Authorization.authenticate (w upload));
