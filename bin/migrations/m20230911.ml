@@ -5,8 +5,13 @@ and rollback_doc = "index failed builds on exit code"
 
 open Grej.Syntax
 
+let drop_idx_build_failed =
+  Caqti_type.(unit ->. unit) @@
+  "DROP INDEX idx_build_failed"
+
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   let* () = Grej.check_version ~user_version:old_version (module Db) in
+  let* () = Db.exec drop_idx_build_failed () in
   let* () =
     Db.exec (Caqti_type.unit ->. Caqti_type.unit @@
              "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) \
@@ -17,6 +22,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
 
 let rollback _datadir (module Db : Caqti_blocking.CONNECTION) =
   let* () = Grej.check_version ~user_version:new_version (module Db) in
+  let* () = Db.exec drop_idx_build_failed () in
   let* () =
     Db.exec (Caqti_type.unit ->. Caqti_type.unit @@
              "CREATE INDEX idx_build_failed ON build(job, start_d DESC, start_ps DESC) \
