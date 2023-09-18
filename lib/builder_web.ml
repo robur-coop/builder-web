@@ -280,9 +280,12 @@ let routes ~datadir ~cachedir ~configdir =
              Log.warn (fun m -> m "Job without builds: %s" job_name);
              Lwt_result.return acc)
            ps (Lwt_result.return []) >>= fun platform_builds ->
-         let v = (job_name, synopsis, platform_builds) in
-         let section = Option.value ~default:"Uncategorized" section in
-         Lwt_result.return (Utils.String_map.add_or_create section v acc))
+         if platform_builds = [] then
+           Lwt_result.return acc
+         else
+           let v = (job_name, synopsis, platform_builds) in
+           let section = Option.value ~default:"Uncategorized" section in
+           Lwt_result.return (Utils.String_map.add_or_create section v acc))
       jobs
       (Lwt_result.return Utils.String_map.empty)
     |> if_error "Error getting jobs"
