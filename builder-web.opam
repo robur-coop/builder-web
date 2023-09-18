@@ -50,7 +50,7 @@ depends: [
   "owee"
   "solo5-elftool" {>= "0.3.0"}
   "decompress" {>= "1.5.0"}
-  "alcotest" {with-test}
+  "alcotest" {>= "1.2.0" & with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
   "yojson" {with-test}
