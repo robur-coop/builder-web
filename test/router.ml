@@ -2,7 +2,7 @@
 module Param_verification = struct
 
   (*> None is 'verified'*)
-  type t = wrong_type option 
+  type t = wrong_type option
   [@@deriving yojson,show,eq]
 
   and wrong_type = {
@@ -24,9 +24,9 @@ module Param_verification = struct
           param;
           expected = "Uuidm.t"
         }
-    
+
   end
-  
+
   let verify parameters req =
     let verified_params =
       List.fold_left (fun acc p ->
@@ -53,7 +53,7 @@ let find_parameters path =
       else
         None)
     (String.split_on_char '/' path)
-                   
+
 let router =
   (* XXX: this relies on [Builder_web.routes] only using {data,cache,config}dir
    * in the handlers which are never called here. The path /nonexistant is
@@ -83,7 +83,7 @@ let test_link method_ target () =
   Alcotest.(check' (result Param_verification.alcotyp string) ~msg:"param-verification"
               ~actual:body ~expected:(Ok None))
 
-let test_link_artifact artifact = 
+let test_link_artifact artifact =
   let job_name = "test" in
   let build = Uuidm.v `V4 in
   test_link `GET @@
@@ -147,7 +147,7 @@ let () =
         end;
         test_case "Link.Failed_builds.make" `Quick begin
           test_link `GET @@
-          Builder_web.Link.Failed_builds.make ~count:2 ~start:1 () 
+          Builder_web.Link.Failed_builds.make ~count:2 ~start:1 ()
         end;
       ];
     (* this doesn't actually test the redirects, unfortunately *)

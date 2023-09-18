@@ -81,28 +81,28 @@ let init_influx name data =
 let run_batch_viz ~cachedir ~datadir ~configdir =
   let open Rresult.R.Infix in
   begin
-    let script = Fpath.(configdir / "batch-viz.sh") 
+    let script = Fpath.(configdir / "batch-viz.sh")
     and script_log = Fpath.(cachedir / "batch-viz.log")
-    and viz_script = Fpath.(configdir / "upload-hooks" / "visualizations.sh") 
+    and viz_script = Fpath.(configdir / "upload-hooks" / "visualizations.sh")
     in
     Bos.OS.File.exists script >>= fun script_exists ->
     if not script_exists then begin
       Logs.warn (fun m -> m "Didn't find %s" (Fpath.to_string script));
       Ok ()
     end else
-      let args = 
+      let args =
         [ "--cache-dir=" ^ Fpath.to_string cachedir;
           "--data-dir=" ^ Fpath.to_string datadir;
           "--viz-script=" ^ Fpath.to_string viz_script ]
         |> List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
         |> String.concat " "
       in
-      (*> Note: The reason for appending, is that else a new startup could 
+      (*> Note: The reason for appending, is that else a new startup could
           overwrite an existing running batch's log*)
       (Fpath.to_string script ^ " " ^ args
        ^ " 2>&1 >> " ^ Fpath.to_string script_log
        ^ " &")
-      |> Sys.command 
+      |> Sys.command
       |> ignore
       |> Result.ok
   end
