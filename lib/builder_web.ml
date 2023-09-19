@@ -259,7 +259,7 @@ end
 
 
 let routes ~datadir ~cachedir ~configdir ~expired_jobs =
-  let builds ?(filter_builds_later_than = 0) req =
+  let builds ~all ?(filter_builds_later_than = 0) req =
     let than =
       if filter_builds_later_than = 0 then
         Ptime.epoch
@@ -300,7 +300,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.Builds.make jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Builds.make ~all jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -620,7 +620,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
   let w f req = or_error_response (f req) in
 
   [
-    `Get, "/", (w (builds ~filter_builds_later_than:expired_jobs));
+    `Get, "/", (w (builds ~all:false ~filter_builds_later_than:expired_jobs));
     `Get, "/job/:job", (w job);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
@@ -634,7 +634,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
     `Get, "/failed-builds", (w failed_builds);
-    `Get, "/all-builds", (w builds);
+    `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
     `Post, "/upload", (Authorization.authenticate (w upload));

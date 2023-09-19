@@ -362,17 +362,22 @@ have questions or suggestions.
           H.a ~a:H.[a_href "/failed-builds"]
             [H.txt "here"];
           H.txt ".";
-          H.txt "View all jobs ";
-          H.a ~a:H.[a_href "/all-builds"]
-            [H.txt "here"];
-          H.txt ".";
         ]]
 
-  let make section_job_map =
+  let make_all_or_active all =
+      [ H.p [
+            H.txt (if all then "View active jobs " else "View all jobs ");
+            H.a ~a:H.[a_href (if all then "/" else "/all-builds")]
+              [H.txt "here"];
+            H.txt ".";
+          ]]
+
+  let make ~all section_job_map =
     layout ~title:"Reproducible OPAM builds"
       (make_header
        @ make_body section_job_map
-       @ make_failed_builds)
+       @ make_failed_builds
+       @ make_all_or_active all)
 
 end
 
