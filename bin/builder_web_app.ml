@@ -120,6 +120,7 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
     cachedir |> Option.fold ~none:Fpath.(datadir / "_cache") ~some:Fpath.v
   in
   let configdir = Fpath.v configdir in
+  let () = Mirage_crypto_rng_unix.initialize (module Mirage_crypto_rng.Fortuna) in
   let () = init_influx "builder-web" influx in
   let () =
     if run_batch_viz_flag then
