@@ -82,15 +82,17 @@ let copy_paths datadir (old_path, new_path) =
   let old_path = Fpath.(datadir // v old_path) and new_path = Fpath.(datadir // v new_path) in
   let new_path_tmp = Fpath.(new_path + "tmp") in
   let* _created = Bos.OS.Dir.create (Fpath.parent new_path) in
+  let cmd = Bos.Cmd.(v "cp" % p old_path % p new_path_tmp) in
   let* () =
-    Bos.OS.File.with_ic old_path
-      (Bos.OS.File.with_oc new_path_tmp (fun oc ic ->
-           let buf = Bytes.create 4096 in
-           let rec loop () =
-             let len = input ic buf 0 4096 in
-             if len > 0 then output oc buf 0 len
-           in
-           loop ()))
+    match Bos.OS.Cmd.run_status cmd with
+    | Ok `Exited 0 ->
+      Ok ()
+    | Ok status ->
+      let _ = Bos.OS.Path.delete new_path_tmp in
+      Error (`Msg (Fmt.str "cp failed: %a" Bos.OS.Cmd.pp_status status))
+    | Error _ as e ->
+      let _ = Bos.OS.Path.delete new_path_tmp in
+      e
   in
   Bos.OS.Path.move ~force:true new_path_tmp new_path
 
@@ -142,7 +144,6 @@ let fixup_rollback datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.iter_s old_build_artifact_paths
     (fun (old_path, new_path) ->
        let* old_exists = Bos.OS.Path.exists Fpath.(datadir // v old_path) in
-       let* new_exists = Bos.OS.Path.exists Fpath.(datadir // v new_path) in
        if old_exists then
          Bos.OS.Path.delete Fpath.(datadir // v new_path)
        else
