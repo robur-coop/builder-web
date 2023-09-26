@@ -81,28 +81,28 @@ let init_influx name data =
 let run_batch_viz ~cachedir ~datadir ~configdir =
   let open Rresult.R.Infix in
   begin
-    let script = Fpath.(configdir / "batch-viz.sh") 
+    let script = Fpath.(configdir / "batch-viz.sh")
     and script_log = Fpath.(cachedir / "batch-viz.log")
-    and viz_script = Fpath.(configdir / "upload-hooks" / "visualizations.sh") 
+    and viz_script = Fpath.(configdir / "upload-hooks" / "visualizations.sh")
     in
     Bos.OS.File.exists script >>= fun script_exists ->
     if not script_exists then begin
       Logs.warn (fun m -> m "Didn't find %s" (Fpath.to_string script));
       Ok ()
     end else
-      let args = 
+      let args =
         [ "--cache-dir=" ^ Fpath.to_string cachedir;
           "--data-dir=" ^ Fpath.to_string datadir;
           "--viz-script=" ^ Fpath.to_string viz_script ]
         |> List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
         |> String.concat " "
       in
-      (*> Note: The reason for appending, is that else a new startup could 
+      (*> Note: The reason for appending, is that else a new startup could
           overwrite an existing running batch's log*)
       (Fpath.to_string script ^ " " ^ args
        ^ " 2>&1 >> " ^ Fpath.to_string script_log
        ^ " &")
-      |> Sys.command 
+      |> Sys.command
       |> ignore
       |> Result.ok
   end
@@ -113,7 +113,7 @@ let run_batch_viz ~cachedir ~datadir ~configdir =
         m "Error while starting batch-viz.sh: %a"
           Rresult.R.pp_msg err)
 
-let setup_app level influx port host datadir cachedir configdir run_batch_viz_flag =
+let setup_app level influx port host datadir cachedir configdir run_batch_viz_flag expired_jobs =
   let dbpath = Printf.sprintf "%s/builder.sqlite3" datadir in
   let datadir = Fpath.v datadir in
   let cachedir =
@@ -159,7 +159,7 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
     let error_handler = Dream.error_template Builder_web.error_template in
     Dream.initialize_log ?level ();
     let dream_routes = Builder_web.(
-        routes ~datadir ~cachedir ~configdir
+        routes ~datadir ~cachedir ~configdir ~expired_jobs
         |> to_dream_routes
       )
     in
@@ -241,11 +241,15 @@ let run_batch_viz =
              log is written to CACHE_DIR/batch-viz.log" in
   Arg.(value & flag & info [ "run-batch-viz" ] ~doc)
 
+let expired_jobs =
+  let doc = "Amount of days after which a job is considered to be inactive if \
+             no successful build has been achieved (use 0 for infinite)" in
+  Arg.(value & opt int 30 & info [ "expired-jobs" ] ~doc)
 
 let () =
   let term =
     Term.(const setup_app $ Logs_cli.level () $ influx $ port $ host $ datadir $
-          cachedir $ configdir $ run_batch_viz)
+          cachedir $ configdir $ run_batch_viz $ expired_jobs)
   in
   let info = Cmd.info "Builder web" ~doc:"Builder web" ~man:[] in
   Cmd.v info term

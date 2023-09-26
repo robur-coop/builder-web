@@ -98,7 +98,7 @@ let make_breadcrumbs nav =
       txtf "Job %s" job_name, Link.Job.make ~job_name ();
       (
         txtf "%a" pp_platform platform,
-        Link.Job.make ~job_name ~queries () 
+        Link.Job.make ~job_name ~queries ()
       )
     ]
   | `Build (job_name, build) ->
@@ -122,7 +122,7 @@ let make_breadcrumbs nav =
         txtf "Comparison between %s@%a and %s@%a"
           job_left pp_ptime build_left.Builder_db.Build.start
           job_right pp_ptime build_right.Builder_db.Build.start,
-        Link.Compare_builds.make 
+        Link.Compare_builds.make
           ~left:build_left.uuid
           ~right:build_right.uuid ()
       );
@@ -218,7 +218,7 @@ let page_not_found ~target ~referer =
     | None -> []
     | Some prev_url -> [
         H.p [
-          H.txt "Go back to "; 
+          H.txt "Go back to ";
           H.a ~a:H.[ a_href prev_url ] [ H.txt prev_url ];
         ];
       ]
@@ -361,14 +361,23 @@ have questions or suggestions.
           H.txt "View the latest failed builds ";
           H.a ~a:H.[a_href "/failed-builds"]
             [H.txt "here"];
-          H.txt "."
+          H.txt ".";
         ]]
 
-  let make section_job_map =
+  let make_all_or_active all =
+      [ H.p [
+            H.txt (if all then "View active jobs " else "View all jobs ");
+            H.a ~a:H.[a_href (if all then "/" else "/all-builds")]
+              [H.txt "here"];
+            H.txt ".";
+          ]]
+
+  let make ~all section_job_map =
     layout ~title:"Reproducible OPAM builds"
       (make_header
        @ make_body section_job_map
-       @ make_failed_builds)
+       @ make_failed_builds
+       @ make_all_or_active all)
 
 end
 
@@ -393,7 +402,7 @@ module Job = struct
         check_icon build.Builder_db.Build.result;
         txtf " %s " build.platform;
         H.a ~a:H.[
-            a_href @@ Link.Job_build.make 
+            a_href @@ Link.Job_build.make
               ~job_name
               ~build:build.Builder_db.Build.uuid () ]
           [
@@ -431,7 +440,7 @@ module Job = struct
           H.txt "." ]
       else
         H.p [
-          H.txt "Including failed builds " ; 
+          H.txt "Including failed builds " ;
           H.a ~a:H.[
               a_href @@ Link.Job.make_failed ~job_name ~queries ()
             ]
@@ -582,7 +591,7 @@ module Job_build = struct
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
           [ H.li [ H.txt ctx;
                    H.a ~a:[
-                     H.a_href @@ Link.Compare_builds.make 
+                     H.a_href @@ Link.Compare_builds.make
                        ~left:b.uuid
                        ~right:build.uuid () ]
                      [txtf "%a" pp_ptime b.start]]
@@ -679,10 +688,10 @@ module Job_build = struct
           font-weight: bold;\
           "
       ]
-  
+
   let make_viz_section ~job_name ~artifacts ~uuid =
-    let viz_deps = 
-      let iframe = 
+    let viz_deps =
+      let iframe =
         let src = Link.Job_build_artifact.make ~job_name ~build:uuid
             ~artifact:`Viz_dependencies () in
         H.iframe ~a:H.[
@@ -693,11 +702,11 @@ module Job_build = struct
       in
       let descr_txt = "\
 This is an interactive visualization of dependencies, \
-focusing on how shared dependencies are. 
+focusing on how shared dependencies are.
 
 In the middle you see the primary package. \
 Edges shoot out to its direct \
-dependencies, including build dependencies. 
+dependencies, including build dependencies.
 
 From these direct dependencies, edges shoot out to sets \
 of their own respective direct dependencies. \
@@ -714,7 +723,7 @@ dependency.\
       [ iframe; H.br (); make_description descr_txt ]
     in
     let viz_treemap = lazy (
-      let iframe = 
+      let iframe =
         let src = Link.Job_build_artifact.make ~job_name ~build:uuid
             ~artifact:`Viz_treemap () in
         H.iframe ~a:H.[
@@ -726,7 +735,7 @@ dependency.\
       let descr_txt = "\
 This interactive treemap shows the space-usage of modules/libraries inside the \
 ELF binary. You can get more info from each block by \
-hovering over them. 
+hovering over them.
 
 On top of the treemap there is a scale, showing how much space the \
 treemap itself constitutes of the binary, the excluded symbols/modules \

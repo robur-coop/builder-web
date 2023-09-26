@@ -258,8 +258,17 @@ module Viz_aux = struct
 end
 
 
-let routes ~datadir ~cachedir ~configdir =
-  let builds req =
+let routes ~datadir ~cachedir ~configdir ~expired_jobs =
+  let builds ~all ?(filter_builds_later_than = 0) req =
+    let than =
+      if filter_builds_later_than = 0 then
+        Ptime.epoch
+      else
+        let n = Ptime.Span.v (filter_builds_later_than, 0L) in
+        let now = Ptime_clock.now () in
+        Ptime.Span.sub (Ptime.to_span now) n |> Ptime.of_span |>
+        Option.fold ~none:Ptime.epoch ~some:Fun.id
+    in
     Dream.sql req Model.jobs_with_section_synopsis
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
@@ -272,20 +281,26 @@ let routes ~datadir ~cachedir ~configdir =
            r >>= fun acc ->
            Dream.sql req (Model.build_with_main_binary job_id platform) >>= function
            | Some (build, artifact) ->
-             Lwt_result.return ((platform, build, artifact) :: acc)
+             if Ptime.is_later ~than build.finish then
+               Lwt_result.return ((platform, build, artifact) :: acc)
+             else
+               Lwt_result.return acc
            | None ->
              Log.warn (fun m -> m "Job without builds: %s" job_name);
              Lwt_result.return acc)
            ps (Lwt_result.return []) >>= fun platform_builds ->
-         let v = (job_name, synopsis, platform_builds) in
-         let section = Option.value ~default:"Uncategorized" section in
-         Lwt_result.return (Utils.String_map.add_or_create section v acc))
+         if platform_builds = [] then
+           Lwt_result.return acc
+         else
+           let v = (job_name, synopsis, platform_builds) in
+           let section = Option.value ~default:"Uncategorized" section in
+           Lwt_result.return (Utils.String_map.add_or_create section v acc))
       jobs
       (Lwt_result.return Utils.String_map.empty)
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.Builds.make jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    Views.Builds.make ~all jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -605,7 +620,7 @@ let routes ~datadir ~cachedir ~configdir =
   let w f req = or_error_response (f req) in
 
   [
-    `Get, "/", (w builds);
+    `Get, "/", (w (builds ~all:false ~filter_builds_later_than:expired_jobs));
     `Get, "/job/:job", (w job);
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
@@ -619,6 +634,7 @@ let routes ~datadir ~cachedir ~configdir =
     `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
     `Get, "/failed-builds", (w failed_builds);
+    `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
     `Post, "/upload", (Authorization.authenticate (w upload));
