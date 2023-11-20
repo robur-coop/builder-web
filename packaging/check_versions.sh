@@ -15,11 +15,14 @@ freebsd_sanitize_version () {
         exit 1;
     fi
     if [ $version_with_commit -eq 0 ]; then
-        v="${v}.0.g0000000"
+        v="${v}.0.g0000000.${post}"
+    else
+        v="${v}.${post}"
     fi
     echo $v
 }
 
+echo "using FreeBSD pkg to compare versions now:"
 while read version_a version_b; do
 	version_a=$(freebsd_sanitize_version $version_a)
 	version_b=$(freebsd_sanitize_version $version_b)
@@ -27,7 +30,28 @@ while read version_a version_b; do
 	printf "%s %s %s\n" "$version_a" "$result" "$version_b"
 done < versions.txt
 
+debian_sanitize_version () {
+    post=$(echo $1 | rev | cut -d '-' -f 1-2 | rev)
+    v=$(echo $1 | rev | cut -d '-' -f 3- | rev)
+    version_good=$(echo $v | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+$')
+    version_with_commit=$(echo $v | grep -c '^[0-9]\+\.[0-9]\+\.[0-9]\+\-[0-9]\+\-g[0-9a-fA-f]\+$')
+    if [ $version_good -eq 0 -a $version_with_commit -eq 0 ]; then
+        echo "invalid version $v";
+        exit 1;
+    fi
+    if [ $version_with_commit -eq 0 ]; then
+        v="${v}-0-g0000000-${post}"
+    else
+        v="${v}-${post}"
+    fi
+    echo $v
+}
+
+echo ""
+echo "using Debian dpkg to compare versions now:"
 while read version_a version_b; do
+	version_a=$(debian_sanitize_version $version_a)
+	version_b=$(debian_sanitize_version $version_b)
 	if dpkg --compare-versions "$version_a" lt "$version_b"; then
 		echo "$version_a < $version_b"
 	else
