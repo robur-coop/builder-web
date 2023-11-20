@@ -124,6 +124,8 @@ if ! aptly repo show "${PLATFORM}" > /dev/null 2>&1; then
   aptly repo create --distribution="${PLATFORM}" "${PLATFORM}"
 fi
 
+PACKAGE=$(dpkg-deb -f "${FILENAME}" Package)
+aptly repo remove "${PLATFORM}" "${PACKAGE}"
 aptly repo add "${PLATFORM}" "${TMP}"
 
 : "${REPO_KEYID:="D5E2DC92617877EDF7D4FD4345EA05FB7E26053D"}"

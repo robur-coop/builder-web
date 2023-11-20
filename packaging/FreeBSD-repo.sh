@@ -124,6 +124,7 @@ PKG_DIR="${REPO_DIR}/All"
 # and then move it before recreating the index
 pkg create -r "${PKG_ROOT}" -m "${MANIFEST}" -o "${TMP}"
 mkdir -p "${PKG_DIR}"
+rm -f "${PKG_DIR}"/"${NAME}"-*.pkg
 mv "${TMP}/${NAME}-${FULL_VERSION}.pkg" "${PKG_DIR}"
 
 pkg repo "${REPO_DIR}" "${REPO_KEY}"
