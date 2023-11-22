@@ -320,7 +320,7 @@ module Build = struct
        FROM build b
        LEFT JOIN build_artifact a ON
          b.main_binary = a.id
-       WHERE b.job = $1 AND b.platform = $2
+       WHERE b.job = $1 AND b.platform = $2 AND b.main_binary IS NOT NULL
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
     |}
@@ -348,6 +348,7 @@ module Build = struct
        FROM build b, build b0, build_artifact a, build_artifact a0
        WHERE b0.id = ? AND b0.job = b.job AND
          b.platform = b0.platform AND
+         b.main_binary IS NOT NULL AND
          a.id = b.main_binary AND a0.id = b0.main_binary AND
          a.sha256 <> a0.sha256 AND
          (b0.start_d > b.start_d OR b0.start_d = b.start_d AND b0.start_ps > b.start_ps)
@@ -364,6 +365,7 @@ module Build = struct
        FROM build b, build b0, build_artifact a, build_artifact a0
        WHERE b0.id = ? AND b0.job = b.job AND
          b.platform = b0.platform AND
+         b.main_binary IS NOT NULL AND
          a.id = b.main_binary AND a0.id = b0.main_binary AND
          a.sha256 <> a0.sha256 AND
          (b0.start_d < b.start_d OR b0.start_d = b.start_d AND b0.start_ps < b.start_ps)
