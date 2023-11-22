@@ -319,18 +319,13 @@ have questions or suggestions.
           ~build:latest_build.Builder_db.Build.uuid ()]
         [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
       H.txt " ";
+
     ]
-    @ (match latest_artifact with
-        | Some main_binary ->
-          artifact
-            ~basename:true
-            ~job_name
-            ~build:latest_build
-            ~file:main_binary
-        | None ->
-          [ txtf "Build failure: %a" Builder.pp_execution_result
-              latest_build.Builder_db.Build.result ]
-      )
+    @ artifact
+      ~basename:true
+      ~job_name
+      ~build:latest_build
+      ~file:latest_artifact
     @ [ H.br () ]
 
   let make_jobs jobs =

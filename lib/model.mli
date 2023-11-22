@@ -30,7 +30,7 @@ val build : Uuidm.t -> Caqti_lwt.connection ->
   ([`build] Builder_db.id * Builder_db.Build.t, [> error ]) result Lwt.t
 
 val build_with_main_binary : [`job] Builder_db.id -> string -> Caqti_lwt.connection ->
-  ((Builder_db.Build.t * Builder_db.file option) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
+  ((Builder_db.Build.t * Builder_db.file) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
 val build_hash : Cstruct.t -> Caqti_lwt.connection ->
   ((string * Builder_db.Build.t) option, [> Caqti_error.call_or_retrieve ]) result Lwt.t

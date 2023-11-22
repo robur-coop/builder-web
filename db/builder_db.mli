@@ -121,7 +121,7 @@ sig
   val get_all_artifact_sha :
     ([`job] id * string option, Cstruct.t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_latest_successful_with_binary :
-    ([`job] id * string, [`build] id * t * file option, [ `One | `Zero ])
+    ([`job] id * string, [`build] id * t * file, [ `One | `Zero ])
       Caqti_request.t
   val get_failed_builds :
     ([`job] id * string option, t, [ `Many | `One | `Zero ]) Caqti_request.t
