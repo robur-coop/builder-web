@@ -311,16 +311,15 @@ module Build = struct
     |}
 
   let get_latest_successful_with_binary =
-    Caqti_type.(tup2 (id `job) string) ->? Caqti_type.tup3 (id `build) t file_opt @@
+    Caqti_type.(tup2 (id `job) string) ->? Caqti_type.tup3 (id `build) t file @@
     {| SELECT b.id,
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
          b.platform, b.main_binary, b.input_id, b.user, b.job,
          a.filepath, a.localpath, a.sha256, a.size
-       FROM build b
-       LEFT JOIN build_artifact a ON
-         b.main_binary = a.id
-       WHERE b.job = $1 AND b.platform = $2 AND b.main_binary IS NOT NULL
+       FROM build b, build_artifact a
+       WHERE b.main_binary = a.id AND b.job = $1 AND b.platform = $2
+         AND b.main_binary IS NOT NULL
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
     |}
