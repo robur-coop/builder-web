@@ -47,7 +47,7 @@ let compare_pkgs p1 p2 =
 
 let md_to_html ?adjust_heading ?(safe = true) data =
   let open Cmarkit in
-  let doc = Doc.of_string ~heading_auto_ids:true data in
+  let doc = Doc.of_string ~strict:false ~heading_auto_ids:true data in
   let doc =
     Option.fold ~none:doc
       ~some:(fun lvl ->
