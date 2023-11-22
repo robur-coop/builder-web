@@ -104,6 +104,43 @@ let test_heading_adjustment () =
 |} in
   Alcotest.(check string "header adjustment works fine" exp html)
 
+let test_table () =
+  let markdown = {__|| a           | | b         |  c            | d | e |
+| --------------------- |-| -------------- | -------------- | --------------- | ------ |
+| entry         | | **bla.file** | **other.file**     |                 |        |
+| _another entry_  | | **another.file** | **another.other** |                 |        |
+|__}
+  in
+  let html = markdown_to_html ~adjust_heading:2 markdown in
+  (* NB: the maximum heading is 6 in cmarkit, thus we reduce the structure *)
+  let exp = {|<div role="region"><table>
+<tr>
+<th>a</th>
+<th>b</th>
+<th>c</th>
+<th>d</th>
+<th>e</th>
+<th></th>
+</tr>
+<tr>
+<td>entry</td>
+<td><strong>bla.file</strong></td>
+<td><strong>other.file</strong></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+<tr>
+<td><em>another entry</em></td>
+<td><strong>another.file</strong></td>
+<td><strong>another.other</strong></td>
+<td></td>
+<td></td>
+<td></td>
+</tr>
+</table></div>|} in
+  Alcotest.(check string "table is rendered as html" exp html)
+
 let markdown_tests = [
   Alcotest.test_case "Simple" `Quick test_simple;
   Alcotest.test_case "script header" `Quick test_html_script;
@@ -119,6 +156,7 @@ let markdown_tests = [
   Alcotest.test_case "absolute image with script alt" `Quick test_absolute_image_script_alt;
   Alcotest.test_case "fragment link" `Quick test_fragment_link;
   Alcotest.test_case "heading adjustment" `Quick test_heading_adjustment;
+  Alcotest.test_case "table" `Quick test_table;
 ]
 
 let () =
