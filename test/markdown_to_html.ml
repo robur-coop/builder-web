@@ -112,30 +112,65 @@ let test_table () =
 |__}
   in
   let html = markdown_to_html ~adjust_heading:2 markdown in
-  (* NB: the maximum heading is 6 in cmarkit, thus we reduce the structure *)
   let exp = {|<div role="region"><table>
 <tr>
 <th>a</th>
+<th></th>
 <th>b</th>
 <th>c</th>
 <th>d</th>
 <th>e</th>
-<th></th>
 </tr>
 <tr>
 <td>entry</td>
+<td></td>
 <td><strong>bla.file</strong></td>
 <td><strong>other.file</strong></td>
-<td></td>
 <td></td>
 <td></td>
 </tr>
 <tr>
 <td><em>another entry</em></td>
+<td></td>
 <td><strong>another.file</strong></td>
 <td><strong>another.other</strong></td>
 <td></td>
 <td></td>
+</tr>
+</table></div>|} in
+  Alcotest.(check string "table is rendered as html" exp html)
+
+let test_table2 () =
+  let markdown = {__|| a           | | b         |  c            | d | e |
+| --------------------- |-| -------------- | -------------- | --------------- | ------ |
+| entry         | | | | **bla.file** | **other.file**     |
+| _another entry_  | | | **another.file** | **another.other** |                |
+|__}
+  in
+  let html = markdown_to_html ~adjust_heading:2 markdown in
+  let exp = {|<div role="region"><table>
+<tr>
+<th>a</th>
+<th></th>
+<th>b</th>
+<th>c</th>
+<th>d</th>
+<th>e</th>
+</tr>
+<tr>
+<td>entry</td>
+<td></td>
+<td></td>
+<td></td>
+<td><strong>bla.file</strong></td>
+<td><strong>other.file</strong></td>
+</tr>
+<tr>
+<td><em>another entry</em></td>
+<td></td>
+<td></td>
+<td><strong>another.file</strong></td>
+<td><strong>another.other</strong></td>
 <td></td>
 </tr>
 </table></div>|} in
@@ -157,6 +192,7 @@ let markdown_tests = [
   Alcotest.test_case "fragment link" `Quick test_fragment_link;
   Alcotest.test_case "heading adjustment" `Quick test_heading_adjustment;
   Alcotest.test_case "table" `Quick test_table;
+  Alcotest.test_case "table2" `Quick test_table2;
 ]
 
 let () =

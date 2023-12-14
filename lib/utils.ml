@@ -61,7 +61,8 @@ let md_to_html ?adjust_heading ?(safe = true) data =
               in
               let h' = make ?id ~layout ~level:(level + lvl) inline in
               Mapper.ret (Block.Heading (h', meta))
-            | _ -> Mapper.default
+            | Block.Blocks _ -> Mapper.default
+            | x -> Mapper.ret x
           in
           let mapper = Mapper.make ~block () in
           Mapper.map_doc mapper doc)
