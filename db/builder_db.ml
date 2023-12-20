@@ -203,6 +203,31 @@ module Build = struct
     job_id : [`job] id;
   }
 
+  let pp ppf t =
+    Fmt.pf ppf "@[<hov>{ uuid=@ %a;@ \
+                         start=@ %a;@ \
+                         finish=@ %a;@ \
+                         result=@ @[<hov>%a@];@ \
+                         console=@ %a;@ \
+                         script=@ %a;@ \
+                         platform=@ %S;@ \
+                         main_binary=@ @[<hov>%a@];@ \
+                         input_id=@ @[<hov>%a@];@ \
+                         user_id=@ %Lx;@ \
+                         job_id=@ %Lx;@ }@]"
+      Uuidm.pp t.uuid
+      Ptime.pp t.start
+      Ptime.pp t.finish
+      Builder.pp_execution_result t.result
+      Fpath.pp t.console
+      Fpath.pp t.script
+      t.platform
+      Fmt.(Dump.option int64) t.main_binary
+      Fmt.(Dump.option (using Cstruct.to_string string)) t.input_id
+      t.user_id
+      t.job_id
+
+
   let t =
     let rep =
       Caqti_type.(tup3
@@ -324,6 +349,39 @@ module Build = struct
          AND b.main_binary IS NOT NULL
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
+    |}
+
+  let get_builds_older_than =
+    Caqti_type.(tup3 (id `job) (option string) ptime) ->* Caqti_type.(tup2 t file) @@
+    {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+         b.result_code, b.result_msg, b.console, b.script,
+         b.platform, b.main_binary, b.input_id, b.user, b.job,
+         a.filepath, a.localpath, a.sha256, a.size
+       FROM build_artifact a
+       INNER JOIN build b ON b.id = a.build
+       WHERE b.main_binary = a.id AND b.job = $1
+         AND ($2 IS NULL OR platform = $2)
+         AND (CAST((b.finish_d * 3600) AS REAL) + CAST(b.finish_ps AS REAL) / 1000000000000) <= CAST(strftime('%s', $3) AS REAL)
+       ORDER BY b.start_d DESC, b.start_ps DESC
+    |}
+    (* NOTE(dinosaure): [sqlite3] does not have the [date] type. [finish_d] is
+       the number of days and [finish_ps] is the number of picoseconds. We try
+       to cast these two fields into a [REAL] which corresponds to the seconds
+       since 1970-01-01. Actually, our precision is bad because [strftime] and
+       [$3] don't have the pico-second precision... *)
+
+  let get_builds_and_exclude_the_first =
+    Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 t file @@
+    {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
+         b.result_code, b.result_msg, b.console, b.script,
+         b.platform, b.main_binary, b.input_id, b.user, b.job,
+         a.filepath, a.localpath, a.sha256, a.size
+       FROM build_artifact a
+       INNER JOIN build b ON b.id = a.build
+       WHERE b.main_binary = a.id AND b.job = $1
+         AND ($2 IS NULL OR platform = $2)
+       ORDER BY b.start_d DESC, b.start_ps DESC
+       LIMIT -1 OFFSET $3
     |}
 
   let get_latest_successful =

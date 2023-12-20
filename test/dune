@@ -1,7 +1,7 @@
 (test
  (name test_builder_db)
  (modules test_builder_db)
- (libraries builder_db caqti.blocking alcotest mirage-crypto-rng.unix))
+ (libraries ptime.clock.os builder_db caqti.blocking alcotest mirage-crypto-rng.unix))
 
 (test
  (name markdown_to_html)
