@@ -365,7 +365,7 @@ module Build = struct
        ORDER BY b.start_d DESC, b.start_ps DESC
     |}
 
-  let get_builds_and_exclude_the_first =
+  let get_builds_excluding_latest_n =
     Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 t file @@
     {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
