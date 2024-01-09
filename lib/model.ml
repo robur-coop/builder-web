@@ -493,6 +493,7 @@ let add_build
              "--uuid=" ^ uuid ; "--platform=" ^ platform ;
              "--cache-dir=" ^ Fpath.to_string cachedir ;
              "--data-dir=" ^ Fpath.to_string datadir ;
+             "--main-binary-filepath=" ^ Fpath.to_string main_binary.filepath ;
              fp_str Fpath.(datadir // artifact_path main_binary) ])
     in
     Log.debug (fun m -> m "executing hooks with %s" args);
