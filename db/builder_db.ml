@@ -352,7 +352,7 @@ module Build = struct
     |}
 
   let get_builds_older_than =
-    Caqti_type.(tup3 (id `job) (option string) ptime) ->* Caqti_type.(tup2 t file) @@
+    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* Caqti_type.(tup2 t file) @@
     {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
          b.platform, b.main_binary, b.input_id, b.user, b.job,
@@ -361,14 +361,9 @@ module Build = struct
        INNER JOIN build b ON b.id = a.build
        WHERE b.main_binary = a.id AND b.job = $1
          AND ($2 IS NULL OR platform = $2)
-         AND (CAST((b.finish_d * 3600) AS REAL) + CAST(b.finish_ps AS REAL) / 1000000000000) <= CAST(strftime('%s', $3) AS REAL)
+         AND b.finish_d = $3 AND b.finish_ps = $4
        ORDER BY b.start_d DESC, b.start_ps DESC
     |}
-    (* NOTE(dinosaure): [sqlite3] does not have the [date] type. [finish_d] is
-       the number of days and [finish_ps] is the number of picoseconds. We try
-       to cast these two fields into a [REAL] which corresponds to the seconds
-       since 1970-01-01. Actually, our precision is bad because [strftime] and
-       [$3] don't have the pico-second precision... *)
 
   let get_builds_and_exclude_the_first =
     Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 t file @@
