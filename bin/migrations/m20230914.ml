@@ -34,6 +34,14 @@ let old_build_artifact =
        )
   |}
 
+let idx_build_artifact_sha256 =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_artifact_sha256 ON build_artifact(sha256)"
+
+let idx_build_artifact_build =
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_artifact_build ON build_artifact(build)"
+
 let copy_new_build_artifact =
   Caqti_type.(unit ->. unit) @@
   {| INSERT INTO new_build_artifact(id, filepath, sha256, size, build)
@@ -103,6 +111,8 @@ let migrate datadir (module Db : Caqti_blocking.CONNECTION) =
   let* () = Db.iter_s new_build_artifact_paths (move_paths ~force:true datadir) () in
   let* () = Db.exec drop_build_artifact () in
   let* () = Db.exec rename_build_artifact () in
+  let* () = Db.exec idx_build_artifact_sha256 () in
+  let* () = Db.exec idx_build_artifact_build () in
   Db.exec (Grej.set_version new_version) ()
 
 let rollback datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -118,6 +128,7 @@ let rollback datadir (module Db : Caqti_blocking.CONNECTION) =
   in
   let* () = Db.exec drop_build_artifact () in
   let* () = Db.exec rename_build_artifact () in
+  let* () = Db.exec idx_build_artifact_sha256 () in
   Db.exec (Grej.set_version old_version) ()
 
 (* migration failed but managed to move *some* files *)
