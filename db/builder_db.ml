@@ -378,6 +378,7 @@ module Build = struct
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT -1 OFFSET $3
     |}
+    (* "LIMIT -1 OFFSET n" is all rows except the first n *)
 
   let get_latest_successful =
     Caqti_type.(tup2 (id `job) (option string)) ->? t @@
