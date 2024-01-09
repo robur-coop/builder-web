@@ -463,7 +463,7 @@ let add_build
          Db.exec Build_artifact.add (file, id))
       (Lwt_result.return ())
       remaining_artifacts_to_add >>= fun () ->
-    commit_files datadir staging_dir job_name uuid artifacts >>= fun () ->
+    commit_files datadir staging_dir job_name uuid (List.map fst artifacts_to_save) >>= fun () ->
     Db.commit () >|= fun () ->
     main_binary
   in
