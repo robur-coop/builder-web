@@ -3,7 +3,6 @@ module Rep : sig
   type 'a id
   type file = {
     filepath : Fpath.t;
-    localpath : Fpath.t;
     sha256 : Cstruct.t;
     size : int;
   }
@@ -23,7 +22,6 @@ type 'a id = 'a Rep.id
 
 type file = Rep.file = {
   filepath : Fpath.t;
-  localpath : Fpath.t;
   sha256 : Cstruct.t;
   size : int;
 }
@@ -87,6 +85,7 @@ module Build_artifact : sig
       Caqti_request.t
   val get_all_by_build :
     ([`build] id, [`build_artifact] id * file, [ `Many | `One | `Zero ]) Caqti_request.t
+  val exists : (Cstruct.t, bool, [ `One ]) Caqti_request.t
   val add :
     (file * [`build] id, unit, [ `Zero ]) Caqti_request.t
   val remove_by_build :

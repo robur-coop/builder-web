@@ -43,18 +43,15 @@ module Testable = struct
   let file =
     let equal (x : Builder_db.Rep.file) (y : Builder_db.Rep.file) =
       Fpath.equal x.filepath y.filepath &&
-      Fpath.equal x.localpath y.localpath &&
       Cstruct.equal x.sha256 y.sha256 &&
       x.size = y.size
     in
-    let pp ppf { Builder_db.Rep.filepath; localpath; sha256; size } =
+    let pp ppf { Builder_db.Rep.filepath; sha256; size } =
       Format.fprintf ppf "{@[<v 1>@;<1 0>Builder_db.Rep.filepath = %a;@;<1 0>\
-                          localpath = %a;@;<1 0>\
                           sha256 = %a;@;<1 0>\
                           size = %d;@;<1 0>\
                           @]@,}"
-        Fpath.pp filepath Fpath.pp localpath
-        Cstruct.hexdump_pp sha256 size
+        Fpath.pp filepath Cstruct.hexdump_pp sha256 size
     in
     Alcotest.testable pp equal
 
@@ -133,11 +130,10 @@ let finish = Option.get (Ptime.of_float_s 1.)
 let result = Builder.Exited 0
 let main_binary =
   let filepath = Result.get_ok (Fpath.of_string "bin/hello.sh") in
-  let localpath = Result.get_ok (Fpath.of_string "/dev/null") in
   let data = "#!/bin/sh\necho Hello, World\n" in
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
   let size = String.length data in
-  { Builder_db.Rep.filepath; localpath; sha256; size }
+  { Builder_db.Rep.filepath; sha256; size }
 let main_binary2 =
   let data = "#!/bin/sh\necho Hello, World 2\n" in
   let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
@@ -149,21 +145,17 @@ let fail_if_none a =
   Option.to_result ~none:(`Msg "Failed to retrieve") a
 
 let add_test_build user_id (module Db : CONN) =
-  let r =
-    let open Builder_db in
-    Db.start () >>= fun () ->
-    Db.exec Job.try_add job_name >>= fun () ->
-    Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-    Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
-                        main_binary = None; input_id = None; user_id; job_id } >>= fun () ->
-    Db.find last_insert_rowid () >>= fun id ->
-    Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
-    Db.find last_insert_rowid () >>= fun main_binary_id ->
-    Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
-    Db.commit ()
-  in
-  Result.fold ~ok:Result.ok ~error:(fun _ -> Db.rollback ())
-    r
+  let open Builder_db in
+  Db.start () >>= fun () ->
+  Db.exec Job.try_add job_name >>= fun () ->
+  Db.find_opt Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
+  Db.exec Build.add { Build.uuid; start; finish; result; console; script; platform;
+                      main_binary = None; input_id = None; user_id; job_id } >>= fun () ->
+  Db.find last_insert_rowid () >>= fun id ->
+  Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
+  Db.find last_insert_rowid () >>= fun main_binary_id ->
+  Db.exec Build.set_main_binary (id, main_binary_id) >>= fun () ->
+  Db.commit ()
 
 let with_build_db f () =
   or_fail
@@ -269,6 +261,14 @@ let test_artifact_get_by_build_uuid (module Db : CONN) =
   get_opt "no build" >>| fun (_id, file) ->
   Alcotest.(check Testable.file) "same file" file main_binary
 
+let test_artifact_exists_true (module Db : CONN) =
+  Db.find Builder_db.Build_artifact.exists main_binary.sha256 >>| fun exists ->
+  Alcotest.(check bool) "main binary exists" true exists
+
+let test_artifact_exists_false (module Db : CONN) =
+  Db.find Builder_db.Build_artifact.exists main_binary2.sha256 >>| fun exists ->
+  Alcotest.(check bool) "main binary2 doesn't exists" false exists
+
 (* XXX: This test should fail because main_binary on the corresponding build
  * references its main_binary. This is not the case now due to foreign key. *)
 let test_artifact_remove_by_build (module Db : CONN) =
@@ -306,6 +306,8 @@ let () =
     "build-artifact", [
       test_case "Get all by build" `Quick (with_build_db test_artifact_get_all_by_build);
       test_case "Get by build uuid" `Quick (with_build_db test_artifact_get_by_build_uuid);
+      test_case "Artifact exists" `Quick (with_build_db test_artifact_exists_true);
+      test_case "Other artifact doesn't exists" `Quick (with_build_db test_artifact_exists_false);
       test_case "Remove by build" `Quick (with_build_db test_artifact_remove_by_build);
     ];
   ]

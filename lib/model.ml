@@ -19,6 +19,14 @@ let not_found = function
   | Some v -> Lwt_result.return v
 
 let staging datadir = Fpath.(datadir / "_staging")
+let artifact_path artifact =
+  let (`Hex sha256) = Hex.of_cstruct artifact.Builder_db.sha256 in
+  (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
+  (* NOTE: We add the prefix to reduce the number of files in a directory - a
+     workaround for inferior filesystems. We can easily revert this by changing
+     this function and adding a migration. *)
+  let prefix = String.sub sha256 0 2 in
+  Fpath.(v "_artifacts" / prefix / sha256)
 
 let read_file datadir filepath =
   let filepath = Fpath.(datadir // filepath) in
@@ -44,14 +52,14 @@ let build_artifact_by_id id (module Db : CONN) =
   Db.find Builder_db.Build_artifact.get id
 
 let build_artifact_data datadir file =
-  read_file datadir file.Builder_db.localpath
+  read_file datadir (artifact_path file)
 
 let build_artifacts build (module Db : CONN) =
   Db.collect_list Builder_db.Build_artifact.get_all_by_build build >|=
   List.map snd
 
 let solo5_manifest datadir file =
-  let buf = Owee_buf.map_binary Fpath.(to_string (datadir // file.Builder_db.localpath)) in
+  let buf = Owee_buf.map_binary Fpath.(to_string (datadir // artifact_path file)) in
   Solo5_elftool.query_manifest buf |> Result.to_option
 
 let platforms_of_job id (module Db : CONN) =
@@ -196,11 +204,11 @@ let cleanup_staging datadir (module Db : Caqti_lwt.CONNECTION) =
        (cleanup_staged staged))
     stageds
 
-let save file data =
+let save path data =
   let open Lwt.Infix in
   Lwt.catch
     (fun () ->
-       Lwt_io.open_file ~mode:Lwt_io.Output (Fpath.to_string file) >>= fun oc ->
+       Lwt_io.open_file ~mode:Lwt_io.Output (Fpath.to_string path) >>= fun oc ->
        Lwt_io.write oc data >>= fun () ->
        Lwt_io.close oc
        |> Lwt_result.ok)
@@ -209,33 +217,29 @@ let save file data =
           Lwt_result.fail (`Msg (Unix.error_message e))
       | e -> Lwt.fail e)
 
-let save_file dir staging (filepath, data) =
-  let size = String.length data in
-  let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-  let localpath = Fpath.append dir filepath in
-  let destpath = Fpath.append staging filepath in
-  Lwt_result.lift (Bos.OS.Dir.create (Fpath.parent destpath)) >>= fun _ ->
-  save destpath data >|= fun () ->
-  { Builder_db.filepath; localpath; sha256; size }
-
-let save_files dir staging files =
+let save_artifacts staging artifacts =
   List.fold_left
-    (fun r file ->
-       r >>= fun acc ->
-       save_file dir staging file >>= fun file ->
-       Lwt_result.return (file :: acc))
-    (Lwt_result.return [])
-    files
+    (fun r (file, data) ->
+       r >>= fun () ->
+       let (`Hex sha256) = Hex.of_cstruct file.Builder_db.sha256 in
+       let destpath = Fpath.(staging / sha256) in
+       save destpath data)
+    (Lwt_result.return ())
+    artifacts
 
-let save_all staging_dir (job : Builder.script_job) uuid artifacts =
-  let build_dir = Fpath.(v job.Builder.name / Uuidm.to_string uuid) in
-  let output_dir = Fpath.(build_dir / "output")
-  and staging_output_dir = Fpath.(staging_dir / "output") in
-  Lwt.return (Bos.OS.Dir.create staging_output_dir) >>= fun _ ->
-  save_files output_dir staging_output_dir artifacts >>= fun artifacts ->
-  Lwt_result.return artifacts
-
-let commit_files datadir staging_dir job_name uuid =
+let commit_files datadir staging_dir job_name uuid artifacts =
+  (* First we move the artifacts *)
+  List.fold_left
+    (fun r artifact ->
+       r >>= fun () ->
+       let (`Hex sha256) = Hex.of_cstruct artifact.Builder_db.sha256 in
+       let src = Fpath.(staging_dir / sha256) in
+       let dest = Fpath.(datadir // artifact_path artifact) in
+       Lwt.return (Bos.OS.Dir.create (Fpath.parent dest)) >>= fun _created ->
+       Lwt.return (Bos.OS.Path.move ~force:true src dest))
+    (Lwt_result.return ())
+    artifacts >>= fun () ->
+  (* Now the staging dir only contains script & console *)
   let job_dir = Fpath.(datadir / job_name) in
   let dest = Fpath.(job_dir / Uuidm.to_string uuid) in
   Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
@@ -324,6 +328,25 @@ let prepare_staging staging_dir =
   then Lwt_result.fail (`Msg "build directory already exists")
   else Lwt_result.return ()
 
+(* saving:
+   - for each artifact compute its sha256 checksum -- calling Lwt.pause in
+     between
+   - lookup artifact sha256 in the database and filter them out of the list: not_in_db
+   - mkdir -p _staging/uuid/
+   - save console & script to _staging/uuid/
+   - save each artifact in not_in_db as _staging/uuid/sha256
+   committing:
+   - for each artifact mv _staging/uuid/sha256 _artifacts/sha256
+     (or _artifacts/prefix(sha256)/sha256 where prefix(sha256) is the first two hex digits in sha256)
+   - now _staging/uuid only contains console & script so we mv _staging/uuid _staging/job/uuid
+   potential issues:
+   - race condition in uploading same artifact:
+     * if the artifact already exists in the database and thus filesystem then nothing is done
+     * if the artifact is added to the database and/or filesystem we atomically overwrite it
+   - input_id depends on a sort order?
+   *)
+
+
 let add_build
     ~datadir
     ~cachedir
@@ -344,16 +367,35 @@ let add_build
         e)
       x
   in
-  let artifacts_to_preserve =
-    let not_interesting p =
-      String.equal (Fpath.basename p) "README.md" || String.equal (Fpath.get_ext p) ".build-hashes"
-    in
-    List.filter (fun (p, _) -> not (not_interesting p)) raw_artifacts
+  let not_interesting p =
+    String.equal (Fpath.basename p) "README.md" || String.equal (Fpath.get_ext p) ".build-hashes"
   in
+  begin
+    List.fold_left
+      (fun r (filepath, data) ->
+         r >>= fun acc ->
+         if not_interesting filepath then
+           Lwt_result.return acc
+         else
+           let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data)
+           and size = String.length data in
+           Lwt_result.ok (Lwt.pause ()) >|= fun () ->
+           ({ filepath; sha256; size }, data) :: acc)
+      (Lwt_result.return [])
+      raw_artifacts
+  end >>= fun artifacts ->
   or_cleanup (prepare_staging staging_dir) >>= fun () ->
   or_cleanup (save_console_and_script staging_dir job_name uuid console job.Builder.script)
   >>= fun (console, script) ->
-  or_cleanup (save_all staging_dir job uuid artifacts_to_preserve) >>= fun artifacts ->
+  List.fold_left
+    (fun r ((f, _) as artifact) ->
+       r >>= fun acc ->
+       Db.find Builder_db.Build_artifact.exists f.sha256 >|= fun exists ->
+       if exists then acc else artifact :: acc)
+    (Lwt_result.return [])
+    artifacts >>= fun artifacts_to_save ->
+  or_cleanup (save_artifacts staging_dir artifacts_to_save) >>= fun () ->
+  let artifacts = List.map fst artifacts in
   let r =
     Db.start () >>= fun () ->
     Db.exec Job.try_add job_name >>= fun () ->
@@ -422,7 +464,7 @@ let add_build
       (Lwt_result.return ())
       remaining_artifacts_to_add >>= fun () ->
     Db.commit () >>= fun () ->
-    commit_files datadir staging_dir job_name uuid >|= fun () ->
+    commit_files datadir staging_dir job_name uuid artifacts >|= fun () ->
     main_binary
   in
   Lwt_result.bind_lwt_error (or_cleanup r)
@@ -451,7 +493,8 @@ let add_build
              "--uuid=" ^ uuid ; "--platform=" ^ platform ;
              "--cache-dir=" ^ Fpath.to_string cachedir ;
              "--data-dir=" ^ Fpath.to_string datadir ;
-             fp_str main_binary.localpath ])
+             "--main-binary-filepath=" ^ Fpath.to_string main_binary.filepath ;
+             fp_str Fpath.(datadir // artifact_path main_binary) ])
     in
     Log.debug (fun m -> m "executing hooks with %s" args);
     let dir = Fpath.(configdir / "upload-hooks") in

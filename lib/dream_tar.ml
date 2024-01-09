@@ -67,7 +67,7 @@ let targz_response datadir finish (files : Builder_db.file list) (stream : Dream
   in
   Lwt_list.iter_s (fun file ->
       let hdr = header_of_file finish file in
-      write_block hdr Fpath.(datadir // file.localpath) state)
+      write_block hdr Fpath.(datadir // Model.artifact_path file) state)
     files >>= fun () ->
   Writer.really_write state Tar.Header.zero_block >>= fun () ->
   Writer.really_write state Tar.Header.zero_block >>= fun () ->

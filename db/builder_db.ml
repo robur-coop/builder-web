@@ -11,7 +11,6 @@ type 'a id = 'a Rep.id
 
 type file = Rep.file = {
   filepath : Fpath.t;
-  localpath : Fpath.t;
   sha256 : Cstruct.t;
   size : int;
 }
@@ -140,7 +139,6 @@ module Build_artifact = struct
     {| CREATE TABLE build_artifact (
            id INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL,
            filepath TEXT NOT NULL, -- the path as in the build
-           localpath TEXT NOT NULL, -- local path to the file on disk
            sha256 BLOB NOT NULL,
            size INTEGER NOT NULL,
            build INTEGER NOT NULL,
@@ -156,13 +154,13 @@ module Build_artifact = struct
 
   let get =
     id `build_artifact ->! file @@
-    {| SELECT filepath, localpath, sha256, size
+    {| SELECT filepath, sha256, size
        FROM build_artifact WHERE id = ? |}
 
   let get_by_build_uuid =
     Caqti_type.tup2 uuid fpath ->? Caqti_type.tup2 (id `build_artifact) file @@
     {| SELECT build_artifact.id, build_artifact.filepath,
-         build_artifact.localpath, build_artifact.sha256, build_artifact.size
+         build_artifact.sha256, build_artifact.size
        FROM build_artifact
        INNER JOIN build ON build.id = build_artifact.build
        WHERE build.uuid = ? AND build_artifact.filepath = ?
@@ -170,12 +168,16 @@ module Build_artifact = struct
 
   let get_all_by_build =
     id `build ->* Caqti_type.(tup2 (id `build_artifact) file) @@
-    "SELECT id, filepath, localpath, sha256, size FROM build_artifact WHERE build = ?"
+    "SELECT id, filepath, sha256, size FROM build_artifact WHERE build = ?"
+
+  let exists =
+    cstruct ->! Caqti_type.bool @@
+    "SELECT EXISTS(SELECT 1 FROM build_artifact WHERE sha256 = ?)"
 
   let add =
     Caqti_type.(tup2 file (id `build)) ->. Caqti_type.unit @@
-    "INSERT INTO build_artifact (filepath, localpath, sha256, size, build) \
-     VALUES (?, ?, ?, ?, ?)"
+    "INSERT INTO build_artifact (filepath, sha256, size, build) \
+     VALUES (?, ?, ?, ?)"
 
   let remove_by_build =
     id `build ->. Caqti_type.unit @@
@@ -316,7 +318,7 @@ module Build = struct
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
          b.platform, b.main_binary, b.input_id, b.user, b.job,
-         a.filepath, a.localpath, a.sha256, a.size
+         a.filepath, a.sha256, a.size
        FROM build b, build_artifact a
        WHERE b.main_binary = a.id AND b.job = $1 AND b.platform = $2
          AND b.main_binary IS NOT NULL
@@ -442,7 +444,7 @@ module Build = struct
     {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
             b.result_code, b.result_msg, b.console, b.script,
             b.platform, b.main_binary, b.input_id, b.user, b.job,
-            a.filepath, a.localpath, a.sha256, a.size
+            a.filepath, a.sha256, a.size
        FROM build_artifact a
        INNER JOIN build b ON b.id = a.build
        WHERE a.sha256 = ?
@@ -593,6 +595,8 @@ let migrate = [
   "CREATE INDEX idx_build_main_binary ON build(main_binary)";
   Caqti_type.unit ->. Caqti_type.unit @@
   "CREATE INDEX idx_build_artifact_sha256 ON build_artifact(sha256)";
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "CREATE INDEX idx_build_artifact_build ON build_artifact(build)";
   set_current_version;
   set_application_id;
 ]
@@ -605,6 +609,8 @@ let rollback = [
   Build_artifact.rollback;
   Build.rollback;
   Job.rollback;
+  Caqti_type.unit ->. Caqti_type.unit @@
+  "DROP INDEX IF EXISTS idx_build_artifact_build";
   Caqti_type.unit ->. Caqti_type.unit @@
   "DROP INDEX IF EXISTS idx_build_artifact_sha256";
   Caqti_type.unit ->. Caqti_type.unit @@

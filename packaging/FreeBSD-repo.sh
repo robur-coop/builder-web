@@ -32,6 +32,8 @@ Options:
         Hex encoded SHA256 digest of the main binary.
     --job=STRING
         Job name that was built.
+    --main-binary-filepath=STRING
+        The file path of the main binary.
 EOM
     exit 1
 }
@@ -39,6 +41,7 @@ EOM
 BUILD_TIME=
 SHA=
 JOB=
+FILEPATH=
 
 while [ $# -gt 1 ]; do
     OPT="$1"
@@ -52,6 +55,9 @@ while [ $# -gt 1 ]; do
             ;;
         --job=*)
             JOB="${OPT##*=}"
+            ;;
+        --main-binary-filepath=*)
+            FILEPATH="${OPT##*=}"
             ;;
         --*)
             warn "Ignoring unknown option: '${OPT}'"
@@ -67,13 +73,14 @@ done
 [ -z "${BUILD_TIME}" ] && die "The --build-time option must be specified"
 [ -z "${SHA}" ] && die "The --sha256 option must be specified"
 [ -z "${JOB}" ] && die "The --job option must be specified"
+[ -z "${FILEPATH}" ] && die "The --main-binary-filepath option must be specified"
 
 FILENAME="${1}"
 
 : "${REPO:="/usr/local/www/pkg"}"
 : "${REPO_KEY:="/usr/local/etc/builder-web/repo.key"}"
 
-if [ "$(basename "${FILENAME}" .pkg)" = "$(basename "${FILENAME}")" ]; then
+if [ "$(basename "${FILEPATH}" .pkg)" = "$(basename "${FILEPATH}")" ]; then
     echo "Not a FreeBSD package"
     exit 0
 fi

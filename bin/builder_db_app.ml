@@ -16,6 +16,13 @@ let defer_foreign_keys =
   Caqti_type.unit ->. Caqti_type.unit @@
   "PRAGMA defer_foreign_keys = ON"
 
+let build_artifacts_to_orphan =
+  Builder_db.Rep.id `build ->* Builder_db.Rep.cstruct @@
+  {| SELECT a.sha256 FROM build_artifact a
+     WHERE a.build = ? AND
+           (SELECT COUNT(*) FROM build_artifact a2
+            WHERE a2.sha256 = a.sha256 AND a2.build <> a.build) = 0 |}
+
 let connect uri =
   let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect ~tweaks_version:(1,8) uri in
   let* () = Db.exec defer_foreign_keys () in
@@ -35,6 +42,16 @@ let do_migrate dbpath =
 
 let migrate () dbpath =
   or_die 1 (do_migrate dbpath)
+
+let artifacts_dir datadir = Fpath.(datadir / "_artifacts")
+let artifact_path sha256 =
+  let (`Hex sha256) = Hex.of_cstruct sha256 in
+  (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
+  (* NOTE: We add the prefix to reduce the number of files in a directory - a
+     workaround for inferior filesystems. We can easily revert this by changing
+     this function and adding a migration. *)
+  let prefix = String.sub sha256 0 2 in
+  Fpath.(v "_artifacts" / prefix / sha256)
 
 let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
   let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
@@ -154,6 +171,18 @@ let job_remove () datadir jobname =
               (match Bos.OS.Dir.delete ~recurse:true dir with
                | Ok _ -> ()
                | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
+              let* () =
+                Db.iter_s build_artifacts_to_orphan
+                  (fun sha256 ->
+                     let p = Fpath.(v datadir // artifact_path sha256) in
+                     match Bos.OS.Path.delete p with
+                     | Ok () -> Ok ()
+                     | Error `Msg e ->
+                       Logs.warn (fun m -> m "failed to remove orphan artifact %a: %s"
+                                     Fpath.pp p e);
+                       Ok ())
+                  build_id
+              in
               let* () = Db.exec Builder_db.Build_artifact.remove_by_build build_id in
               Db.exec Builder_db.Build.remove build_id)
             (Ok ())
@@ -214,12 +243,12 @@ let num_build_artifacts =
   Caqti_type.unit ->! Caqti_type.int @@
   "SELECT count(*) FROM build_artifact"
 
-let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Fpath.t * Cstruct.t * int64), [ `One | `Zero | `Many ]) Caqti_request.t =
+let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Cstruct.t * int64), [ `One | `Zero | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
   Caqti_type.(tup3 string Builder_db.Rep.uuid
-                (tup4 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
+                (tup3 Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
   @@
-  {| SELECT job.name, b.uuid, a.filepath, a.localpath, a.sha256, a.size
+  {| SELECT job.name, b.uuid, a.filepath, a.sha256, a.size
      FROM build_artifact a, build b, job
      WHERE a.build = b.id AND b.job = job.id |}
 
@@ -257,36 +286,33 @@ let verify_data_dir () datadir =
       let idx = ref 0 in
       fun () -> incr idx; if !idx mod 100 = 0 then Logs.info (fun m -> m "%d" !idx);
     in
-    let verify_job_and_uuid ?fpath job uuid path =
+    let verify_job_and_uuid job uuid path =
       match Fpath.segs path with
-      | job' :: uuid' :: tl ->
+      | job' :: uuid' :: _tl ->
         if String.equal job job' then () else Logs.warn (fun m -> m "job names do not match: %s vs %s" job job');
         if String.equal (Uuidm.to_string uuid) uuid' then () else Logs.warn (fun m -> m "uuid does not match: %s vs %s" (Uuidm.to_string uuid) uuid');
-        (match fpath, tl with
-         | None, _ -> ()
-         | Some f, "output" :: tl ->
-           if Fpath.equal (Fpath.v (String.concat "/" tl)) f then
-            ()
-           else
-            Logs.err (fun m -> m "path (%a) and fpath (%a) do not match" Fpath.pp path Fpath.pp f)
-         | Some _, _ ->
-           Logs.err (fun m -> m "path is not of form <job>/<uuid>/output/<filename>: %a" Fpath.pp path))
       | _ -> Logs.err (fun m -> m "path is not of form <job>/<uuid>/...: %a" Fpath.pp path)
     in
     let* () =
-      Db.iter_s build_artifacts (fun (job, uuid, (fpath, lpath, sha, size)) ->
+      Db.iter_s build_artifacts (fun (_job, _uuid, (_fpath, sha256, size)) ->
           progress ();
-          verify_job_and_uuid ~fpath job uuid lpath;
-          let abs_path = Fpath.(v datadir // lpath) in
-          (match Bos.OS.File.read abs_path with
-           | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
-           | Ok data ->
-             files_tracked := FpathSet.add lpath !files_tracked;
-             let s = Int64.of_int (String.length data) in
-             if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
-             let sh = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-             if not (Cstruct.equal sha sh) then Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a" Fpath.pp abs_path Cstruct.hexdump_pp sha Cstruct.hexdump_pp sh)) ;
-          Ok ()
+          if not (FpathSet.mem (artifact_path sha256) !files_tracked) then
+            let abs_path = Fpath.(v datadir // artifact_path sha256) in
+            (match Bos.OS.File.read abs_path with
+             | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
+             | Ok data ->
+               files_tracked := FpathSet.add (artifact_path sha256) !files_tracked;
+               let s = Int64.of_int (String.length data) in
+               if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
+               let sha256' = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+               if not (Cstruct.equal sha256 sha256') then
+                 Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a)"
+                              Fpath.pp abs_path
+                              Hex.pp (Hex.of_cstruct sha256)
+                              Hex.pp (Hex.of_cstruct sha256'))) ;
+            Ok ()
+          else
+            Ok ()
         ) ()
     in
     Db.iter_s script_and_console (fun (job, uuid, console, script) ->
@@ -460,7 +486,7 @@ module Verify_cache_dir = struct
         AND ba_opam_switch.filepath = 'opam-switch'
       LEFT JOIN build_artifact AS ba_debug_bin ON
         ba_debug_bin.build = b.id
-        AND ba_debug_bin.localpath LIKE '%.debug'
+        AND ba_debug_bin.filepath LIKE '%.debug'
     |}
 
   let check_viz_nonempty ~cachedir ~viz_typ ~hash =
@@ -681,9 +707,9 @@ let extract_full () datadir dest uuid =
     let out = console_of_string console in
     let* artifacts = Db.collect_list Builder_db.Build_artifact.get_all_by_build build_id in
     let* data =
-      List.fold_left (fun acc (_, { Builder_db.filepath; localpath; _ }) ->
+      List.fold_left (fun acc (_, { Builder_db.filepath; sha256; _ }) ->
           let* acc = acc in
-          let* data = Bos.OS.File.read Fpath.(v datadir // localpath) in
+          let* data = Bos.OS.File.read Fpath.(v datadir // artifact_path sha256) in
           Ok ((filepath, data) :: acc))
         (Ok [])
         artifacts

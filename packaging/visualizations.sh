@@ -75,7 +75,8 @@ info "processing UUID '${UUID}'"
 DB="${DATA_DIR}/builder.sqlite3"
 
 get_main_binary () {
-    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+    sqlite3 "${DB}" "SELECT '_artifacts/' || substr(lower(hex(ba.sha256)), 1, 2) || '/' || lower(hex(ba.sha256))
+        FROM build AS b
         JOIN build_artifact AS ba ON ba.build = b.id AND b.main_binary = ba.id
         WHERE uuid = '${UUID}';"
 }
@@ -84,17 +85,19 @@ BIN="${DATA_DIR}/$(get_main_binary)" || die "Failed to get main binary from data
 [ -z "${BIN}" ] && die "No main-binary found in db '${DB}' for build '${UUID}'"
 
 get_debug_binary () {
-    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+    sqlite3 "${DB}" "SELECT '_artifacts/' || substr(lower(hex(ba.sha256)), 1, 2) || '/' || lower(hex(ba.sha256))
+        FROM build AS b
         JOIN build_artifact AS ba ON ba.build = b.id
         WHERE
           uuid = '${UUID}'
-          AND ba.localpath LIKE '%.debug';"
+          AND ba.filepath LIKE '%.debug';"
 }
 
 DEBUG_BIN_RELATIVE="$(get_debug_binary)" || die "Failed to get debug binary from database"
 
 get_opam_switch () {
-    sqlite3 "${DB}" "SELECT ba.localpath FROM build AS b
+    sqlite3 "${DB}" "SELECT '_artifacts/' || substr(lower(hex(ba.sha256)), 1, 2) || '/' || lower(hex(ba.sha256))
+        FROM build AS b
         JOIN build_artifact AS ba ON ba.build = b.id
         WHERE
           uuid = '${UUID}'

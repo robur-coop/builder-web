@@ -36,6 +36,8 @@ Options:
         Job name that was built.
     --platform=STRING
         Platform name on which the build was performed.
+    --main-binary-filepath=STRING
+        The file path of the main binary.
 EOM
     exit 1
 }
@@ -44,6 +46,7 @@ BUILD_TIME=
 SHA=
 JOB=
 PLATFORM=
+FILEPATH=
 
 while [ $# -gt 1 ]; do
     OPT="$1"
@@ -61,6 +64,9 @@ while [ $# -gt 1 ]; do
         --platform=*)
             PLATFORM="${OPT##*=}"
             ;;
+        --main-binary-filepath=*)
+            FILEPATH="${OPT##*=}"
+            ;;
         --*)
             warn "Ignoring unknown option: '${OPT}'"
             ;;
@@ -76,10 +82,11 @@ done
 [ -z "${SHA}" ] && die "The --sha256 option must be specified"
 [ -z "${JOB}" ] && die "The --job option must be specified"
 [ -z "${PLATFORM}" ] && die "The --platform option must be specified"
+[ -z "${FILEPATH}" ] && die "The --main-binary-filepath option must be specified"
 
 FILENAME="${1}"
 
-if [ $(basename "${FILENAME}" .deb) = $(basename "${FILENAME}") ]; then
+if [ $(basename "${FILEPATH}" .deb) = $(basename "${FILEPATH}") ]; then
   echo "Not a Debian package"
   exit 0
 fi
