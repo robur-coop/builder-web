@@ -361,7 +361,7 @@ module Build = struct
        INNER JOIN build b ON b.id = a.build
        WHERE b.main_binary = a.id AND b.job = $1
          AND ($2 IS NULL OR platform = $2)
-         AND b.finish_d = $3 AND b.finish_ps = $4
+         AND (b.finish_d < $3 OR (b.finish_d = $3 AND b.finish_ps <= $4))
        ORDER BY b.start_d DESC, b.start_ps DESC
     |}
 
