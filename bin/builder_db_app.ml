@@ -296,20 +296,23 @@ let verify_data_dir () datadir =
     let* () =
       Db.iter_s build_artifacts (fun (_job, _uuid, (_fpath, sha256, size)) ->
           progress ();
-          let abs_path = Fpath.(v datadir // artifact_path sha256) in
-          (match Bos.OS.File.read abs_path with
-           | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
-           | Ok data ->
-             files_tracked := FpathSet.add (artifact_path sha256) !files_tracked;
-             let s = Int64.of_int (String.length data) in
-             if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
-             let sha256' = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-             if not (Cstruct.equal sha256 sha256') then
-               Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a"
-                            Fpath.pp abs_path
-                            Hex.pp (Hex.of_cstruct sha256)
-                            Hex.pp (Hex.of_cstruct sha256'))) ;
-          Ok ()
+          if not (FpathSet.mem (artifact_path sha256) !files_tracked) then
+            let abs_path = Fpath.(v datadir // artifact_path sha256) in
+            (match Bos.OS.File.read abs_path with
+             | Error (`Msg msg) -> Logs.err (fun m -> m "file %a not present: %s" Fpath.pp abs_path msg)
+             | Ok data ->
+               files_tracked := FpathSet.add (artifact_path sha256) !files_tracked;
+               let s = Int64.of_int (String.length data) in
+               if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
+               let sha256' = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+               if not (Cstruct.equal sha256 sha256') then
+                 Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a)"
+                              Fpath.pp abs_path
+                              Hex.pp (Hex.of_cstruct sha256)
+                              Hex.pp (Hex.of_cstruct sha256'))) ;
+            Ok ()
+          else
+            Ok ()
         ) ()
     in
     Db.iter_s script_and_console (fun (job, uuid, console, script) ->
