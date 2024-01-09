@@ -19,7 +19,6 @@ let not_found = function
   | Some v -> Lwt_result.return v
 
 let staging datadir = Fpath.(datadir / "_staging")
-let artifacts_dir datadir = Fpath.(datadir / "_artifacts")
 let artifact_path artifact =
   let (`Hex sha256) = Hex.of_cstruct artifact.Builder_db.sha256 in
   (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
@@ -230,7 +229,6 @@ let save_artifacts staging artifacts =
 
 let commit_files datadir staging_dir job_name uuid artifacts =
   (* First we move the artifacts *)
-  Lwt.return (Bos.OS.Dir.create (artifacts_dir datadir)) >>= fun _ ->
   List.fold_left
     (fun r artifact ->
        r >>= fun () ->
