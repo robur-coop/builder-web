@@ -281,10 +281,10 @@ let test_get_builds_older_than (module Db : CONN) =
   let date = Option.get (Ptime.of_float_s (3600. /. 2.)) in
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_builds_older_than (job_id, None, date) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "last build" builds [ uuid ];
   Db.collect_list Builder_db.Build.get_builds_older_than (job_id, None, Ptime_clock.now ()) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   (* NOTE(dinosaure): from the most recent to the older. *)
   Alcotest.(check (list Testable.uuid)) "last builds" builds [ uuid'; uuid ];
   Ok ()
@@ -293,19 +293,19 @@ let test_builds_excluding_latest_n (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
   Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, None, 1) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "keep recent build" builds [ uuid ];
   Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, None, 2) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "keep 2 builds" builds [];
   Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, None, 3) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "last more builds than we have" builds [];
   Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, None, 0) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "delete all builds" builds [ uuid'; uuid ];
   Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, None, -1) >>= fun builds ->
-  let builds = List.map (fun ({ Builder_db.Build.uuid; _ }, _) -> uuid) builds in
+  let builds = List.map (fun { Builder_db.Build.uuid; _ } -> uuid) builds in
   Alcotest.(check (list Testable.uuid)) "test an incomprehensible argument (-1)" builds [ uuid'; uuid ];
   Ok ()
 

@@ -352,30 +352,26 @@ module Build = struct
     |}
 
   let get_builds_older_than =
-    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* Caqti_type.(tup2 t file) @@
-    {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-         b.result_code, b.result_msg, b.console, b.script,
-         b.platform, b.main_binary, b.input_id, b.user, b.job,
-         a.filepath, a.localpath, a.sha256, a.size
-       FROM build_artifact a
-       INNER JOIN build b ON b.id = a.build
-       WHERE b.main_binary = a.id AND b.job = $1
+    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* t @@
+    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+         result_code, result_msg, console, script,
+         platform, main_binary, input_id, user, job
+       FROM build
+       WHERE job = $1
          AND ($2 IS NULL OR platform = $2)
-         AND (b.finish_d < $3 OR (b.finish_d = $3 AND b.finish_ps <= $4))
-       ORDER BY b.start_d DESC, b.start_ps DESC
+         AND (finish_d < $3 OR (finish_d = $3 AND finish_ps <= $4))
+       ORDER BY start_d DESC, start_ps DESC
     |}
 
   let get_builds_excluding_latest_n =
-    Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 t file @@
-    {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
-         b.result_code, b.result_msg, b.console, b.script,
-         b.platform, b.main_binary, b.input_id, b.user, b.job,
-         a.filepath, a.localpath, a.sha256, a.size
-       FROM build_artifact a
-       INNER JOIN build b ON b.id = a.build
-       WHERE b.main_binary = a.id AND b.job = $1
+    Caqti_type.(tup3 (id `job) (option string) int) ->* t @@
+    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+         result_code, result_msg, console, script,
+         platform, main_binary, input_id, user, job
+       FROM build
+       WHERE job = $1
          AND ($2 IS NULL OR platform = $2)
-       ORDER BY b.start_d DESC, b.start_ps DESC
+       ORDER BY start_d DESC, start_ps DESC
        LIMIT -1 OFFSET $3
     |}
     (* "LIMIT -1 OFFSET n" is all rows except the first n *)

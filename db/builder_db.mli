@@ -130,9 +130,9 @@ sig
     ([`job] id * string option, t, [ `One | `Zero ])
       Caqti_request.t
   val get_builds_older_than :
-    ([`job] id * string option * Ptime.t, t * file, [ `Many | `One | `Zero ]) Caqti_request.t
+    ([`job] id * string option * Ptime.t, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_builds_excluding_latest_n :
-    ([`job] id * string option * int, t * file, [ `Many | `One | `Zero ]) Caqti_request.t
+    ([`job] id * string option * int, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_previous_successful_different_output :
     ([`build] id, t, [ `One | `Zero ])
       Caqti_request.t
