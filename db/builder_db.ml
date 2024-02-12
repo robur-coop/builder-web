@@ -203,6 +203,31 @@ module Build = struct
     job_id : [`job] id;
   }
 
+  let pp ppf t =
+    Fmt.pf ppf "@[<hov>{ uuid=@ %a;@ \
+                         start=@ %a;@ \
+                         finish=@ %a;@ \
+                         result=@ @[<hov>%a@];@ \
+                         console=@ %a;@ \
+                         script=@ %a;@ \
+                         platform=@ %S;@ \
+                         main_binary=@ @[<hov>%a@];@ \
+                         input_id=@ @[<hov>%a@];@ \
+                         user_id=@ %Lx;@ \
+                         job_id=@ %Lx;@ }@]"
+      Uuidm.pp t.uuid
+      Ptime.pp t.start
+      Ptime.pp t.finish
+      Builder.pp_execution_result t.result
+      Fpath.pp t.console
+      Fpath.pp t.script
+      t.platform
+      Fmt.(Dump.option int64) t.main_binary
+      Fmt.(Dump.option (using Cstruct.to_string string)) t.input_id
+      t.user_id
+      t.job_id
+
+
   let t =
     let rep =
       Caqti_type.(tup3
@@ -325,6 +350,31 @@ module Build = struct
        ORDER BY b.start_d DESC, b.start_ps DESC
        LIMIT 1
     |}
+
+  let get_builds_older_than =
+    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* t @@
+    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+         result_code, result_msg, console, script,
+         platform, main_binary, input_id, user, job
+       FROM build
+       WHERE job = $1
+         AND ($2 IS NULL OR platform = $2)
+         AND (finish_d < $3 OR (finish_d = $3 AND finish_ps <= $4))
+       ORDER BY start_d DESC, start_ps DESC
+    |}
+
+  let get_builds_excluding_latest_n =
+    Caqti_type.(tup3 (id `job) (option string) int) ->* t @@
+    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+         result_code, result_msg, console, script,
+         platform, main_binary, input_id, user, job
+       FROM build
+       WHERE job = $1
+         AND ($2 IS NULL OR platform = $2)
+       ORDER BY start_d DESC, start_ps DESC
+       LIMIT -1 OFFSET $3
+    |}
+    (* "LIMIT -1 OFFSET n" is all rows except the first n *)
 
   let get_latest_successful =
     Caqti_type.(tup2 (id `job) (option string)) ->? t @@

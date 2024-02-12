@@ -110,6 +110,8 @@ sig
     job_id : [`job] id;
   }
 
+  val pp : t Fmt.t
+
   val get_by_uuid :
     (Uuidm.t, [`build] id * t, [ `One | `Zero ])
       Caqti_request.t
@@ -127,6 +129,10 @@ sig
   val get_latest_successful :
     ([`job] id * string option, t, [ `One | `Zero ])
       Caqti_request.t
+  val get_builds_older_than :
+    ([`job] id * string option * Ptime.t, t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_builds_excluding_latest_n :
+    ([`job] id * string option * int, t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_previous_successful_different_output :
     ([`build] id, t, [ `One | `Zero ])
       Caqti_request.t
