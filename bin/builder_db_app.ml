@@ -148,6 +148,26 @@ let access_remove () dbpath username jobname =
    in
    or_die 1 r
 
+let delete_build datadir (module Db : Caqti_blocking.CONNECTION) jobname id uuid =
+  let dir = Fpath.(v datadir / jobname / Uuidm.to_string uuid) in
+  (match Bos.OS.Dir.delete ~recurse:true dir with
+   | Ok _ -> ()
+   | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
+  let* () =
+    Db.iter_s build_artifacts_to_orphan
+      (fun sha256 ->
+         let p = Fpath.(v datadir // artifact_path sha256) in
+         match Bos.OS.Path.delete p with
+         | Ok () -> Ok ()
+         | Error `Msg e ->
+           Logs.warn (fun m -> m "failed to remove orphan artifact %a: %s"
+                         Fpath.pp p e);
+           Ok ())
+      id
+  in
+  let* () = Db.exec Builder_db.Build_artifact.remove_by_build id in
+  Db.exec Builder_db.Build.remove id
+
 let job_remove () datadir jobname =
   let dbpath = datadir ^ "/builder.sqlite3" in
   let r =
@@ -167,24 +187,7 @@ let job_remove () datadir jobname =
         let* () =
           List.fold_left (fun r (build_id, build) ->
               let* () = r in
-              let dir = Fpath.(v datadir / jobname / Uuidm.to_string build.Builder_db.Build.uuid) in
-              (match Bos.OS.Dir.delete ~recurse:true dir with
-               | Ok _ -> ()
-               | Error `Msg e -> Logs.warn (fun m -> m "failed to remove build directory %a: %s" Fpath.pp dir e));
-              let* () =
-                Db.iter_s build_artifacts_to_orphan
-                  (fun sha256 ->
-                     let p = Fpath.(v datadir // artifact_path sha256) in
-                     match Bos.OS.Path.delete p with
-                     | Ok () -> Ok ()
-                     | Error `Msg e ->
-                       Logs.warn (fun m -> m "failed to remove orphan artifact %a: %s"
-                                     Fpath.pp p e);
-                       Ok ())
-                  build_id
-              in
-              let* () = Db.exec Builder_db.Build_artifact.remove_by_build build_id in
-              Db.exec Builder_db.Build.remove build_id)
+              delete_build datadir (module Db) jobname build_id build.Builder_db.Build.uuid)
             (Ok ())
             builds
         in
@@ -199,6 +202,71 @@ let job_remove () datadir jobname =
         Logs.warn (fun m -> m "Error: rolling back...");
         let* () = Db.rollback () in
         e
+  in
+  or_die 1 r
+
+let vacuum datadir (module Db : Caqti_blocking.CONNECTION) platform_opt job_id predicate =
+  let* jobname = Db.find Builder_db.Job.get job_id in
+  let* builds =
+    match predicate with
+    | `Date older_than ->
+      Db.collect_list Builder_db.Build.get_builds_older_than (job_id, platform_opt, older_than)
+    | `Latest latest_n ->
+      Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, platform_opt, latest_n)
+    (* TODO: | `Latest_successful latest_n -> ... *)
+  in
+  let* () =
+    List.fold_left (fun r (build_id, build) ->
+        let* () = r in
+        let* () = Db.start () in
+        let* () = Db.exec defer_foreign_keys () in
+        match
+          delete_build datadir (module Db) jobname build_id
+            build.Builder_db.Build.uuid
+        with
+        | Ok () -> Db.commit ()
+        | Error _ as e ->
+          let* () = Db.rollback () in
+          e)
+      (Ok ())
+      builds
+  in
+  Db.commit ()
+
+let vacuum () datadir platform_opt jobnames predicate =
+  let dbpath = datadir ^ "/builder.sqlite3" in
+  let r =
+    let* (module Db : Caqti_blocking.CONNECTION) =
+      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+    in
+    let* jobs =
+      match jobnames with
+      | [] ->
+        (* We default to all jobs if no jobnames were specified *)
+        let* jobs = Db.collect_list Builder_db.Job.get_all_with_section_synopsis () in
+        Ok (List.map (fun (job_id, _, _, _) -> job_id) jobs)
+      | _ :: _ ->
+        let* (jobs, unknown_jobnames) =
+          List.fold_left
+            (fun r jobname ->
+               let* (jobs, unknown_jobnames) = r in
+               let* job_id_opt = Db.find_opt Builder_db.Job.get_id_by_name jobname in
+               match job_id_opt with
+               | Some job_id -> Ok (job_id :: jobs, unknown_jobnames)
+               | None -> Ok (jobs, jobname :: unknown_jobnames))
+            (Ok ([], []))
+            jobnames
+        in
+        match unknown_jobnames with
+        | [] -> Ok jobs
+        | _ :: _ ->
+          Error (`Msg ("Unknown job(s): " ^ String.concat ", " unknown_jobnames))
+    in
+    List.fold_left (fun r jobid ->
+        let* () = r in
+        vacuum datadir (module Db) platform_opt jobid predicate)
+      (Ok ())
+      jobs
   in
   or_die 1 r
 
@@ -803,6 +871,12 @@ let build =
                 pos 0 (some string) None &
                 info ~doc ~docv:"BUILD" [])
 
+let platform =
+  let doc = "platform" in
+  Cmdliner.Arg.(value &
+                opt (some string) None &
+                info ~doc ~docv:"PLATFORM" ["platform"])
+
 let full_dest =
   let doc = "path to write build file" in
   Cmdliner.Arg.(value & opt string "full" &
@@ -876,6 +950,63 @@ let job_remove_cmd =
   let info = Cmd.info ~doc "job-remove" in
   Cmd.v info term
 
+let vacuum_cmd =
+  let jobnames =
+    Arg.(value & opt_all string [] & info ~doc:"jobs" ~docv:"JOB" [])
+  in
+  let ptime_conv =
+    let parse s =
+      match Ptime.of_rfc3339 s with
+      | Ok (ptime, (None | Some 0), _) ->
+        Ok (`Date ptime)
+      | Ok _ -> Error (`Msg "only UTC timezone is allowed")
+      | Error `RFC3339 (_range, e) ->
+        Error (`Msg (Format.asprintf "bad RFC3339 date-time: %a" Ptime.pp_rfc3339_error e))
+    and pp ppf (`Date ptime) =
+      Ptime.pp_rfc3339 () ppf ptime
+    in
+    Arg.conv (parse, pp)
+  in
+  let older_than =
+    let doc = "cut-off date-time" in
+    Arg.(required & pos 0 (some ptime_conv) None & info ~doc ~docv:"OLDER-THAN" [])
+  in
+  let latest_n =
+    let doc = "latest N" in
+    let latest_n =
+      let parse s =
+        match Arg.(conv_parser int) s with
+        | Ok n when n > 0 -> Ok (`Latest n)
+        | Ok _ -> Error (`Msg "must be positive integer")
+        | Error _ as e -> e
+      and pp ppf (`Latest n) =
+        Arg.(conv_printer int) ppf n
+      in
+      Arg.conv (parse, pp)
+    in
+    Arg.(required & pos 0 (some latest_n) None & info ~doc ~docv:"LATEST-N" [])
+  in
+  let vacuum_older_than =
+    let doc = "vacuum builds older than a date" in
+    let info = Cmd.info ~doc "older-than" in
+    let term =
+      Term.(const vacuum $ setup_log $ datadir $ platform $ jobnames $ older_than)
+    in
+    Cmd.v info term
+  in
+  let vacuum_except_latest_n =
+    let doc = "vacuum all builds except for the latest N builds (successful or not)" in
+    let info = Cmd.info ~doc "except-latest" in
+    let term =
+      Term.(const vacuum $ setup_log $ datadir $ platform $ jobnames $ latest_n)
+    in
+    Cmd.v info term
+  in
+  Cmd.group (Cmd.info "vacuum") [
+    vacuum_older_than;
+    vacuum_except_latest_n
+  ]
+
 let extract_full_cmd =
   let doc = "extract a build from the database" in
   let term = Term.(
@@ -929,6 +1060,7 @@ let () =
       verify_input_id_cmd;
       verify_data_dir_cmd;
       verify_cache_dir_cmd;
-      extract_full_cmd ]
+      extract_full_cmd;
+      vacuum_cmd ]
   |> Cmdliner.Cmd.eval
   |> exit

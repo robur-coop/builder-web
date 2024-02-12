@@ -352,8 +352,8 @@ module Build = struct
     |}
 
   let get_builds_older_than =
-    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* t @@
-    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* Caqti_type.tup2 (id `build) t @@
+    {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
          result_code, result_msg, console, script,
          platform, main_binary, input_id, user, job
        FROM build
@@ -364,8 +364,8 @@ module Build = struct
     |}
 
   let get_builds_excluding_latest_n =
-    Caqti_type.(tup3 (id `job) (option string) int) ->* t @@
-    {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
+    Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 (id `build) t @@
+    {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
          result_code, result_msg, console, script,
          platform, main_binary, input_id, user, job
        FROM build
