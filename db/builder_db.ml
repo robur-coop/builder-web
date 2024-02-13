@@ -376,6 +376,19 @@ module Build = struct
     |}
     (* "LIMIT -1 OFFSET n" is all rows except the first n *)
 
+  let get_nth_latest_successful =
+    Caqti_type.(tup3 (id `job) (option string) int) ->? Caqti_type.tup2 (id `build) t @@
+    {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
+         result_code, result_msg, console, script,
+         platform, main_binary, input_id, user, job
+       FROM build
+       WHERE job = $1
+         AND ($2 IS NULL OR platform = $2)
+         AND main_binary IS NOT NULL
+       ORDER BY start_d DESC, start_ps DESC
+       LIMIT 1 OFFSET $3
+    |}
+
   let get_latest_successful =
     Caqti_type.(tup2 (id `job) (option string)) ->? t @@
     {| SELECT

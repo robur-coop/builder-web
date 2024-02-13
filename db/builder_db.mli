@@ -133,6 +133,8 @@ sig
     ([`job] id * string option * Ptime.t, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
   val get_builds_excluding_latest_n :
     ([`job] id * string option * int, [`build] id * t, [ `Many | `One | `Zero ]) Caqti_request.t
+  val get_nth_latest_successful :
+    ([`job] id * string option * int, [`build] id * t, [ `One | `Zero ]) Caqti_request.t
   val get_previous_successful_different_output :
     ([`build] id, t, [ `One | `Zero ])
       Caqti_request.t

@@ -213,8 +213,37 @@ let vacuum datadir (module Db : Caqti_blocking.CONNECTION) platform_opt job_id p
       Db.collect_list Builder_db.Build.get_builds_older_than (job_id, platform_opt, older_than)
     | `Latest latest_n ->
       Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, platform_opt, latest_n)
-    (* TODO: | `Latest_successful latest_n -> ... *)
+    | `Latest_successful latest_n ->
+      (* XXX: usability wise, should it be [pred latest_n] ? *)
+      let* latest_n =
+        Db.find_opt Builder_db.Build.get_nth_latest_successful
+          (job_id, platform_opt, latest_n)
+      in
+      match latest_n with
+      | None ->
+        Ok []
+      | Some (id, latest_n) ->
+        let+ builds =
+          Db.collect_list Builder_db.Build.get_builds_older_than
+            (job_id, platform_opt, latest_n.finish)
+        in
+        (* Unfortunately, get_builds_older_than is non-strict comparison;
+           so we need to filter out [latest_n]. *)
+        List.filter (fun (id', _) -> id <> id') builds
   in
+  let pp_reason ppf = function
+    | `Date older_than ->
+      Format.fprintf ppf "has no builds older than %a" (Ptime.pp_rfc3339 ()) older_than
+    | `Latest n ->
+      Format.fprintf ppf "has fewer than %d builds" n
+    | `Latest_successful n ->
+      Format.fprintf ppf "has fewer than %d successful builds" n
+  in
+  if builds = [] then
+    (* NOTE: this function may be called on *all* jobs, and in that case maybe
+       this is too verbose? *)
+    Logs.info (fun m -> m "Job %s %a; not removing any builds"
+                  jobname pp_reason predicate);
   let* () =
     List.fold_left (fun r (build_id, build) ->
         let* () = r in
@@ -796,83 +825,83 @@ let help man_format cmds = function
     else `Error (true, "Unknown command: " ^ cmd)
 
 let dbpath =
-  let doc = "sqlite3 database path" in
+  let doc = "sqlite3 database path." in
   Cmdliner.Arg.(value &
                 opt non_dir_file (Builder_system.default_datadir ^ "/builder.sqlite3") &
                 info ~doc ["dbpath"])
 
 let dbpath_new =
-  let doc = "sqlite3 database path" in
+  let doc = "sqlite3 database path." in
   Cmdliner.Arg.(value &
                 opt string (Builder_system.default_datadir ^ "/builder.sqlite3") &
                 info ~doc ["dbpath"])
 
 let datadir =
-  let doc = "data directory" in
+  let doc = "Data directory." in
   Cmdliner.Arg.(value &
                 opt dir Builder_system.default_datadir &
                 info ~doc ["datadir"; "d"])
 
 let cachedir =
-  let doc = "cache directory" in
+  let doc = "Cache directory." in
   Cmdliner.Arg.(value &
                 opt (some dir) None &
                 info ~doc ["cachedir"])
 
 let jobname =
-  let doc = "jobname" in
+  let doc = "Jobname." in
   Cmdliner.Arg.(required &
                 pos 0 (some string) None &
                 info ~doc ~docv:"JOBNAME" [])
 
 let username =
-  let doc = "username" in
+  let doc = "Username." in
   Cmdliner.Arg.(required &
                 pos 0 (some string) None &
                 info ~doc ~docv:"USERNAME" [])
 
 let password_iter =
-  let doc = "password hash count" in
+  let doc = "Password hash count." in
   Cmdliner.Arg.(value &
                 opt (some int) None &
                 info ~doc ["hash-count"])
 
 let scrypt_n =
-  let doc = "scrypt n parameter" in
+  let doc = "scrypt n parameter." in
   Cmdliner.Arg.(value &
                 opt (some int) None &
                 info ~doc ["scrypt-n"])
 
 let scrypt_r =
-  let doc = "scrypt r parameter" in
+  let doc = "scrypt r parameter." in
   Cmdliner.Arg.(value &
                 opt (some int) None &
                 info ~doc ["scrypt-r"])
 
 let scrypt_p =
-  let doc = "scrypt p parameter" in
+  let doc = "scrypt p parameter." in
   Cmdliner.Arg.(value &
                 opt (some int) None &
                 info ~doc ["scrypt-p"])
 
 let unrestricted =
-  let doc = "unrestricted user" in
+  let doc = "Unrestricted user." in
   Cmdliner.Arg.(value & flag & info ~doc [ "unrestricted" ])
 
 let job =
-  let doc = "job" in
+  let doc = "Job." in
   Cmdliner.Arg.(required &
                 pos 1 (some string) None &
                 info ~doc ~docv:"JOB" [])
 
 let build =
-  let doc = "build uuid" in
+  let doc = "Build uuid." in
   Cmdliner.Arg.(required &
                 pos 0 (some string) None &
                 info ~doc ~docv:"BUILD" [])
 
 let platform =
-  let doc = "platform" in
+  let doc = "Platform." in
   Cmdliner.Arg.(value &
                 opt (some string) None &
                 info ~doc ~docv:"PLATFORM" ["platform"])
@@ -951,8 +980,8 @@ let job_remove_cmd =
   Cmd.v info term
 
 let vacuum_cmd =
-  let jobnames =
-    Arg.(value & opt_all string [] & info ~doc:"jobs" ~docv:"JOB" [])
+  let jobs =
+    Arg.(value & opt_all string [] & info ~doc:"Job(s). Can be passed multiple times." ~docv:"JOB" ["job"])
   in
   let ptime_conv =
     let parse s =
@@ -971,6 +1000,9 @@ let vacuum_cmd =
     let doc = "cut-off date-time" in
     Arg.(required & pos 0 (some ptime_conv) None & info ~doc ~docv:"OLDER-THAN" [])
   in
+  (* TODO(reynir): for now we disallow 0 so as to avoid ending up with jobs
+     without builds. I'm unsure how well builder-web works with empty jobs.
+     Then again we don't do this check for older-than...  *)
   let latest_n =
     let doc = "latest N" in
     let latest_n =
@@ -986,25 +1018,50 @@ let vacuum_cmd =
     in
     Arg.(required & pos 0 (some latest_n) None & info ~doc ~docv:"LATEST-N" [])
   in
+  let latest_n_succesful =
+    let doc = "latest N successful" in
+    let latest_n =
+      let parse s =
+        match Arg.(conv_parser int) s with
+        | Ok n when n > 0 -> Ok (`Latest_successful n)
+        | Ok _ -> Error (`Msg "must be positive integer")
+        | Error _ as e -> e
+      and pp ppf (`Latest_successful n) =
+        Arg.(conv_printer int) ppf n
+      in
+      Arg.conv (parse, pp)
+    in
+    Arg.(required & pos 0 (some latest_n) None & info ~doc ~docv:"LATEST-N" [])
+  in
   let vacuum_older_than =
-    let doc = "vacuum builds older than a date" in
+    let doc = "Remove builds older than a date" in
     let info = Cmd.info ~doc "older-than" in
     let term =
-      Term.(const vacuum $ setup_log $ datadir $ platform $ jobnames $ older_than)
+      Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ older_than)
     in
     Cmd.v info term
   in
   let vacuum_except_latest_n =
-    let doc = "vacuum all builds except for the latest N builds (successful or not)" in
+    let doc = "Remove all builds except for the latest N builds (successful or not)" in
     let info = Cmd.info ~doc "except-latest" in
     let term =
-      Term.(const vacuum $ setup_log $ datadir $ platform $ jobnames $ latest_n)
+      Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ latest_n)
     in
     Cmd.v info term
   in
-  Cmd.group (Cmd.info "vacuum") [
+  let vacuum_except_latest_n_successful =
+    let doc = "Remove all builds except for builds newer than the Nth latest successful build" in
+    let info = Cmd.info ~doc "except-latest-successful" in
+    let term =
+      Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ latest_n_succesful)
+    in
+    Cmd.v info term
+  in
+  let doc = "Remove old builds" in
+  Cmd.group (Cmd.info ~doc "vacuum") [
     vacuum_older_than;
-    vacuum_except_latest_n
+    vacuum_except_latest_n;
+    vacuum_except_latest_n_successful;
   ]
 
 let extract_full_cmd =
