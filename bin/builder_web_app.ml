@@ -196,10 +196,11 @@ let ip_port : (Ipaddr.V4.t * int) Arg.conv =
 let datadir =
   let doc = "data directory" in
   let docv = "DATA_DIR" in
+  let env = Cmdliner.Cmd.Env.info "BUILDER_WEB_DATADIR" in
   Arg.(
     value &
     opt dir Builder_system.default_datadir &
-    info [ "d"; "datadir" ] ~doc ~docv
+    info ~env [ "d"; "datadir" ] ~doc ~docv
   )
 
 let cachedir =

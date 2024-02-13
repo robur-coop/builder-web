@@ -244,23 +244,20 @@ let vacuum datadir (module Db : Caqti_blocking.CONNECTION) platform_opt job_id p
        this is too verbose? *)
     Logs.info (fun m -> m "Job %s %a; not removing any builds"
                   jobname pp_reason predicate);
-  let* () =
-    List.fold_left (fun r (build_id, build) ->
-        let* () = r in
-        let* () = Db.start () in
-        let* () = Db.exec defer_foreign_keys () in
-        match
-          delete_build datadir (module Db) jobname build_id
-            build.Builder_db.Build.uuid
-        with
-        | Ok () -> Db.commit ()
-        | Error _ as e ->
-          let* () = Db.rollback () in
-          e)
-      (Ok ())
-      builds
-  in
-  Db.commit ()
+  List.fold_left (fun r (build_id, build) ->
+      let* () = r in
+      let* () = Db.start () in
+      let* () = Db.exec defer_foreign_keys () in
+      match
+        delete_build datadir (module Db) jobname build_id
+          build.Builder_db.Build.uuid
+      with
+      | Ok () -> Db.commit ()
+      | Error _ as e ->
+        let* () = Db.rollback () in
+        e)
+    (Ok ())
+    builds
 
 let vacuum () datadir platform_opt jobnames predicate =
   let dbpath = datadir ^ "/builder.sqlite3" in
@@ -838,15 +835,17 @@ let dbpath_new =
 
 let datadir =
   let doc = "Data directory." in
+  let env = Cmdliner.Cmd.Env.info "BUILDER_WEB_DATADIR" in
   Cmdliner.Arg.(value &
                 opt dir Builder_system.default_datadir &
-                info ~doc ["datadir"; "d"])
+                info ~doc ~env ["datadir"; "d"])
 
 let cachedir =
   let doc = "Cache directory." in
+  let env = Cmdliner.Cmd.Env.info "BUILDER_WEB_CACHEDIR" in
   Cmdliner.Arg.(value &
                 opt (some dir) None &
-                info ~doc ["cachedir"])
+                info ~doc ~env ["cachedir"])
 
 let jobname =
   let doc = "Jobname." in
