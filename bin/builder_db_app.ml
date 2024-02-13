@@ -214,7 +214,6 @@ let vacuum datadir (module Db : Caqti_blocking.CONNECTION) platform_opt job_id p
     | `Latest latest_n ->
       Db.collect_list Builder_db.Build.get_builds_excluding_latest_n (job_id, platform_opt, latest_n)
     | `Latest_successful latest_n ->
-      (* XXX: usability wise, should it be [pred latest_n] ? *)
       let* latest_n =
         Db.find_opt Builder_db.Build.get_nth_latest_successful
           (job_id, platform_opt, latest_n)
@@ -1032,8 +1031,13 @@ let vacuum_cmd =
     in
     Arg.(required & pos 0 (some latest_n) None & info ~doc ~docv:"LATEST-N" [])
   in
+  let job_default_txt =
+    "By default all jobs are vacuumed, unless any jobs are specified using --job."
+  in
   let vacuum_older_than =
-    let doc = "Remove builds older than a date" in
+    let doc =
+      Printf.sprintf "Remove builds older than a date. %s" job_default_txt
+    in
     let info = Cmd.info ~doc "older-than" in
     let term =
       Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ older_than)
@@ -1041,7 +1045,10 @@ let vacuum_cmd =
     Cmd.v info term
   in
   let vacuum_except_latest_n =
-    let doc = "Remove all builds except for the latest N builds (successful or not)" in
+    let doc =
+      Printf.sprintf "Remove all builds except for the latest N builds (successful or not). %s"
+        job_default_txt
+    in
     let info = Cmd.info ~doc "except-latest" in
     let term =
       Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ latest_n)
@@ -1049,7 +1056,10 @@ let vacuum_cmd =
     Cmd.v info term
   in
   let vacuum_except_latest_n_successful =
-    let doc = "Remove all builds except for builds newer than the Nth latest successful build" in
+    let doc =
+      Printf.sprintf "Remove all builds except for builds newer than the Nth latest successful build. %s"
+        job_default_txt
+    in
     let info = Cmd.info ~doc "except-latest-successful" in
     let term =
       Term.(const vacuum $ setup_log $ datadir $ platform $ jobs $ latest_n_succesful)
