@@ -61,9 +61,10 @@ let help man_format migrations = function
 
 let datadir =
   let doc = "data directory containing builder.sqlite3 and data files" in
+  let env = Cmdliner.Cmd.Env.info "BUILDER_WEB_DATADIR" in
   Cmdliner.Arg.(value &
                 opt dir Builder_system.default_datadir &
-                info ~doc ["datadir"; "d"])
+                info ~env ~doc ["datadir"; "d"])
 
 let setup_log =
   let setup_log level =
