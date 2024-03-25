@@ -74,6 +74,16 @@ info "processing UUID '${UUID}'"
 
 DB="${DATA_DIR}/builder.sqlite3"
 
+# A new visualizations.sh script may be installed during an upgrade while the
+# old builder-web binary is running. In that case things can get out of sync.
+DB_VERSION="$(sqlite3 "$DB" "PRAGMA user_version;")"
+[ -z "$DB_VERSION" ] && die "Couldn't read database version from '$DB'"
+[ "$DB_VERSION" -ne 18 ] && die "The database version should be 18. It is '$DB_VERSION'"
+
+APP_ID="$(sqlite3 "$DB" "PRAGMA application_id;")"
+[ -z "$APP_ID" ] && die "Couldn't read application-id from '$DB'"
+[ "$APP_ID" -ne 1234839235 ] && die "The application-id should be 1234839235. It is '$APP_ID'"
+
 get_main_binary () {
     sqlite3 "${DB}" "SELECT '_artifacts/' || substr(lower(hex(ba.sha256)), 1, 2) || '/' || lower(hex(ba.sha256))
         FROM build AS b

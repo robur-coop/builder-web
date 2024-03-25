@@ -4,7 +4,8 @@ open Caqti_request.Infix
 
 let application_id = 1234839235l
 
-(* Please update this when making changes! *)
+(* Please update this when making changes! And also update
+   packaging/batch-viz.sh and packaging/visualizations.sh. *)
 let current_version = 18L
 
 type 'a id = 'a Rep.id

@@ -77,6 +77,8 @@ done
 DB="${DATA_DIR}/builder.sqlite3"
 [ ! -e "$DB" ] && die "The database doesn't exist: '$DB'"
 
+# Let's be somewhat lenient with the database version.
+# In visualizations.sh we can be more strict.
 DB_VERSION="$(sqlite3 "$DB" "PRAGMA user_version;")"
 [ -z "$DB_VERSION" ] && die "Couldn't read database version from '$DB'"
 [ "$DB_VERSION" -lt 16 ] && die "The database version should be >= 16. It is '$DB_VERSION'"
