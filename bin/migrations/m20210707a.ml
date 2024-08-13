@@ -2,7 +2,7 @@ open Grej.Infix
 
 let orb_left_in_builds =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
+  Caqti_type.t2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
   {| SELECT id, localpath FROM build_artifact
      WHERE filepath = 'orb.deb' OR filepath = 'orb.txz'
   |}

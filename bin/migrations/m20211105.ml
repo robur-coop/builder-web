@@ -73,11 +73,11 @@ let copy_from_new_build =
   |}
 
 let build_id_and_user =
-  Caqti_type.unit ->* Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int64) @@
+  Caqti_type.unit ->* Caqti_type.(t2 (Builder_db.Rep.id (`build : [ `build ])) int64) @@
   "SELECT id, user FROM build"
 
 let update_new_build_platform =
-  Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) string) ->. Caqti_type.unit @@
+  Caqti_type.(t2 (Builder_db.Rep.id (`build : [ `build ])) string) ->. Caqti_type.unit @@
   "UPDATE new_build SET platform = $2 WHERE id = $1"
 
 let drop_build =

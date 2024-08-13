@@ -37,21 +37,21 @@ let new_build_file =
   |}
 
 let collect_build_artifact =
-  Caqti_type.unit ->* Caqti_type.(tup3 int64 (tup3 string string octets) int64) @@
+  Caqti_type.unit ->* Caqti_type.(t3 int64 (t3 string string octets) int64) @@
   "SELECT id, filepath, localpath, sha256, build FROM build_artifact"
 
 let collect_build_file =
-  Caqti_type.unit ->* Caqti_type.(tup3 int64 (tup3 string string octets) int64) @@
+  Caqti_type.unit ->* Caqti_type.(t3 int64 (t3 string string octets) int64) @@
   "SELECT id, filepath, localpath, sha256, build FROM build_file"
 
 let insert_new_build_artifact =
-  Caqti_type.(tup3 int64 (tup4 string string octets int64) int64) ->. Caqti_type.unit @@
+  Caqti_type.(t3 int64 (t4 string string octets int64) int64) ->. Caqti_type.unit @@
   {| INSERT INTO new_build_artifact (id, filepath, localpath, sha256, size, build)
      VALUES (?, ?, ?, ?, ?, ?)
   |}
 
 let insert_new_build_file =
-  Caqti_type.(tup3 int64 (tup4 string string octets int64) int64) ->. Caqti_type.unit @@
+  Caqti_type.(t3 int64 (t4 string string octets int64) int64) ->. Caqti_type.unit @@
   {| INSERT INTO new_build_file (id, filepath, localpath, sha256, size, build)
      VALUES (?, ?, ?, ?, ?, ?)
   |}

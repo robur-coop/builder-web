@@ -23,7 +23,7 @@ depends: [
   "bos"
   "hex"
   "lwt" {>= "5.7.0"}
-  "caqti" {>= "1.8.0"}
+  "caqti" {>= "2.1.1"}
   "caqti-lwt"
   "caqti-driver-sqlite3"
   "pbkdf"
@@ -46,7 +46,7 @@ depends: [
   "uri"
   "fmt" {>= "0.8.7"}
   "cmarkit" {>= "0.3.0"}
-  "tar"
+  "tar" {< "3.0.0"}
   "owee"
   "solo5-elftool" {>= "0.3.0"}
   "decompress" {>= "1.5.0"}

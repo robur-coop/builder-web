@@ -95,24 +95,24 @@ let copy_from_new_build =
 
 let old_build_console_script =
   Caqti_type.unit ->*
-  Caqti_type.(tup4 (Builder_db.Rep.id  (`build : [ `build ]))
-                (tup2 string Builder_db.Rep.uuid) Builder_db.Rep.cstruct string) @@
+  Caqti_type.(t4 (Builder_db.Rep.id  (`build : [ `build ]))
+                (t2 string Builder_db.Rep.uuid) Builder_db.Rep.cstruct string) @@
   "SELECT b.id, job.name, b.uuid, b.console, b.script FROM build b, job WHERE b.job = job.id"
 
 let update_new_build_console_script =
-  Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ]))
+  Caqti_type.(t3 (Builder_db.Rep.id (`build : [ `build ]))
                 Builder_db.Rep.fpath Builder_db.Rep.fpath) ->.
   Caqti_type.unit @@
   "UPDATE new_build SET console = $2, script = $3 WHERE id = $1"
 
 let new_build_console_script =
   Caqti_type.unit ->*
-  Caqti_type.tup3 (Builder_db.Rep.id (`build : [ `build ]))
+  Caqti_type.t3 (Builder_db.Rep.id (`build : [ `build ]))
     Builder_db.Rep.fpath Builder_db.Rep.fpath @@
   "SELECT id, console, script FROM build"
 
 let update_old_build_console_script =
-  Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) Builder_db.Rep.cstruct string) ->.
+  Caqti_type.(t3 (Builder_db.Rep.id (`build : [ `build ])) Builder_db.Rep.cstruct string) ->.
   Caqti_type.unit @@
   "UPDATE new_build SET console = $2, script = $3 WHERE id = $1"
 

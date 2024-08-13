@@ -18,11 +18,11 @@ let all_builds =
   "SELECT id FROM build"
 
 let bin_artifact =
-  Caqti_type.int64 ->* Caqti_type.(tup2 int64 string) @@
+  Caqti_type.int64 ->* Caqti_type.(t2 int64 string) @@
   "SELECT id, filepath FROM build_artifact WHERE build = ? AND filepath LIKE 'bin/%'"
 
 let set_main_binary =
-  Caqti_type.(tup2 int64 (option string)) ->. Caqti_type.unit @@
+  Caqti_type.(t2 int64 (option string)) ->. Caqti_type.unit @@
   "UPDATE build SET main_binary = $2 WHERE id = $1"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =

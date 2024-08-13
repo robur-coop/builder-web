@@ -54,20 +54,20 @@ let old_build =
 
 let collect_old_build =
   Caqti_type.unit ->*
-  Caqti_type.(tup3 Builder_db.Rep.untyped_id
-                (tup3 (tup4 string int64 int64 int64)
-                   (tup4 int64 int (option int) (option string))
-                   (tup3 octets string (option string)))
+  Caqti_type.(t3 Builder_db.Rep.untyped_id
+                (t3 (t4 string int64 int64 int64)
+                   (t4 int64 int (option int) (option string))
+                   (t3 octets string (option string)))
                 Builder_db.Rep.untyped_id) @@
   {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_kind, result_code, result_msg,
             console, script, main_binary, job
      FROM build |}
 
 let insert_new_build =
-  Caqti_type.(tup3 Builder_db.Rep.untyped_id
-                (tup3 (tup4 string int64 int64 int64)
-                   (tup4 int64 int (option int) (option string))
-                   (tup3 octets string (option Builder_db.Rep.untyped_id)))
+  Caqti_type.(t3 Builder_db.Rep.untyped_id
+                (t3 (t4 string int64 int64 int64)
+                   (t4 int64 int (option int) (option string))
+                   (t3 octets string (option Builder_db.Rep.untyped_id)))
                 Builder_db.Rep.untyped_id) ->. Caqti_type.unit @@
   {| INSERT INTO new_build (id, uuid, start_d, start_ps, finish_d, finish_ps, result_kind,
                             result_code, result_msg, console, script, main_binary, job)
@@ -82,7 +82,7 @@ let rename_build =
     "ALTER TABLE new_build RENAME TO build"
 
 let find_main_artifact_id =
-  Caqti_type.(tup2 Builder_db.Rep.untyped_id string) ->!  Builder_db.Rep.untyped_id @@
+  Caqti_type.(t2 Builder_db.Rep.untyped_id string) ->!  Builder_db.Rep.untyped_id @@
   "SELECT id FROM build_artifact WHERE build = $1 AND filepath = $2"
 
 let find_main_artifact_filepath =
@@ -91,20 +91,20 @@ let find_main_artifact_filepath =
 
 let collect_new_build =
   Caqti_type.unit ->*
-  Caqti_type.(tup3 Builder_db.Rep.untyped_id
-                (tup3 (tup4 string int64 int64 int64)
-                   (tup4 int64 int (option int) (option string))
-                   (tup3 octets string (option Builder_db.Rep.untyped_id)))
+  Caqti_type.(t3 Builder_db.Rep.untyped_id
+                (t3 (t4 string int64 int64 int64)
+                   (t4 int64 int (option int) (option string))
+                   (t3 octets string (option Builder_db.Rep.untyped_id)))
                 Builder_db.Rep.untyped_id) @@
   {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps, result_kind, result_code, result_msg,
             console, script, main_binary, job
      FROM build |}
 
 let insert_old_build =
-  Caqti_type.(tup3 Builder_db.Rep.untyped_id
-                (tup3 (tup4 string int64 int64 int64)
-                   (tup4 int64 int (option int) (option string))
-                   (tup3 octets string (option string)))
+  Caqti_type.(t3 Builder_db.Rep.untyped_id
+                (t3 (t4 string int64 int64 int64)
+                   (t4 int64 int (option int) (option string))
+                   (t3 octets string (option string)))
                 Builder_db.Rep.untyped_id) ->. Caqti_type.unit @@
   {| INSERT INTO new_build (id, uuid, start_d, start_ps, finish_d, finish_ps, result_kind,
                             result_code, result_msg, console, script, main_binary, job)

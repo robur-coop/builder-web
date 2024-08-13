@@ -26,7 +26,7 @@ let init_datadir datadir =
 let init dbpath datadir =
   Result.bind (init_datadir datadir) @@ fun () ->
   Lwt_main.run (
-    Caqti_lwt.connect
+    Caqti_lwt_unix.connect
       (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
     >>= fun (module Db : Caqti_lwt.CONNECTION) ->
     Db.find Builder_db.get_application_id () >>= fun application_id ->
