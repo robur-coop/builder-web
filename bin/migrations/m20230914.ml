@@ -60,13 +60,13 @@ let copy_old_build_artifact =
   |}
 
 let new_build_artifact_paths =
-  Caqti_type.unit ->* Caqti_type.(tup2 string string) @@
+  Caqti_type.unit ->* Caqti_type.(t2 string string) @@
   {| SELECT localpath, '_artifacts/' || substr(lower(hex(sha256)), 1, 2) || '/' || lower(hex(sha256))
      FROM build_artifact
   |}
 
 let old_build_artifact_paths =
-  Caqti_type.unit ->* Caqti_type.(tup2 string string) @@
+  Caqti_type.unit ->* Caqti_type.(t2 string string) @@
   {| SELECT '_artifacts/' || substr(lower(hex(a.sha256)), 1, 2) || '/' || lower(hex(a.sha256)),
        j.name || '/' || b.uuid || '/output/' || a.filepath
      FROM build_artifact a, job j, build b

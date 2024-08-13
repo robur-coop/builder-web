@@ -40,11 +40,11 @@ let copy_old_build =
 
 let old_build_execution_result =
   Caqti_type.unit ->*
-  Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) int (option int)) @@
+  Caqti_type.(t3 (Builder_db.Rep.id (`build : [ `build ])) int (option int)) @@
   "SELECT id, result_kind, result_code FROM build"
 
 let update_new_build_execution_result =
-  Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int) ->. Caqti_type.unit @@
+  Caqti_type.(t2 (Builder_db.Rep.id (`build : [ `build ])) int) ->. Caqti_type.unit @@
   "UPDATE new_build SET result_code = $2 WHERE id = $1"
 
 let old_build =
@@ -83,11 +83,11 @@ let copy_new_build =
 
 let new_build_execution_result =
   Caqti_type.unit ->*
-  Caqti_type.(tup2 (Builder_db.Rep.id (`build : [ `build ])) int) @@
+  Caqti_type.(t2 (Builder_db.Rep.id (`build : [ `build ])) int) @@
   "SELECT id, result_code FROM build"
 
 let update_old_build_execution_result =
-  Caqti_type.(tup3 (Builder_db.Rep.id (`build : [ `build ])) int (option int)) ->.
+  Caqti_type.(t3 (Builder_db.Rep.id (`build : [ `build ])) int (option int)) ->.
   Caqti_type.unit @@
   "UPDATE new_build SET result_kind = $2, result_code = $3 WHERE id = $1"
 

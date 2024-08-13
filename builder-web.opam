@@ -23,7 +23,7 @@ depends: [
   "bos"
   "hex"
   "lwt" {>= "5.7.0"}
-  "caqti" {>= "1.8.0"}
+  "caqti" {>= "2.1.1"}
   "caqti-lwt"
   "caqti-driver-sqlite3"
   "pbkdf"

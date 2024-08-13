@@ -2,11 +2,11 @@ open Grej.Infix
 
 let all_build_artifacts_with_dot_slash : (unit, [`build_artifact] Builder_db.Rep.id * Fpath.t, [ `Zero | `One | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
+  Caqti_type.t2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
   "SELECT id, filepath FROM build_artifact WHERE filepath LIKE './%'"
 
 let update_path : ([`build_artifact] Builder_db.Rep.id * Fpath.t, unit, [< `Zero | `One | `Many > `Zero ]) Caqti_request.t =
-  Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath ->.
+  Caqti_type.t2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath ->.
   Caqti_type.unit @@
   "UPDATE build_artifact SET filepath = $2 WHERE id = $1"
 

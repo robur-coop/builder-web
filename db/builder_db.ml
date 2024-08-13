@@ -57,7 +57,7 @@ module Job = struct
 
   let get_all_with_section_synopsis =
     Caqti_type.unit ->*
-    Caqti_type.(tup4 (id `job) string (option string) (option string)) @@
+    Caqti_type.(t4 (id `job) string (option string) (option string)) @@
     {| SELECT j.id, j.name, section.value, synopsis.value
        FROM job j, tag section_tag, tag synopsis_tag
        LEFT JOIN job_tag section ON section.job = j.id AND section.tag = section_tag.id
@@ -117,15 +117,15 @@ module Job_tag = struct
       "DROP TABLE IF EXISTS job_tag"
 
   let add =
-    Caqti_type.(tup3 (id `tag) string (id `job)) ->. Caqti_type.unit @@
+    Caqti_type.(t3 (id `tag) string (id `job)) ->. Caqti_type.unit @@
     "INSERT INTO job_tag (tag, value, job) VALUES ($1, $2, $3)"
 
   let update =
-    Caqti_type.(tup3 (id `tag) string (id `job)) ->. Caqti_type.unit @@
+    Caqti_type.(t3 (id `tag) string (id `job)) ->. Caqti_type.unit @@
     "UPDATE job_tag SET value = $2 WHERE tag = $1 AND job = $3"
 
   let get_value =
-    Caqti_type.(tup2 (id `tag) (id `job)) ->?  Caqti_type.string @@
+    Caqti_type.(t2 (id `tag) (id `job)) ->?  Caqti_type.string @@
     "SELECT value FROM job_tag WHERE tag = ? AND job = ?"
 
   let remove_by_job =
@@ -159,7 +159,7 @@ module Build_artifact = struct
        FROM build_artifact WHERE id = ? |}
 
   let get_by_build_uuid =
-    Caqti_type.tup2 uuid fpath ->? Caqti_type.tup2 (id `build_artifact) file @@
+    Caqti_type.t2 uuid fpath ->? Caqti_type.t2 (id `build_artifact) file @@
     {| SELECT build_artifact.id, build_artifact.filepath,
          build_artifact.sha256, build_artifact.size
        FROM build_artifact
@@ -168,7 +168,7 @@ module Build_artifact = struct
     |}
 
   let get_all_by_build =
-    id `build ->* Caqti_type.(tup2 (id `build_artifact) file) @@
+    id `build ->* Caqti_type.(t2 (id `build_artifact) file) @@
     "SELECT id, filepath, sha256, size FROM build_artifact WHERE build = ?"
 
   let exists =
@@ -176,7 +176,7 @@ module Build_artifact = struct
     "SELECT EXISTS(SELECT 1 FROM build_artifact WHERE sha256 = ?)"
 
   let add =
-    Caqti_type.(tup2 file (id `build)) ->. Caqti_type.unit @@
+    Caqti_type.(t2 file (id `build)) ->. Caqti_type.unit @@
     "INSERT INTO build_artifact (filepath, sha256, size, build) \
      VALUES (?, ?, ?, ?)"
 
@@ -231,27 +231,23 @@ module Build = struct
 
   let t =
     let rep =
-      Caqti_type.(tup3
-                    (tup4
-                       uuid
-                       (tup2
-                          Rep.ptime
-                          Rep.ptime)
-                       (tup2
-                          execution_result
-                          fpath)
-                       (tup4
-                          fpath
-                          string
-                          (option (Rep.id `build_artifact))
-                          (option Rep.cstruct)))
+      Caqti_type.(t11
+                    uuid
+                    Rep.ptime
+                    Rep.ptime
+                    execution_result
+                    fpath
+                    fpath
+                    string
+                    (option (Rep.id `build_artifact))
+                    (option Rep.cstruct)
                     (id `user)
                     (id `job))
     in
     let encode { uuid; start; finish; result; console; script; platform; main_binary; input_id; user_id; job_id } =
-      Ok ((uuid, (start, finish), (result, console), (script, platform, main_binary, input_id)), user_id, job_id)
+      Ok (uuid, start, finish, result, console, script, platform, main_binary, input_id, user_id, job_id)
     in
-    let decode ((uuid, (start, finish), (result, console), (script, platform, main_binary, input_id)), user_id, job_id) =
+    let decode (uuid, start, finish, result, console, script, platform, main_binary, input_id, user_id, job_id) =
       Ok { uuid; start; finish; result; console; script; platform; main_binary; input_id; user_id; job_id }
     in
     Caqti_type.custom ~encode ~decode rep
@@ -286,7 +282,7 @@ module Build = struct
     "DROP TABLE IF EXISTS build"
 
   let get_by_uuid =
-    Rep.uuid ->?  Caqti_type.tup2 (id `build) t @@
+    Rep.uuid ->?  Caqti_type.t2 (id `build) t @@
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                 result_code, result_msg,
                 console, script, platform, main_binary, input_id, user, job
@@ -295,7 +291,7 @@ module Build = struct
     |}
 
   let get_all =
-    id `job ->* Caqti_type.tup2 (id `build) t @@
+    id `job ->* Caqti_type.t2 (id `build) t @@
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
                 result_code, result_msg, console,
                 script, platform, main_binary, input_id, user, job
@@ -305,7 +301,7 @@ module Build = struct
     |}
 
   let get_all_failed =
-    Caqti_type.(tup3 int int (option string)) ->* Caqti_type.tup2 Caqti_type.string t @@
+    Caqti_type.(t3 int int (option string)) ->* Caqti_type.t2 Caqti_type.string t @@
     {| SELECT job.name, b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script, b.platform,
          b.main_binary, b.input_id, b.user, b.job
@@ -318,7 +314,7 @@ module Build = struct
     |}
 
   let get_all_artifact_sha =
-    Caqti_type.(tup2 (id `job) (option string)) ->* Rep.cstruct @@
+    Caqti_type.(t2 (id `job) (option string)) ->* Rep.cstruct @@
     {| SELECT DISTINCT a.sha256
        FROM build_artifact a, build b
        WHERE b.job = $1 AND b.main_binary = a.id
@@ -327,7 +323,7 @@ module Build = struct
     |}
 
   let get_failed_builds =
-    Caqti_type.(tup2 (id `job) (option string)) ->* t @@
+    Caqti_type.(t2 (id `job) (option string)) ->* t @@
     {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
               result_code, result_msg, console, script,
               platform, main_binary, input_id, user, job
@@ -339,7 +335,7 @@ module Build = struct
     |}
 
   let get_latest_successful_with_binary =
-    Caqti_type.(tup2 (id `job) string) ->? Caqti_type.tup3 (id `build) t file @@
+    Caqti_type.(t2 (id `job) string) ->? Caqti_type.t3 (id `build) t file @@
     {| SELECT b.id,
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
@@ -353,7 +349,7 @@ module Build = struct
     |}
 
   let get_builds_older_than =
-    Caqti_type.(tup3 (id `job) (option string) Rep.ptime) ->* Caqti_type.tup2 (id `build) t @@
+    Caqti_type.(t3 (id `job) (option string) Rep.ptime) ->* Caqti_type.t2 (id `build) t @@
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
          result_code, result_msg, console, script,
          platform, main_binary, input_id, user, job
@@ -365,7 +361,7 @@ module Build = struct
     |}
 
   let get_builds_excluding_latest_n =
-    Caqti_type.(tup3 (id `job) (option string) int) ->* Caqti_type.tup2 (id `build) t @@
+    Caqti_type.(t3 (id `job) (option string) int) ->* Caqti_type.t2 (id `build) t @@
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
          result_code, result_msg, console, script,
          platform, main_binary, input_id, user, job
@@ -378,7 +374,7 @@ module Build = struct
     (* "LIMIT -1 OFFSET n" is all rows except the first n *)
 
   let get_nth_latest_successful =
-    Caqti_type.(tup3 (id `job) (option string) int) ->? Caqti_type.tup2 (id `build) t @@
+    Caqti_type.(t3 (id `job) (option string) int) ->? Caqti_type.t2 (id `build) t @@
     {| SELECT id, uuid, start_d, start_ps, finish_d, finish_ps,
          result_code, result_msg, console, script,
          platform, main_binary, input_id, user, job
@@ -391,7 +387,7 @@ module Build = struct
     |}
 
   let get_latest_successful =
-    Caqti_type.(tup2 (id `job) (option string)) ->? t @@
+    Caqti_type.(t2 (id `job) (option string)) ->? t @@
     {| SELECT
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
@@ -504,7 +500,7 @@ module Build = struct
     |}
 
   let get_with_main_binary_by_hash =
-    Rep.cstruct ->! Caqti_type.tup2 t file_opt @@
+    Rep.cstruct ->! Caqti_type.t2 t file_opt @@
     {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
             b.result_code, b.result_msg, b.console, b.script,
             b.platform, b.main_binary, b.input_id, b.user, b.job,
@@ -517,7 +513,7 @@ module Build = struct
     |}
 
   let get_with_jobname_by_hash =
-    Rep.cstruct ->? Caqti_type.tup2 Caqti_type.string t @@
+    Rep.cstruct ->? Caqti_type.t2 Caqti_type.string t @@
     {| SELECT job.name,
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg,
@@ -531,7 +527,7 @@ module Build = struct
     |}
 
   let set_main_binary =
-    Caqti_type.tup2 (id `build) (id `build_artifact) ->. Caqti_type.unit @@
+    Caqti_type.t2 (id `build) (id `build_artifact) ->. Caqti_type.unit @@
     "UPDATE build SET main_binary = $2 WHERE id = $1"
 
   let remove =
@@ -559,7 +555,7 @@ module User = struct
     "DROP TABLE IF EXISTS user"
 
   let get_user =
-    Caqti_type.string ->? Caqti_type.tup2 (id `user) user_info @@
+    Caqti_type.string ->? Caqti_type.t2 (id `user) user_info @@
     {| SELECT id, username, password_hash, password_salt,
          scrypt_n, scrypt_r, scrypt_p, restricted
        FROM user
@@ -613,15 +609,15 @@ module Access_list = struct
     "DROP TABLE IF EXISTS access_list"
 
   let get =
-    Caqti_type.tup2 (id `user) (id `job) ->! id `access_list @@
+    Caqti_type.t2 (id `user) (id `job) ->! id `access_list @@
     "SELECT id FROM access_list WHERE user = ? AND job = ?"
 
   let add =
-    Caqti_type.tup2 (id `user) (id `job) ->. Caqti_type.unit @@
+    Caqti_type.t2 (id `user) (id `job) ->. Caqti_type.unit @@
     "INSERT INTO access_list (user, job) VALUES (?, ?)"
 
   let remove =
-    Caqti_type.tup2 (id `user) (id `job) ->. Caqti_type.unit @@
+    Caqti_type.t2 (id `user) (id `job) ->. Caqti_type.unit @@
     "DELETE FROM access_list WHERE user = ? AND job = ?"
 
   let remove_by_job =

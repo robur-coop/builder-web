@@ -20,7 +20,7 @@ let latest_successful_build =
 
 let build_artifacts =
   Builder_db.Rep.untyped_id ->*
-  Caqti_type.tup2 Builder_db.Rep.fpath Builder_db.Rep.fpath @@
+  Caqti_type.t2 Builder_db.Rep.fpath Builder_db.Rep.fpath @@
   {| SELECT a.filepath, a.localpath
      FROM build_artifact a
      WHERE a.build = ?
@@ -31,7 +31,7 @@ let insert_tag =
   "INSERT INTO tag (tag) VALUES (?)"
 
 let insert_job_tag =
-  Caqti_type.(tup3 Builder_db.Rep.untyped_id string Builder_db.Rep.untyped_id) ->.
+  Caqti_type.(t3 Builder_db.Rep.untyped_id string Builder_db.Rep.untyped_id) ->.
   Caqti_type.unit @@
   "INSERT INTO job_tag (tag, value, job) VALUES (?, ?, ?)"
 

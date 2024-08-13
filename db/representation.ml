@@ -47,7 +47,7 @@ let ptime =
   let encode t = Ok (Ptime.Span.to_d_ps (Ptime.to_span t)) in
   let decode (d, ps) = Ok (Ptime.v (d, ps))
   in
-  let rep = Caqti_type.(tup2 int int64) in
+  let rep = Caqti_type.(t2 int int64) in
   Caqti_type.custom ~encode ~decode rep
 
 let fpath =
@@ -66,10 +66,10 @@ let file =
     Ok (filepath, sha256, size) in
   let decode (filepath, sha256, size) =
     Ok { filepath; sha256; size } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(tup3 fpath cstruct int)
+  Caqti_type.custom ~encode ~decode Caqti_type.(t3 fpath cstruct int)
 
 let file_opt =
-  let rep = Caqti_type.(tup3 (option fpath) (option cstruct) (option int)) in
+  let rep = Caqti_type.(t3 (option fpath) (option cstruct) (option int)) in
   let encode = function
     | Some { filepath; sha256; size } ->
       Ok (Some filepath, Some sha256, Some size)
@@ -108,7 +108,7 @@ let execution_result =
     else
       Error "bad encoding (unknown number)"
   in
-  let rep = Caqti_type.(tup2 int (option string)) in
+  let rep = Caqti_type.(t2 int (option string)) in
   Caqti_type.custom ~encode ~decode rep
 
 let console =
@@ -117,16 +117,16 @@ let console =
   Caqti_type.custom ~encode ~decode cstruct
 
 let user_info =
-  let rep = Caqti_type.(tup4 string cstruct cstruct (tup4 int int int bool)) in
+  let rep = Caqti_type.(t7 string cstruct cstruct int int int bool) in
   let encode { Builder_web_auth.username;
                password_hash = `Scrypt (password_hash, password_salt, {
                    Builder_web_auth.scrypt_n; scrypt_r; scrypt_p
                });
                restricted; }
     =
-    Ok (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p, restricted))
+    Ok (username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p, restricted)
   in
-  let decode (username, password_hash, password_salt, (scrypt_n, scrypt_r, scrypt_p, restricted)) =
+  let decode (username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p, restricted) =
     Ok { Builder_web_auth.username;
          password_hash =
            `Scrypt (password_hash, password_salt,

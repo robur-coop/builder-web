@@ -301,7 +301,7 @@ let input_ids =
 
 let main_artifact_hash =
   Builder_db.Rep.cstruct ->*
-  Caqti_type.tup3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string @@
+  Caqti_type.t3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string @@
   {|
     SELECT a.sha256, b.uuid, j.name FROM build_artifact a, build b, job j
     WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
@@ -336,10 +336,10 @@ let num_build_artifacts =
   Caqti_type.unit ->! Caqti_type.int @@
   "SELECT count(*) FROM build_artifact"
 
-let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Cstruct.t * int64), [ `One | `Zero | `Many ]) Caqti_request.t =
+let build_artifacts : (unit, string * Uuidm.t * Fpath.t * Cstruct.t * int64, [ `One | `Zero | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.(tup3 string Builder_db.Rep.uuid
-                (tup3 Builder_db.Rep.fpath Builder_db.Rep.cstruct int64))
+  Caqti_type.(t5 string Builder_db.Rep.uuid Builder_db.Rep.fpath
+                Builder_db.Rep.cstruct int64)
   @@
   {| SELECT job.name, b.uuid, a.filepath, a.sha256, a.size
      FROM build_artifact a, build b, job
@@ -347,7 +347,7 @@ let build_artifacts : (unit, string * Uuidm.t * (Fpath.t * Cstruct.t * int64), [
 
 let script_and_console : (unit, _, [`One | `Zero | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.(tup4 string Builder_db.Rep.uuid Builder_db.Rep.fpath Builder_db.Rep.fpath)
+  Caqti_type.(t4 string Builder_db.Rep.uuid Builder_db.Rep.fpath Builder_db.Rep.fpath)
   @@
   {| SELECT job.name, b.uuid, b.console, b.script
      FROM build b, job
@@ -387,7 +387,7 @@ let verify_data_dir () datadir =
       | _ -> Logs.err (fun m -> m "path is not of form <job>/<uuid>/...: %a" Fpath.pp path)
     in
     let* () =
-      Db.iter_s build_artifacts (fun (_job, _uuid, (_fpath, sha256, size)) ->
+      Db.iter_s build_artifacts (fun (_job, _uuid, _fpath, sha256, size) ->
           progress ();
           if not (FpathSet.mem (artifact_path sha256) !files_tracked) then
             let abs_path = Fpath.(v datadir // artifact_path sha256) in
@@ -557,7 +557,7 @@ module Verify_cache_dir = struct
       in
       Caqti_type.custom ~encode ~decode
         Caqti_type.(
-          tup4
+          t4
             Builder_db.Rep.uuid
             string
             (option Builder_db.Rep.cstruct)

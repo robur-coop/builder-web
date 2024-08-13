@@ -23,21 +23,21 @@ let new_uuid_rep =
 
 let uuids_byte_encoded_q =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep @@
+  Caqti_type.t2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep @@
   "SELECT id, uuid FROM build"
 
 let uuids_hex_encoded_q =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep @@
+  Caqti_type.t2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep @@
   "SELECT id, uuid FROM build"
 
 let migrate_q =
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep ->.
+  Caqti_type.t2 (Builder_db.Rep.id (`build : [`build])) new_uuid_rep ->.
   Caqti_type.unit @@
   "UPDATE build SET uuid = $2 WHERE id = $1"
 
 let rollback_q =
-  Caqti_type.tup2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep ->.
+  Caqti_type.t2 (Builder_db.Rep.id (`build : [`build])) old_uuid_rep ->.
   Caqti_type.unit @@
   "UPDATE build SET uuid = $2 WHERE id = $1"
 

@@ -2,7 +2,7 @@ open Grej.Infix
 
 let deb_debug_left_in_builds =
   Caqti_type.unit ->*
-  Caqti_type.tup4 (Builder_db.Rep.id `build_artifact) (Builder_db.Rep.id `build)
+  Caqti_type.t4 (Builder_db.Rep.id `build_artifact) (Builder_db.Rep.id `build)
     Builder_db.Rep.fpath Builder_db.Rep.fpath @@
   {| SELECT id, build, localpath, filepath FROM build_artifact
      WHERE filepath LIKE '%.deb.debug'
@@ -17,7 +17,7 @@ let get_localpath =
   "SELECT localpath FROM build_artifact WHERE id = ?"
 
 let update_paths =
-  Caqti_type.tup3 (Builder_db.Rep.id `build_artifact)
+  Caqti_type.t3 (Builder_db.Rep.id `build_artifact)
     Builder_db.Rep.fpath Builder_db.Rep.fpath ->.
   Caqti_type.unit @@
   "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"

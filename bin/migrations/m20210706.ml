@@ -55,7 +55,7 @@ let drop_input_id_from_build =
 
 let builds =
   Caqti_type.unit ->*
-  Caqti_type.tup4
+  Caqti_type.t4
     Builder_db.Rep.untyped_id
     Builder_db.Rep.cstruct
     Builder_db.Rep.cstruct
@@ -68,7 +68,7 @@ let builds =
   |}
 
 let set_input_id =
-  Caqti_type.tup2 Builder_db.Rep.untyped_id Builder_db.Rep.cstruct ->. Caqti_type.unit @@
+  Caqti_type.t2 Builder_db.Rep.untyped_id Builder_db.Rep.cstruct ->. Caqti_type.unit @@
   "UPDATE build SET input_id = $2 WHERE id = $1"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =

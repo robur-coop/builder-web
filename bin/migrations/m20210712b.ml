@@ -2,12 +2,12 @@ open Grej.Infix
 
 let all_build_artifacts_like_hashes : (unit, [`build_artifact] Builder_db.Rep.id * Fpath.t, [ `Zero | `One | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
+  Caqti_type.t2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
   "SELECT id, localpath FROM build_artifact WHERE filepath LIKE '%.build-hashes'"
 
 let all_build_artifacts_like_readme : (unit, [`build_artifact] Builder_db.Rep.id * Fpath.t, [ `Zero | `One | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.tup2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
+  Caqti_type.t2 (Builder_db.Rep.id `build_artifact) Builder_db.Rep.fpath @@
   "SELECT id, localpath FROM build_artifact WHERE filepath LIKE '%README.md'"
 
 let fixup datadir (module Db : Caqti_blocking.CONNECTION) =

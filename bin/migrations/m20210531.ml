@@ -7,11 +7,11 @@ let rollback_doc = "add datadir prefix to build_artifact.localpath"
 open Grej.Infix
 
 let build_artifacts =
-  Caqti_type.unit ->* Caqti_type.tup2 Builder_db.Rep.untyped_id Builder_db.Rep.fpath @@
+  Caqti_type.unit ->* Caqti_type.t2 Builder_db.Rep.untyped_id Builder_db.Rep.fpath @@
   "SELECT id, localpath FROM build_artifact"
 
 let build_artifact_update_localpath =
-  Caqti_type.tup2 Builder_db.Rep.untyped_id Builder_db.Rep.fpath ->. Caqti_type.unit @@
+  Caqti_type.t2 Builder_db.Rep.untyped_id Builder_db.Rep.fpath ->. Caqti_type.unit @@
     "UPDATE build_artifact SET localpath = $2 WHERE id = $1"
 
 (* We are not migrating build_file because it is unused *)

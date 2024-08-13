@@ -34,21 +34,21 @@ let old_user =
 
 let collect_old_user =
   Caqti_type.unit ->*
-  Caqti_type.(tup4 int64 string (tup2 octets octets) (tup3 int64 int64 int64)) @@
+  Caqti_type.(t4 int64 string (t2 octets octets) (t3 int64 int64 int64)) @@
   "SELECT id, username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p FROM user"
 
 let collect_new_user =
   Caqti_type.unit ->*
-  Caqti_type.(tup4 int64 string (tup2 octets octets) (tup4 int64 int64 int64 bool)) @@
+  Caqti_type.(t4 int64 string (t2 octets octets) (t4 int64 int64 int64 bool)) @@
   "SELECT id, username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p, restricted FROM user"
 
 let insert_new_user =
-  Caqti_type.(tup4 int64 string (tup2 octets octets) (tup4 int64 int64 int64 bool)) ->.
+  Caqti_type.(t4 int64 string (t2 octets octets) (t4 int64 int64 int64 bool)) ->.
   Caqti_type.unit @@
   "INSERT INTO new_user (id, username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p, restricted) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
 
 let insert_old_user =
-  Caqti_type.(tup4 int64 string (tup2 octets octets) (tup3 int64 int64 int64)) ->.
+  Caqti_type.(t4 int64 string (t2 octets octets) (t3 int64 int64 int64)) ->.
   Caqti_type.unit @@
   "INSERT INTO new_user (id, username, password_hash, password_salt, scrypt_n, scrypt_r, scrypt_p) VALUES (?, ?, ?, ?, ?, ?, ?)"
 
