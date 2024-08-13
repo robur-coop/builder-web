@@ -46,7 +46,7 @@ depends: [
   "uri"
   "fmt" {>= "0.8.7"}
   "cmarkit" {>= "0.3.0"}
-  "tar"
+  "tar" {< "3.0.0"}
   "owee"
   "solo5-elftool" {>= "0.3.0"}
   "decompress" {>= "1.5.0"}
