@@ -486,7 +486,13 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> Option.to_result ~none:(`Msg "bad finish time") |> Result.map Int64.of_int
     |> Lwt.return |> if_error "Internal server error" >>= fun finish ->
     Dream.stream ~headers:["Content-Type", "application/tar+gzip"]
-      (Dream_tar.targz_response datadir finish artifacts)
+      (fun stream ->
+         let+ r = Dream_tar.targz_response datadir finish artifacts stream in
+         match r with
+         | Ok () -> ()
+         | Error _ ->
+           Log.warn (fun m -> m "error assembling gzipped tar archive");
+           ())
     |> Lwt_result.ok
   in
 
