@@ -42,7 +42,7 @@ let read_file datadir filepath =
         Log.warn (fun m -> m "Error reading local file %a: %s"
                       Fpath.pp filepath (Unix.error_message e));
         Lwt.return_error (`File_error filepath)
-      | e -> Lwt.fail e)
+      | e -> Lwt.reraise e)
 
 let build_artifact build filepath (module Db : CONN) =
   Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
@@ -215,7 +215,7 @@ let save path data =
     (function
       | Unix.Unix_error (e, _, _) ->
           Lwt_result.fail (`Msg (Unix.error_message e))
-      | e -> Lwt.fail e)
+      | e -> Lwt.reraise e)
 
 let save_artifacts staging artifacts =
   List.fold_left
