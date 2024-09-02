@@ -12,9 +12,9 @@ let scrypt_params ?(scrypt_n = 16384) ?(scrypt_r = 8) ?(scrypt_p = 1) () =
   { scrypt_n; scrypt_r; scrypt_p }
 
 type pbkdf2_sha256 =
-  [ `Pbkdf2_sha256 of Cstruct.t * Cstruct.t * pbkdf2_sha256_params ]
+  [ `Pbkdf2_sha256 of string * string * pbkdf2_sha256_params ]
 
-type scrypt = [ `Scrypt of Cstruct.t * Cstruct.t * scrypt_params ]
+type scrypt = [ `Scrypt of string * string * scrypt_params ]
 
 type password_hash = [ pbkdf2_sha256 | scrypt ]
 
@@ -25,10 +25,10 @@ type 'a user_info = {
 }
 
 let pbkdf2_sha256 ~params:{ pbkdf2_sha256_iter = count } ~salt ~password =
-  Pbkdf.pbkdf2 ~prf:`SHA256 ~count ~dk_len:32l ~salt ~password:(Cstruct.of_string password)
+  Pbkdf.pbkdf2 ~prf:`SHA256 ~count ~dk_len:32l ~salt ~password
 
 let scrypt ~params:{ scrypt_n = n; scrypt_r = r; scrypt_p = p } ~salt ~password =
-  Scrypt_kdf.scrypt_kdf ~n ~r ~p ~dk_len:32l ~salt ~password:(Cstruct.of_string password)
+  Scrypt.scrypt ~n ~r ~p ~dk_len:32l ~salt ~password
 
 let hash ?(scrypt_params=scrypt_params ())
     ~username ~password ~restricted () =
@@ -43,10 +43,10 @@ let hash ?(scrypt_params=scrypt_params ())
 let verify_password password user_info =
   match user_info.password_hash with
   | `Pbkdf2_sha256 (password_hash, salt, params) ->
-    Cstruct.equal
+    String.equal
       (pbkdf2_sha256 ~params ~salt ~password)
       password_hash
   | `Scrypt (password_hash, salt, params) ->
-    Cstruct.equal
+    String.equal
       (scrypt ~params ~salt ~password)
       password_hash

@@ -134,14 +134,14 @@ module Viz_aux = struct
       viz_dir ~cachedir ~viz_typ ~version
       / input_hash + "html"
     )
-  
+
   let choose_versioned_viz_path
       ~cachedir
       ~viz_typ
       ~viz_input_hash
       ~current_version =
     let ( >>= ) = Result.bind in
-    let rec aux current_version = 
+    let rec aux current_version =
       let path =
         viz_path ~cachedir
           ~viz_typ
@@ -153,7 +153,7 @@ module Viz_aux = struct
           Error (`Msg (Fmt.str "viz '%s': There exist no version of the requested \
                                 visualization"
                          (viz_type_to_string viz_typ)))
-        else 
+        else
           aux @@ pred current_version
       )
     in
@@ -162,7 +162,7 @@ module Viz_aux = struct
   let get_viz_version_from_dirs ~cachedir ~viz_typ =
     let ( >>= ) = Result.bind in
     Bos.OS.Dir.contents cachedir >>= fun versioned_dirs ->
-    let max_cached_version = 
+    let max_cached_version =
       let viz_typ_str = viz_type_to_string viz_typ ^ "_" in
       versioned_dirs
       |> List.filter_map (fun versioned_dir ->
@@ -171,7 +171,7 @@ module Viz_aux = struct
             Logs.warn (fun m -> m "%s" err);
             None
           | Ok false -> None
-          | Ok true -> 
+          | Ok true ->
             let dir_str = Fpath.filename versioned_dir in
             if not (String.starts_with ~prefix:viz_typ_str dir_str) then
               None
@@ -199,10 +199,6 @@ module Viz_aux = struct
 
   let hash_viz_input ~uuid typ db =
     let open Builder_db in
-    let hex cstruct =
-      let `Hex hex_str = Hex.of_cstruct cstruct in
-      hex_str
-    in
     main_binary_of_uuid uuid db >>= fun main_binary ->
     Model.build uuid db
     |> if_error "Error getting build" >>= fun (build_id, _build) ->
@@ -210,7 +206,7 @@ module Viz_aux = struct
     |> if_error "Error getting build artifacts" >>= fun artifacts ->
     match typ with
     | `Treemap ->
-      let debug_binary = 
+      let debug_binary =
         let bin = Fpath.base main_binary.filepath in
         List.find_opt
           (fun p -> Fpath.(equal (bin + "debug") (base p.filepath)))
@@ -220,10 +216,10 @@ module Viz_aux = struct
         Model.not_found debug_binary
         |> not_found_error >>= fun debug_binary ->
         debug_binary.sha256
-        |> hex
+        |> Ohex.encode
         |> Lwt_result.return
-      end 
-    | `Dependencies -> 
+      end
+    | `Dependencies ->
       let opam_switch =
         List.find_opt
           (fun p -> Fpath.(equal (v "opam-switch") (base p.filepath)))
@@ -232,7 +228,7 @@ module Viz_aux = struct
       Model.not_found opam_switch
       |> not_found_error >>= fun opam_switch ->
       opam_switch.sha256
-      |> hex
+      |> Ohex.encode
       |> Lwt_result.return
 
   let try_load_cached_visualization ~cachedir ~uuid viz_typ db =
@@ -428,7 +424,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> if_error ~status:`Not_Found "File not found" >>= fun filepath ->
     Dream.sql req (Model.build_artifact build filepath)
     |> if_error "Error getting build artifact" >>= fun file ->
-    let etag = Base64.encode_string (Cstruct.to_string file.Builder_db.sha256) in
+    let etag = Base64.encode_string file.Builder_db.sha256 in
     match if_none_match with
     | Some etag' when etag = etag' ->
       Dream.empty `Not_Modified |> Lwt_result.ok
@@ -498,7 +494,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
 
   let upload req =
     let* body = Dream.body req in
-    Builder.Asn.exec_of_cs (Cstruct.of_string body) |> Lwt.return
+    Builder.Asn.exec_of_str body |> Lwt.return
     |> if_error ~status:`Bad_Request "Bad request"
       ~log:(fun e ->
           Log.warn (fun m -> m "Received bad builder ASN.1");
@@ -530,7 +526,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     Dream.query req "sha256" |> Option.to_result ~none:(`Msg "Missing sha256 query parameter")
     |> Lwt.return
     |> if_error ~status:`Bad_Request "Bad request" >>= fun hash_hex ->
-    begin try Hex.to_cstruct (`Hex hash_hex) |> Lwt_result.return
+    begin try Ohex.decode hash_hex |> Lwt_result.return
       with Invalid_argument e -> Lwt_result.fail (`Msg ("Bad hex: " ^ e))
     end
     |> if_error ~status:`Bad_Request "Bad request" >>= fun hash ->

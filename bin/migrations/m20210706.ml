@@ -57,9 +57,9 @@ let builds =
   Caqti_type.unit ->*
   Caqti_type.t4
     Builder_db.Rep.untyped_id
-    Builder_db.Rep.cstruct
-    Builder_db.Rep.cstruct
-    Builder_db.Rep.cstruct @@
+    Caqti_type.octets
+    Caqti_type.octets
+    Caqti_type.octets @@
   {| SELECT b.id, opam.sha256, env.sha256, system.sha256
      FROM build b, build_artifact opam, build_artifact env, build_artifact system
      WHERE opam.filepath = 'opam-switch' AND env.filepath = 'build-environment'
@@ -68,7 +68,7 @@ let builds =
   |}
 
 let set_input_id =
-  Caqti_type.t2 Builder_db.Rep.untyped_id Builder_db.Rep.cstruct ->. Caqti_type.unit @@
+  Caqti_type.t2 Builder_db.Rep.untyped_id Caqti_type.octets ->. Caqti_type.unit @@
   "UPDATE build SET input_id = $2 WHERE id = $1"
 
 let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
@@ -76,7 +76,7 @@ let migrate _datadir (module Db : Caqti_blocking.CONNECTION) =
   Db.exec add_input_id_to_build () >>= fun () ->
   Db.collect_list builds () >>= fun builds ->
   Grej.list_iter_result (fun (id, opam_sha, env_sha, pkg_sha) ->
-     let input_id = Mirage_crypto.Hash.SHA256.digest (Cstruct.concat [ opam_sha ; env_sha ; pkg_sha ]) in
+     let input_id = Digestif.SHA256.(to_raw_string (digestv_string [ opam_sha ; env_sha ; pkg_sha ])) in
      Db.exec set_input_id (id, input_id))
     builds >>= fun () ->
   Db.exec (Grej.set_version new_version) ()

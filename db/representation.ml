@@ -1,8 +1,8 @@
 module Asn = struct
   let decode_strict codec cs =
     match Asn.decode codec cs with
-    | Ok (a, cs) ->
-      if Cstruct.length cs = 0
+    | Ok (a, rest) ->
+      if String.length rest = 0
       then Ok a
       else Error "trailing bytes"
     | Error (`Parse msg) -> Error ("parse error: " ^ msg)
@@ -17,7 +17,7 @@ module Asn = struct
                 (required ~label:"delta" int)
                 (required ~label:"data" utf8_string)))
 
-  let console_of_cs, console_to_cs = projections_of console
+  let console_of_str, console_to_str = projections_of console
 end
 
 type untyped_id = int64
@@ -30,7 +30,7 @@ let id_to_int64 (id : 'a id) : int64 = id
 
 type file = {
   filepath : Fpath.t;
-  sha256 : Cstruct.t;
+  sha256 : string;
   size : int;
 }
 
@@ -56,20 +56,15 @@ let fpath =
                  |> Result.map_error (fun (`Msg s) -> s) in
   Caqti_type.custom ~encode ~decode Caqti_type.string
 
-let cstruct =
-  let encode t = Ok (Cstruct.to_string t) in
-  let decode s = Ok (Cstruct.of_string s) in
-  Caqti_type.custom ~encode ~decode Caqti_type.octets
-
 let file =
   let encode { filepath; sha256; size } =
     Ok (filepath, sha256, size) in
   let decode (filepath, sha256, size) =
     Ok { filepath; sha256; size } in
-  Caqti_type.custom ~encode ~decode Caqti_type.(t3 fpath cstruct int)
+  Caqti_type.custom ~encode ~decode Caqti_type.(t3 fpath octets int)
 
 let file_opt =
-  let rep = Caqti_type.(t3 (option fpath) (option cstruct) (option int)) in
+  let rep = Caqti_type.(t3 (option fpath) (option octets) (option int)) in
   let encode = function
     | Some { filepath; sha256; size } ->
       Ok (Some filepath, Some sha256, Some size)
@@ -112,12 +107,12 @@ let execution_result =
   Caqti_type.custom ~encode ~decode rep
 
 let console =
-  let encode console = Ok (Asn.console_to_cs console) in
-  let decode data = Asn.console_of_cs data in
-  Caqti_type.custom ~encode ~decode cstruct
+  let encode console = Ok (Asn.console_to_str console) in
+  let decode data = Asn.console_of_str data in
+  Caqti_type.(custom ~encode ~decode octets)
 
 let user_info =
-  let rep = Caqti_type.(t7 string cstruct cstruct int int int bool) in
+  let rep = Caqti_type.(t7 string octets octets int int int bool) in
   let encode { Builder_web_auth.username;
                password_hash = `Scrypt (password_hash, password_salt, {
                    Builder_web_auth.scrypt_n; scrypt_r; scrypt_p

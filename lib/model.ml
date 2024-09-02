@@ -20,7 +20,7 @@ let not_found = function
 
 let staging datadir = Fpath.(datadir / "_staging")
 let artifact_path artifact =
-  let (`Hex sha256) = Hex.of_cstruct artifact.Builder_db.sha256 in
+  let sha256 = Ohex.encode artifact.Builder_db.sha256 in
   (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
   (* NOTE: We add the prefix to reduce the number of files in a directory - a
      workaround for inferior filesystems. We can easily revert this by changing
@@ -221,7 +221,7 @@ let save_artifacts staging artifacts =
   List.fold_left
     (fun r (file, data) ->
        r >>= fun () ->
-       let (`Hex sha256) = Hex.of_cstruct file.Builder_db.sha256 in
+       let sha256 = Ohex.encode file.Builder_db.sha256 in
        let destpath = Fpath.(staging / sha256) in
        save destpath data)
     (Lwt_result.return ())
@@ -232,7 +232,7 @@ let commit_files datadir staging_dir job_name uuid artifacts =
   List.fold_left
     (fun r artifact ->
        r >>= fun () ->
-       let (`Hex sha256) = Hex.of_cstruct artifact.Builder_db.sha256 in
+       let sha256 = Ohex.encode artifact.Builder_db.sha256 in
        let src = Fpath.(staging_dir / sha256) in
        let dest = Fpath.(datadir // artifact_path artifact) in
        Lwt.return (Bos.OS.Dir.create (Fpath.parent dest)) >>= fun _created ->
@@ -306,7 +306,8 @@ let compute_input_id artifacts =
     get_hash (Fpath.v "build-environment"),
     get_hash (Fpath.v "system-packages")
   with
-  | Some a, Some b, Some c -> Some (Mirage_crypto.Hash.SHA256.digest (Cstruct.concat [a;b;c]))
+  | Some a, Some b, Some c ->
+    Some Digestif.SHA256.(to_raw_string (digestv_string [a;b;c]))
   | _ -> None
 
 let save_console_and_script staging_dir job_name uuid console script =
@@ -377,7 +378,7 @@ let add_build
          if not_interesting filepath then
            Lwt_result.return acc
          else
-           let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data)
+           let sha256 = Digestif.SHA256.(to_raw_string (digest_string data))
            and size = String.length data in
            Lwt_result.ok (Lwt.pause ()) >|= fun () ->
            ({ filepath; sha256; size }, data) :: acc)
@@ -483,7 +484,7 @@ let add_build
     and uuid = Uuidm.to_string uuid
     and job = job.name
     and platform = job.platform
-    and `Hex sha256 = Hex.of_cstruct main_binary.sha256
+    and sha256 = Ohex.encode main_binary.sha256
     in
     let fp_str p = Fpath.(to_string (datadir // p)) in
     let args =

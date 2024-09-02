@@ -25,8 +25,8 @@ module Testable = struct
       x.restricted = y.restricted &&
       match x.password_hash, y.password_hash with
       | `Scrypt (hash, salt, params), `Scrypt (hash', salt', params') ->
-        Cstruct.equal hash hash' &&
-        Cstruct.equal salt salt' &&
+        String.equal hash hash' &&
+        String.equal salt salt' &&
         params = params'
     in
     let pp ppf { Builder_web_auth.username; password_hash; restricted } =
@@ -34,7 +34,7 @@ module Testable = struct
       | `Scrypt (hash, salt, { Builder_web_auth.scrypt_n; scrypt_r; scrypt_p }) ->
         Format.fprintf ppf "user:%s;(%d,%d,%d);%B;%a;%a" username
           scrypt_n scrypt_r scrypt_p restricted
-          Cstruct.hexdump_pp hash Cstruct.hexdump_pp salt
+          Ohex.pp hash Ohex.pp salt
     in
     Alcotest.testable
       pp
@@ -43,7 +43,7 @@ module Testable = struct
   let file =
     let equal (x : Builder_db.Rep.file) (y : Builder_db.Rep.file) =
       Fpath.equal x.filepath y.filepath &&
-      Cstruct.equal x.sha256 y.sha256 &&
+      String.equal x.sha256 y.sha256 &&
       x.size = y.size
     in
     let pp ppf { Builder_db.Rep.filepath; sha256; size } =
@@ -51,7 +51,7 @@ module Testable = struct
                           sha256 = %a;@;<1 0>\
                           size = %d;@;<1 0>\
                           @]@,}"
-        Fpath.pp filepath Cstruct.hexdump_pp sha256 size
+        Fpath.pp filepath Ohex.pp sha256 size
     in
     Alcotest.testable pp equal
 
@@ -131,12 +131,12 @@ let result = Builder.Exited 0
 let main_binary =
   let filepath = Result.get_ok (Fpath.of_string "bin/hello.sh") in
   let data = "#!/bin/sh\necho Hello, World\n" in
-  let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+  let sha256 = Digestif.SHA256.(to_raw_string (digest_string data)) in
   let size = String.length data in
   { Builder_db.Rep.filepath; sha256; size }
 let main_binary2 =
   let data = "#!/bin/sh\necho Hello, World 2\n" in
-  let sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+  let sha256 = Digestif.SHA256.(to_raw_string (digest_string data)) in
   let size = String.length data in
   { main_binary with sha256 ; size }
 let platform = "exotic-os"
