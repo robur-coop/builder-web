@@ -37,7 +37,6 @@ depends: [
   "tyxml" {>= "4.3.0"}
   "ptime"
   "duration"
-  "mirage-crypto" {>= "1.0.0"}
   "asn1-combinators" {>= "0.3.0"}
   "logs"
   "cmdliner" {>= "1.1.0"}
