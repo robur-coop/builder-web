@@ -30,7 +30,7 @@ let write_raw s buf =
          safe_close s >|= fun () ->
          Error `Exception)
   in
-  (*  Logs.debug (fun m -> m "writing %a" Cstruct.hexdump_pp (Cstruct.of_bytes buf)) ; *)
+  (*  Logs.debug (fun m -> m "writing %a" (Ohex.pp_hexdump ()) (Bytes.unsafe_to_string buf)) ; *)
   w 0 (Bytes.length buf)
 
 let process =

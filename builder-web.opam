@@ -17,18 +17,16 @@ build: [
 depends: [
   "ocaml" {>= "4.13.0"}
   "dune" {>= "2.7.0"}
-  "builder" {>= "0.2.0"}
-  "dream" {>= "1.0.0~alpha4"}
-  "cstruct" {>= "6.0.0"}
+  "builder" {>= "0.4.0"}
+  "dream" {>= "1.0.0~alpha7"}
   "bos"
-  "hex"
+  "ohex" {>= "0.2.0"}
   "lwt" {>= "5.7.0"}
-  "caqti" {>= "2.1.1"}
+  "caqti" {>= "2.1.2"}
   "caqti-lwt"
   "caqti-driver-sqlite3"
-  "pbkdf"
   "mirage-crypto-rng" {>= "0.11.0"}
-  "scrypt-kdf"
+  "kdf"
   "opam-core"
   "opam-format" {>= "2.1.0"}
   "metrics" {>= "0.3.0"}
@@ -39,8 +37,7 @@ depends: [
   "tyxml" {>= "4.3.0"}
   "ptime"
   "duration"
-  "mirage-crypto"
-  "asn1-combinators"
+  "asn1-combinators" {>= "0.3.0"}
   "logs"
   "cmdliner" {>= "1.1.0"}
   "uri"
@@ -51,6 +48,7 @@ depends: [
   "owee"
   "solo5-elftool" {>= "0.3.0"}
   "decompress" {>= "1.5.0"}
+  "digestif" {>= "1.2.0"}
   "alcotest" {>= "1.2.0" & with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}

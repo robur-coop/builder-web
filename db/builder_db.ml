@@ -12,7 +12,7 @@ type 'a id = 'a Rep.id
 
 type file = Rep.file = {
   filepath : Fpath.t;
-  sha256 : Cstruct.t;
+  sha256 : string;
   size : int;
 }
 
@@ -172,7 +172,7 @@ module Build_artifact = struct
     "SELECT id, filepath, sha256, size FROM build_artifact WHERE build = ?"
 
   let exists =
-    cstruct ->! Caqti_type.bool @@
+    Caqti_type.octets ->! Caqti_type.bool @@
     "SELECT EXISTS(SELECT 1 FROM build_artifact WHERE sha256 = ?)"
 
   let add =
@@ -199,7 +199,7 @@ module Build = struct
     script : Fpath.t;
     platform : string;
     main_binary : [`build_artifact] id option;
-    input_id : Cstruct.t option;
+    input_id : string option;
     user_id : [`user] id;
     job_id : [`job] id;
   }
@@ -224,7 +224,7 @@ module Build = struct
       Fpath.pp t.script
       t.platform
       Fmt.(Dump.option int64) t.main_binary
-      Fmt.(Dump.option (using Cstruct.to_string string)) t.input_id
+      Fmt.(Dump.option string) t.input_id
       t.user_id
       t.job_id
 
@@ -240,7 +240,7 @@ module Build = struct
                     fpath
                     string
                     (option (Rep.id `build_artifact))
-                    (option Rep.cstruct)
+                    (option octets)
                     (id `user)
                     (id `job))
     in
@@ -314,7 +314,7 @@ module Build = struct
     |}
 
   let get_all_artifact_sha =
-    Caqti_type.(t2 (id `job) (option string)) ->* Rep.cstruct @@
+    Caqti_type.(t2 (id `job) (option string)) ->* Caqti_type.octets @@
     {| SELECT DISTINCT a.sha256
        FROM build_artifact a, build b
        WHERE b.job = $1 AND b.main_binary = a.id
@@ -446,7 +446,7 @@ module Build = struct
     |}
 
   let get_same_input_different_output_hashes =
-    id `build ->* Rep.cstruct @@
+    id `build ->* Caqti_type.octets @@
     {| SELECT DISTINCT a.sha256
        FROM build b0, build_artifact a0, build b, build_artifact a
        WHERE b0.id = ? AND a0.id = b0.main_binary AND a0.sha256 <> a.sha256
@@ -455,7 +455,7 @@ module Build = struct
     |}
 
   let get_different_input_same_output_input_ids =
-    id `build ->* Rep.cstruct @@
+    id `build ->* Caqti_type.octets @@
     {| SELECT DISTINCT b.input_id
        FROM build b0, build_artifact a0, build b, build_artifact a
        WHERE b0.id = ? AND a0.id = b0.main_binary AND a0.sha256 = a.sha256
@@ -463,7 +463,7 @@ module Build = struct
     |}
 
   let get_one_by_input_id =
-    Rep.cstruct ->! t @@
+    Caqti_type.octets ->! t @@
     {| SELECT uuid, start_d, start_ps, finish_d, finish_ps,
         result_code, result_msg, console, script,
         platform, main_binary, input_id, user, job
@@ -487,7 +487,7 @@ module Build = struct
     |}
 
   let get_by_hash =
-    Rep.cstruct ->! t @@
+    Caqti_type.octets ->! t @@
     {| SELECT
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg, b.console, b.script,
@@ -500,7 +500,7 @@ module Build = struct
     |}
 
   let get_with_main_binary_by_hash =
-    Rep.cstruct ->! Caqti_type.t2 t file_opt @@
+    Caqti_type.octets ->! Caqti_type.t2 t file_opt @@
     {| SELECT b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
             b.result_code, b.result_msg, b.console, b.script,
             b.platform, b.main_binary, b.input_id, b.user, b.job,
@@ -513,7 +513,7 @@ module Build = struct
     |}
 
   let get_with_jobname_by_hash =
-    Rep.cstruct ->? Caqti_type.t2 Caqti_type.string t @@
+    Caqti_type.octets ->? Caqti_type.t2 Caqti_type.string t @@
     {| SELECT job.name,
          b.uuid, b.start_d, b.start_ps, b.finish_d, b.finish_ps,
          b.result_code, b.result_msg,

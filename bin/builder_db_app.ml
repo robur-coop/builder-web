@@ -17,7 +17,7 @@ let defer_foreign_keys =
   "PRAGMA defer_foreign_keys = ON"
 
 let build_artifacts_to_orphan =
-  Builder_db.Rep.id `build ->* Builder_db.Rep.cstruct @@
+  Builder_db.Rep.id `build ->* Caqti_type.octets @@
   {| SELECT a.sha256 FROM build_artifact a
      WHERE a.build = ? AND
            (SELECT COUNT(*) FROM build_artifact a2
@@ -45,7 +45,7 @@ let migrate () dbpath =
 
 let artifacts_dir datadir = Fpath.(datadir / "_artifacts")
 let artifact_path sha256 =
-  let (`Hex sha256) = Hex.of_cstruct sha256 in
+  let sha256 = Ohex.encode sha256 in
   (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
   (* NOTE: We add the prefix to reduce the number of files in a directory - a
      workaround for inferior filesystems. We can easily revert this by changing
@@ -108,7 +108,7 @@ let user_disable () dbpath username =
     match user with
     | None -> Error (`Msg "user not found")
     | Some (_, user_info) ->
-      let password_hash = `Scrypt (Cstruct.empty, Cstruct.empty, Builder_web_auth.scrypt_params ()) in
+      let password_hash = `Scrypt ("", "", Builder_web_auth.scrypt_params ()) in
       let user_info = { user_info with password_hash ; restricted = true } in
       Db.exec Builder_db.User.update_user user_info
   in
@@ -296,12 +296,12 @@ let vacuum () datadir platform_opt jobnames predicate =
   or_die 1 r
 
 let input_ids =
-  Caqti_type.unit ->* Builder_db.Rep.cstruct @@
+  Caqti_type.unit ->* Caqti_type.octets @@
   "SELECT DISTINCT input_id FROM build WHERE input_id IS NOT NULL"
 
 let main_artifact_hash =
-  Builder_db.Rep.cstruct ->*
-  Caqti_type.t3 Builder_db.Rep.cstruct Builder_db.Rep.uuid Caqti_type.string @@
+  Caqti_type.octets ->*
+  Caqti_type.t3 Caqti_type.octets Builder_db.Rep.uuid Caqti_type.string @@
   {|
     SELECT a.sha256, b.uuid, j.name FROM build_artifact a, build b, job j
     WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
@@ -319,12 +319,12 @@ let verify_input_id () dbpath =
         match hashes with
         | (h, uuid, jobname) :: tl ->
           List.iter (fun (h', uuid', _) ->
-              if Cstruct.equal h h' then
+              if String.equal h h' then
                 ()
               else
                 Logs.warn (fun m -> m "job %s input id %a with two different hashes (%a, %a), build %a and %a"
-                              jobname Cstruct.hexdump_pp input_id
-                              Cstruct.hexdump_pp h Cstruct.hexdump_pp h'
+                              jobname Ohex.pp input_id
+                              Ohex.pp h Ohex.pp h'
                               Uuidm.pp uuid Uuidm.pp uuid'))
             tl
         | [] -> ())
@@ -336,10 +336,9 @@ let num_build_artifacts =
   Caqti_type.unit ->! Caqti_type.int @@
   "SELECT count(*) FROM build_artifact"
 
-let build_artifacts : (unit, string * Uuidm.t * Fpath.t * Cstruct.t * int64, [ `One | `Zero | `Many ]) Caqti_request.t =
+let build_artifacts : (unit, string * Uuidm.t * Fpath.t * string * int64, [ `One | `Zero | `Many ]) Caqti_request.t =
   Caqti_type.unit ->*
-  Caqti_type.(t5 string Builder_db.Rep.uuid Builder_db.Rep.fpath
-                Builder_db.Rep.cstruct int64)
+  Caqti_type.(t5 string Builder_db.Rep.uuid Builder_db.Rep.fpath octets int64)
   @@
   {| SELECT job.name, b.uuid, a.filepath, a.sha256, a.size
      FROM build_artifact a, build b, job
@@ -397,12 +396,12 @@ let verify_data_dir () datadir =
                files_tracked := FpathSet.add (artifact_path sha256) !files_tracked;
                let s = Int64.of_int (String.length data) in
                if s <> size then Logs.err (fun m -> m "File %a has different size (in DB %Lu on disk %Lu)" Fpath.pp abs_path size s);
-               let sha256' = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
-               if not (Cstruct.equal sha256 sha256') then
+               let sha256' = Digestif.SHA256.(to_raw_string (digest_string data)) in
+               if not (String.equal sha256 sha256') then
                  Logs.err (fun m -> m "File %a has different hash (in DB %a on disk %a)"
                               Fpath.pp abs_path
-                              Hex.pp (Hex.of_cstruct sha256)
-                              Hex.pp (Hex.of_cstruct sha256'))) ;
+                              Ohex.pp sha256
+                              Ohex.pp sha256')) ;
             Ok ()
           else
             Ok ()
@@ -545,8 +544,8 @@ module Verify_cache_dir = struct
     type t = {
       uuid : Uuidm.t;
       job_name : string;
-      hash_opam_switch : Cstruct.t option;
-      hash_debug_bin : Cstruct.t option;
+      hash_opam_switch : string option;
+      hash_debug_bin : string option;
     }
 
     let repr =
@@ -560,8 +559,8 @@ module Verify_cache_dir = struct
           t4
             Builder_db.Rep.uuid
             string
-            (option Builder_db.Rep.cstruct)
-            (option Builder_db.Rep.cstruct))
+            (option octets)
+            (option octets))
 
   end
 
@@ -587,7 +586,7 @@ module Verify_cache_dir = struct
     let* latest_version =
       Viz_aux.get_viz_version_from_dirs ~cachedir ~viz_typ
     in
-    let `Hex viz_input_hash = Hex.of_cstruct hash in
+    let viz_input_hash = Ohex.encode hash in
     let* viz_path =
       Viz_aux.choose_versioned_viz_path
         ~cachedir
@@ -667,7 +666,7 @@ module Verify_cache_dir = struct
     match extract_hash ~viz_typ build with
     | None -> ()
     | Some input_hash ->
-      let `Hex input_hash = Hex.of_cstruct input_hash in
+      let input_hash = Ohex.encode input_hash in
       let viz_path = Viz_aux.viz_path
           ~cachedir
           ~viz_typ
@@ -741,8 +740,8 @@ end
 module Asn = struct
   let decode_strict codec cs =
     match Asn.decode codec cs with
-    | Ok (a, cs) ->
-      if Cstruct.length cs = 0
+    | Ok (a, rest) ->
+      if String.length rest = 0
       then Ok a
       else Error "trailing bytes"
     | Error (`Parse msg) -> Error ("parse error: " ^ msg)
@@ -808,8 +807,8 @@ let extract_full () datadir dest uuid =
         artifacts
     in
     let exec = (job, uuid, out, start, finish, result, data) in
-    let cs = Builder.Asn.exec_to_cs exec in
-    Bos.OS.File.write (Fpath.v dest) (Cstruct.to_string cs)
+    let data = Builder.Asn.exec_to_str exec in
+    Bos.OS.File.write (Fpath.v dest) data
   in
   or_die 1 r
 

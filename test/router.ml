@@ -165,10 +165,9 @@ let () =
           .. to find them I follewed the trails of 'Albatross_cli.http_host'
       *)
       begin
-        let `Hex sha_str =
-          Cstruct.of_string "foo"
-          |> Mirage_crypto.Hash.SHA256.digest
-          |> Hex.of_cstruct
+        let sha_str =
+          Digestif.SHA256.(to_raw_string (digest_string "foo"))
+          |> Ohex.encode
         in
         Fmt.str "/hash?sha256=%s" sha_str
       end;

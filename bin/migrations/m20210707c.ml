@@ -16,8 +16,8 @@ let update_paths : ([`build_artifact] Builder_db.Rep.id * Fpath.t * Fpath.t, uni
   Caqti_type.unit @@
   "UPDATE build_artifact SET localpath = $2, filepath = $3 WHERE id = $1"
 
-let add_artifact : ((Fpath.t * Fpath.t * Cstruct.t) * (int64 * [`build] Builder_db.Rep.id), unit, [ `Zero]) Caqti_request.t =
-  Caqti_type.(t2 (t3 Builder_db.Rep.fpath Builder_db.Rep.fpath Builder_db.Rep.cstruct)
+let add_artifact : ((Fpath.t * Fpath.t * string) * (int64 * [`build] Builder_db.Rep.id), unit, [ `Zero]) Caqti_request.t =
+  Caqti_type.(t2 (t3 Builder_db.Rep.fpath Builder_db.Rep.fpath Caqti_type.octets)
                 (t2 Caqti_type.int64 (Builder_db.Rep.id `build))) ->.
   Caqti_type.unit @@
   "INSERT INTO build_artifact (filepath, localpath, sha256, size, build) VALUES (?, ?, ?, ?, ?)"
@@ -48,7 +48,8 @@ let fixup datadir (module Db : Caqti_blocking.CONNECTION) =
            in
            assert (r = 0);
            Bos.OS.File.read (Fpath.append datadir artifact_lpath) >>= fun data ->
-           let size = Int64.of_int (String.length data) and sha256 = Mirage_crypto.Hash.SHA256.digest (Cstruct.of_string data) in
+           let size = Int64.of_int (String.length data)
+           and sha256 = Digestif.SHA256.(to_raw_string (digest_string data)) in
            Db.exec update_paths (artifact_id, new_artifact_lpath, path artifact_fpath) >>= fun () ->
            Db.exec add_artifact ((artifact_fpath, artifact_lpath, sha256), (size, build_id)) >>= fun () ->
            Db.find Builder_db.last_insert_rowid () >>= fun new_build_artifact_id ->

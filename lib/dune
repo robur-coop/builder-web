@@ -1,5 +1,5 @@
 (library
  (name builder_web)
- (libraries builder builder_db dream tyxml bos duration hex caqti-lwt
+ (libraries builder builder_db dream tyxml bos duration ohex caqti-lwt
    opamdiff ptime.clock.os cmarkit tar tar.gz tar-unix owee solo5-elftool decompress.de
-   decompress.gz uri))
+   decompress.gz uri digestif))

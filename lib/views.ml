@@ -202,7 +202,7 @@ let artifact
       else txtf "%a" Fpath.pp filepath
     ];
     H.txt " ";
-    H.code [txtf "SHA256:%a" Hex.pp (Hex.of_cstruct sha256)];
+    H.code [txtf "SHA256:%a" Ohex.pp sha256];
     txtf " (%a)" Fmt.byte_size size;
   ]
 
@@ -491,7 +491,7 @@ module Job_build = struct
            pp_devices block_devices pp_devices net_devices]
     in
     let aux (file:Builder_db.file) =
-      let (`Hex sha256_hex) = Hex.of_cstruct file.sha256 in
+      let sha256_hex = Ohex.encode file.sha256 in
       [
         H.dt [
           H.a ~a:H.[a_href @@ Link.Job_build_artifact.make

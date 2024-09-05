@@ -1,4 +1,3 @@
 (library
  (name builder_db)
- (libraries builder caqti caqti-driver-sqlite3 asn1-combinators mirage-crypto
-   builder_web_auth))
+ (libraries builder caqti caqti-driver-sqlite3 asn1-combinators builder_web_auth))
