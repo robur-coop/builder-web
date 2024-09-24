@@ -202,7 +202,7 @@ let artifact
       else txtf "%a" Fpath.pp filepath
     ];
     H.txt " ";
-    H.code [txtf "SHA256:%a" Ohex.pp sha256];
+    H.code [txtf "SHA256:%s" (Ohex.encode sha256)];
     txtf " (%a)" Fmt.byte_size size;
   ]
 
