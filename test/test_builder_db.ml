@@ -123,7 +123,7 @@ let test_user_unauth (module Db : CONN) =
 
 let job_name = "test-job"
 let script = Fpath.v "/dev/null"
-let uuid = Uuidm.v `V4
+let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) ()
 let console = Fpath.v "/dev/null"
 let start = Option.get (Ptime.of_float_s 0.)
 let finish = Option.get (Ptime.of_float_s 1.)
@@ -195,7 +195,7 @@ let test_build_get_all (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_all job_id >>| fun builds ->
   Alcotest.(check int) "one build" (List.length builds) 1
 
-let uuid' = Uuidm.v `V4
+let uuid' = Uuidm.v4_gen (Random.State.make_self_init ()) ()
 let start' = Option.get (Ptime.of_float_s 3600.)
 let finish' = Option.get (Ptime.of_float_s 3601.)
 

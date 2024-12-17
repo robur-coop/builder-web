@@ -85,7 +85,7 @@ let test_link method_ target () =
 
 let test_link_artifact artifact =
   let job_name = "test" in
-  let build = Uuidm.v `V4 in
+  let build = Uuidm.v4_gen (Random.State.make_self_init ()) () in
   test_link `GET @@
   Builder_web.Link.Job_build_artifact.make ~job_name ~build ~artifact ()
 
@@ -108,12 +108,12 @@ let () =
         end;
         test_case "Link.Job_build.make" `Quick begin
           let job_name = "test" in
-          let build = Uuidm.v `V4 in
+          let build = Uuidm.v4_gen (Random.State.make_self_init ()) () in
           test_link `GET @@ Builder_web.Link.Job_build.make ~job_name ~build ()
         end;
         test_case "Link.Job_build_artifact.make_from_string" `Quick begin
           let job_name = "test" in
-          let build = Uuidm.v `V4 in
+          let build = Uuidm.v4_gen (Random.State.make_self_init ()) () in
           let artifact = "" in
           test_link `GET @@
           Builder_web.Link.Job_build_artifact.make_from_string
@@ -140,8 +140,8 @@ let () =
           )
       ) @ Alcotest.[
         test_case "Link.Compare_builds.make" `Quick begin
-          let left = Uuidm.v `V4 in
-          let right = Uuidm.v `V4 in
+          let left = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+          let right = Uuidm.v4_gen (Random.State.make_self_init ()) () in
           test_link `GET @@
           Builder_web.Link.Compare_builds.make ~left ~right ()
         end;
@@ -177,12 +177,12 @@ let () =
       end;
       begin
         let job = "foo" in
-        let build = Uuidm.(v `V4 |> to_string) in
+        let build = Uuidm.(v4_gen (Random.State.make_self_init ()) () |> to_string) in
         "/job/" ^ job ^ "/build/" ^ build ^ "/main-binary"
       end;
       begin
-        let old_uuid = Uuidm.(v `V4 |> to_string) in
-        let new_uuid = Uuidm.(v `V4 |> to_string) in
+        let old_uuid = Uuidm.(v4_gen (Random.State.make_self_init ()) () |> to_string) in
+        let new_uuid = Uuidm.(v4_gen (Random.State.make_self_init ()) () |> to_string) in
         Fmt.str "/compare/%s/%s" old_uuid new_uuid
       end;
     ]

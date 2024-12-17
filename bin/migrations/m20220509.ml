@@ -6,9 +6,9 @@ and rollback_doc = "switch uuid encoding back to binary"
 open Grej.Infix
 
 let old_uuid_rep =
-  let encode uuid = Ok (Uuidm.to_bytes uuid) in
+  let encode uuid = Ok (Uuidm.to_binary_string uuid) in
   let decode s =
-    Uuidm.of_bytes s
+    Uuidm.of_binary_string s
     |> Option.to_result ~none:"failed to decode uuid"
   in
   Caqti_type.custom ~encode ~decode Caqti_type.string
