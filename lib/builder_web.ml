@@ -642,7 +642,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
         ];
         "env_diff", Utils.diff_map_to_json env_diff;
         "package_diff", Utils.diff_map_to_json pkg_diff;
-        "opam_diff", Opamdiff.compare_to_json opam_diff
+        "opam_diff", Opamdiff.compare_result_to_json opam_diff
       ] |> Yojson.Basic.to_string
     in
     Dream.json ~status:`OK json_response |> Lwt_result.ok

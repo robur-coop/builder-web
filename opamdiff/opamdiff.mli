@@ -38,6 +38,6 @@ val compare: OpamFile.SwitchExport.t ->
   OpamFile.SwitchExport.t ->
   opam_diff list * version_diff list * OpamPackage.Set.t * OpamPackage.Set.t * ((string * string) list * (string * string) list * duniverse_diff list, [> `Msg of string ]) result
 
-val compare_to_json: opam_diff list * version_diff list * OpamPackage.Set.t * OpamPackage.Set.t *
-((string * string) list * (string * string) list * duniverse_diff list, [> `Msg of string ]) result -> Yojson.Basic.t
+val compare_result_to_json: 'a list * version_diff list * OpamPackage.Set.t * OpamPackage.Set.t *
+(('b * 'b) list * ('b * 'b) list * 'c list, [< `Msg of 'd ]) result -> Yojson.Basic.t
 
