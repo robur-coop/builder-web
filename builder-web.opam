@@ -52,7 +52,7 @@ depends: [
   "alcotest" {>= "1.2.0" & with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
-  "yojson" {with-test}
+  "yojson"
 ]
 
 synopsis: "Web interface for builder"
