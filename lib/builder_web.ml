@@ -570,7 +570,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> Lwt_result.ok
   in
 
-  let compare_builds req =
+  let process_comparison req =
     let build_left = Dream.param req "build_left" in
     let build_right = Dream.param req "build_right" in
     get_uuid build_left >>= fun build_left ->
@@ -605,6 +605,13 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
     let opam_diff = Opamdiff.compare switch_left switch_right in
+    (job_left, job_right, build_left, build_right, env_diff, pkg_diff, opam_diff) |> Lwt.return_ok
+
+  in
+
+  let compare_builds req =
+   process_comparison req >>= fun
+   (job_left, job_right, build_left, build_right, env_diff, pkg_diff, opam_diff) ->
     Views.compare_builds
       ~job_left ~job_right
       ~build_left ~build_right
@@ -612,6 +619,33 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       ~pkg_diff
       ~opam_diff
     |> string_of_html |> Dream.html |> Lwt_result.ok
+  in
+
+  let compare_builds_json req =
+    process_comparison req >>= fun
+    (job_left, job_right, build_left, build_right, env_diff, pkg_diff, opam_diff) ->
+    let json_response =
+      `Assoc [
+        "left", `Assoc [
+          "job", `String job_left;
+          "build", `String (Uuidm.to_string build_left.uuid);
+          "platform", `String build_left.platform;
+          "build_start_time", `String (Ptime.to_rfc3339 build_left.start);
+          "build_finish_time", `String (Ptime.to_rfc3339 build_left.finish);
+        ];
+        "right", `Assoc [
+          "job", `String job_right;
+          "build", `String (Uuidm.to_string build_right.uuid);
+          "platform", `String build_right.platform;
+          "build_start_time", `String (Ptime.to_rfc3339 build_right.start);
+          "build_finish_time", `String (Ptime.to_rfc3339 build_right.finish);
+        ];
+        "env_diff", Utils.diff_map_to_json env_diff;
+        "package_diff", Utils.diff_map_to_json pkg_diff;
+        "opam_diff", Opamdiff.compare_to_json opam_diff
+      ] |> Yojson.Basic.to_string
+    in
+    Dream.json ~status:`OK json_response |> Lwt_result.ok
   in
 
   let upload_binary req =
@@ -674,6 +708,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Get, "/compare/json/:build_left/:build_right", (w compare_builds_json);
     `Post, "/upload", (Authorization.authenticate (w upload));
     `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   ]
