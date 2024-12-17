@@ -352,6 +352,20 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     let job_name = Dream.param req "job" in
     let platform = Dream.query req "platform" in
     redirect_latest req ~job_name ~platform ~artifact:""
+
+  in
+
+  let return_latest_uuid req =
+    let job_name = Dream.param req "job" in
+    let platform = Dream.query req "platform" in
+    (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
+      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
+      >>= Model.not_found
+      |> if_error "Error getting job" >>= fun build ->
+        let json_response =
+          `Assoc [ "uuid", `String (Uuidm.to_string build) ] |> Yojson.Basic.to_string
+        in
+        Dream.json ~status:`OK json_response |> Lwt_result.ok
   in
 
   let redirect_main_binary req =
@@ -627,6 +641,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/job/:job/failed", (w job_with_failed);
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
     `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
+    `Get, "/job/:job/build/latest-uuid", (w return_latest_uuid);
     `Get, "/job/:job/build/:build", (w job_build);
     `Get, "/job/:job/build/:build/f/**", (w job_build_file);
     `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
