@@ -368,6 +368,25 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
         Dream.json ~status:`OK json_response |> Lwt_result.ok
   in
 
+  let return_uuid req =
+    Dream.query req "sha256" |> Option.to_result ~none:(`Msg "Missing sha256 query parameter")
+    |> Lwt.return
+    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash_hex ->
+    begin try Ohex.decode hash_hex |> Lwt_result.return
+      with Invalid_argument e -> Lwt_result.fail (`Msg ("Bad hex: " ^ e))
+    end
+    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash ->
+    Dream.sql req (Model.build_hash hash) >>= Model.not_found
+    |> if_error "Internal server error" >>= fun (job_name, build) ->
+      let json_response =
+        `Assoc [
+          "uuid", `String (Uuidm.to_string (build.Builder_db.Build.uuid));
+          "job", `String job_name
+        ] |> Yojson.Basic.to_string
+      in
+      Dream.json ~status:`OK json_response |> Lwt_result.ok
+  in
+
   let redirect_main_binary req =
     let job_name = Dream.param req "job"
     and build = Dream.param req "build" in
@@ -642,6 +661,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/job/:job/build/latest/**", (w redirect_latest);
     `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
     `Get, "/job/:job/build/latest-uuid", (w return_latest_uuid);
+    `Get, "/search-uuid", (w return_uuid);
     `Get, "/job/:job/build/:build", (w job_build);
     `Get, "/job/:job/build/:build/f/**", (w job_build_file);
     `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
