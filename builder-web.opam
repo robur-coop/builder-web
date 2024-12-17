@@ -62,3 +62,4 @@ Builder-web takes in submissions of builds, typically from [builder](https://git
 Produced binaries can be downloaded and executed.
 [builds.robur.coop](https://builds.robur.coop/) itself runs builder-web.
 """
+x-maintenance-intent: [ "(latest)" ]
