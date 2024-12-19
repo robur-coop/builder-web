@@ -330,9 +330,18 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
      Dream.sql req (Model.latest_successful_build_uuid job_id platform))
     >>= Model.not_found
     |> if_error "Error getting job" >>= fun build ->
-    Dream.redirect req
-      (Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact ())
-    |> Lwt_result.ok
+      match Dream.header req "Accept" with
+      | Some accept when String.starts_with ~prefix:"application/json" accept ->
+        let json_response =
+          `Assoc [
+            "uuid", `String (Uuidm.to_string build);
+          ] |> Yojson.Basic.to_string
+        in
+        Dream.json ~status:`OK json_response |> Lwt_result.ok
+      | _ ->
+        Dream.redirect req
+          (Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact ())
+        |> Lwt_result.ok
   in
 
   let redirect_latest req =
