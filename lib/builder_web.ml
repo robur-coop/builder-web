@@ -546,7 +546,20 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> Lwt_result.ok
   in
 
-  let compare_builds req =
+
+  let resolve_artifact id_opt conn =
+    let default_file : Builder_db.file = {
+      filepath = Fpath.v "null";
+      sha256 = "0";
+      size = -1;
+    } in
+    match id_opt with
+    | None -> Lwt.return_ok default_file
+    | Some id -> Model.build_artifact_by_id id conn
+
+  in
+
+  let process_comparison req =
     let build_left = Dream.param req "build_left" in
     let build_right = Dream.param req "build_right" in
     get_uuid build_left >>= fun build_left ->
@@ -566,14 +579,16 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
         Model.build_artifact_data datadir >>= fun build_env_right ->
         Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
         Model.build_artifact_data datadir >>= fun system_packages_right ->
+        resolve_artifact build_left.Builder_db.Build.main_binary conn >>= fun build_left_file ->
+        resolve_artifact build_right.Builder_db.Build.main_binary conn >>= fun build_right_file ->
         Model.job_name build_left.job_id conn >>= fun job_left ->
         Model.job_name build_right.job_id conn >|= fun job_right ->
-        (job_left, job_right, build_left, build_right,
-         switch_left, build_env_left, system_packages_left,
+        (job_left, job_right, build_left, build_right, build_left_file,
+         build_right_file, switch_left, build_env_left, system_packages_left,
          switch_right, build_env_right, system_packages_right))
     |> if_error "Internal server error"
-    >>= fun (job_left, job_right, build_left, build_right,
-             switch_left, build_env_left, system_packages_left,
+    >>= fun (job_left, job_right, build_left, build_right, build_left_file,
+              build_right_file, switch_left, build_env_left, system_packages_left,
              switch_right, build_env_right, system_packages_right) ->
     let env_diff = Utils.compare_env build_env_left build_env_right
     and pkg_diff = Utils.compare_pkgs system_packages_left system_packages_right
@@ -581,14 +596,49 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
     let opam_diff = Opamdiff.compare switch_left switch_right in
-    Views.compare_builds
-      ~job_left ~job_right
-      ~build_left ~build_right
-      ~env_diff
-      ~pkg_diff
-      ~opam_diff
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    (job_left, job_right, build_left, build_right, build_left_file, build_right_file, env_diff, pkg_diff, opam_diff)
+    |> Lwt.return_ok
+
   in
+
+  let compare_builds req =
+    process_comparison req >>= fun
+    (job_left, job_right, build_left, build_right, build_left_file, build_right_file, env_diff, pkg_diff, opam_diff) ->
+      match Dream.header req "Accept" with
+        | Some accept when String.starts_with ~prefix:"application/json" accept ->
+          let json_response =
+            `Assoc [
+              "left", `Assoc [
+                "job", `String job_left;
+                "build", `String (Uuidm.to_string build_left.uuid);
+                "platform", `String build_left.platform;
+                "build_start_time", `String (Ptime.to_rfc3339 build_left.start);
+                "build_finish_time", `String (Ptime.to_rfc3339 build_left.finish);
+                "build_size", `Int (build_left_file.size)
+              ];
+              "right", `Assoc [
+                "job", `String job_right;
+                "build", `String (Uuidm.to_string build_right.uuid);
+                "platform", `String build_right.platform;
+                "build_start_time", `String (Ptime.to_rfc3339 build_right.start);
+                "build_finish_time", `String (Ptime.to_rfc3339 build_right.finish);
+                "build_size", `Int (build_right_file.size)
+              ];
+              "env_diff", Utils.diff_map_to_json env_diff;
+              "package_diff", Utils.diff_map_to_json pkg_diff;
+              "opam_diff", Opamdiff.compare_to_json opam_diff
+            ] |> Yojson.Basic.to_string
+          in
+          Dream.json ~status:`OK json_response |> Lwt_result.ok
+        | _ ->
+          Views.compare_builds
+            ~job_left ~job_right
+            ~build_left ~build_right
+            ~env_diff
+            ~pkg_diff
+            ~opam_diff
+          |> string_of_html |> Dream.html |> Lwt_result.ok
+     in
 
   let upload_binary req =
     let job = Dream.param req "job" in

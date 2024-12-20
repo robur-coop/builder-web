@@ -6,6 +6,27 @@ module String_map = struct
     update key (function None -> Some [ v ] | Some xs -> Some (v :: xs)) t
 end
 
+let diff_map_to_json (left, right, different_versions) =
+  let convert_list lst =
+    `List (List.map (fun (name, version) ->
+      `Assoc [("name", `String name); ("version", `String version)]
+    ) lst)
+  in
+  let convert_diff_versions lst =
+    `List (List.map (fun (name, version1, version2) ->
+      `Assoc [
+        ("name", `String name);
+        ("version_in_left", `String version1);
+        ("version_in_right", `String version2)
+      ]
+    ) lst)
+  in
+  `Assoc [
+    ("left_packages", convert_list left);
+    ("right_packages", convert_list right);
+    ("different_versions", convert_diff_versions different_versions)
+  ]
+
 let diff_map a b =
   let diff a b =
     String_map.fold (fun k v acc ->
