@@ -58,3 +58,9 @@ see `builder-db user-add --help`):
 ```ocaml
 curl --data-binary @<build-hash>.full http://<user>:<passwd>@localhost:<builder-web-port>/upload
 ```
+
+## JSON Responses
+Some endpoints return JSON when the headers contain `Accept: application/json`.
+- `/compare/:build_left/:build_right`
+- `/job/:job/build/latest/**`
+- `/job/:job/build/latest`
