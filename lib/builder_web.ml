@@ -404,8 +404,8 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
           "job_name", `String job_name;
           "uuid", `String (Uuidm.to_string build.uuid);
           "platform", `String build.platform;
-          "build_start_time", `String (Ptime.to_rfc3339 build.start);
-          "build_finish_time", `String (Ptime.to_rfc3339 build.finish);
+          "start_time", `String (Ptime.to_rfc3339 build.start);
+          "finish_time", `String (Ptime.to_rfc3339 build.finish);
           "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
         ] |> Yojson.Basic.to_string
       in
@@ -612,20 +612,22 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
           let json_response =
             `Assoc [
               "left", `Assoc [
-                "job", `String job_left;
-                "build", `String (Uuidm.to_string build_left.uuid);
+                "job_name", `String job_left;
+                "uuid", `String (Uuidm.to_string build_left.uuid);
                 "platform", `String build_left.platform;
-                "build_start_time", `String (Ptime.to_rfc3339 build_left.start);
-                "build_finish_time", `String (Ptime.to_rfc3339 build_left.finish);
-                "build_size", file_size_json build_left_file_size;
+                "start_time", `String (Ptime.to_rfc3339 build_left.start);
+                "finish_time", `String (Ptime.to_rfc3339 build_left.finish);
+                "main_binary", `Bool (Option.is_some build_left_file_size);
+                "main_binary_size", file_size_json build_left_file_size;
               ];
               "right", `Assoc [
-                "job", `String job_right;
+                "job_name", `String job_right;
                 "build", `String (Uuidm.to_string build_right.uuid);
                 "platform", `String build_right.platform;
-                "build_start_time", `String (Ptime.to_rfc3339 build_right.start);
-                "build_finish_time", `String (Ptime.to_rfc3339 build_right.finish);
-                "build_size", file_size_json build_right_file_size;
+                "start_time", `String (Ptime.to_rfc3339 build_right.start);
+                "finish_time", `String (Ptime.to_rfc3339 build_right.finish);
+                "main_binary", `Bool (Option.is_some build_right_file_size);
+                "main_binary_size", file_size_json build_right_file_size;
               ];
               "env_diff", Utils.diff_map_to_json env_diff;
               "package_diff", Utils.diff_map_to_json pkg_diff;
