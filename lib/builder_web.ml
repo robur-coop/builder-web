@@ -70,11 +70,22 @@ let mime_lookup path =
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
 
-let or_error_response r =
+let is_accept_json req =
+  match Dream.header req "Accept" with
+  | Some accept when String.starts_with ~prefix:"application/json" accept ->
+    true
+  | _ -> false
+
+let or_error_response req r =
   let* r = r in
   match r with
   | Ok response -> Lwt.return response
-  | Error (text, status) -> Dream.respond ~status text
+  | Error (text, status) ->
+    if is_accept_json req then
+      let json_response = Yojson.Basic.to_string (`Assoc [ "error", `String text ]) in
+      Dream.json ~status json_response
+    else
+      Dream.respond ~status text
 
 let default_log_warn ~status e =
   Log.warn (fun m -> m "%s: %a" (Dream.status_to_string status) pp_error e)
@@ -397,17 +408,30 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
     let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
-    Views.Job_build.make
-      ~job_name
-      ~build
-      ~artifacts
-      ~main_binary
-      ~solo5_manifest
-      ~same_input_same_output
-      ~different_input_same_output
-      ~same_input_different_output
-      ~latest ~next ~previous
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    if is_accept_json req then
+      let json_response =
+        `Assoc [
+          "job_name", `String job_name;
+          "uuid", `String (Uuidm.to_string build.uuid);
+          "platform", `String build.platform;
+          "start_time", `String (Ptime.to_rfc3339 build.start);
+          "finish_time", `String (Ptime.to_rfc3339 build.finish);
+          "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
+        ] |> Yojson.Basic.to_string
+      in
+      Dream.json ~status:`OK json_response |> Lwt_result.ok
+    else
+      Views.Job_build.make
+        ~job_name
+        ~build
+        ~artifacts
+        ~main_binary
+        ~solo5_manifest
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest ~next ~previous
+      |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_build_file req =
@@ -537,7 +561,17 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> Lwt_result.ok
   in
 
-  let compare_builds req =
+
+  let resolve_artifact_size id_opt conn =
+    match id_opt with
+    | None -> Lwt.return_ok None
+    | Some id ->
+      Model.build_artifact_by_id id conn >|= fun file ->
+      Some file.size
+
+  in
+
+  let process_comparison req =
     let build_left = Dream.param req "build_left" in
     let build_right = Dream.param req "build_right" in
     get_uuid build_left >>= fun build_left ->
@@ -557,14 +591,16 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
         Model.build_artifact_data datadir >>= fun build_env_right ->
         Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
         Model.build_artifact_data datadir >>= fun system_packages_right ->
+        resolve_artifact_size build_left.Builder_db.Build.main_binary conn >>= fun build_left_file_size ->
+        resolve_artifact_size build_right.Builder_db.Build.main_binary conn >>= fun build_right_file_size ->
         Model.job_name build_left.job_id conn >>= fun job_left ->
         Model.job_name build_right.job_id conn >|= fun job_right ->
-        (job_left, job_right, build_left, build_right,
-         switch_left, build_env_left, system_packages_left,
+        (job_left, job_right, build_left, build_right, build_left_file_size,
+         build_right_file_size, switch_left, build_env_left, system_packages_left,
          switch_right, build_env_right, system_packages_right))
     |> if_error "Internal server error"
-    >>= fun (job_left, job_right, build_left, build_right,
-             switch_left, build_env_left, system_packages_left,
+    >>= fun (job_left, job_right, build_left, build_right, build_left_file_size,
+              build_right_file_size, switch_left, build_env_left, system_packages_left,
              switch_right, build_env_right, system_packages_right) ->
     let env_diff = Utils.compare_env build_env_left build_env_right
     and pkg_diff = Utils.compare_pkgs system_packages_left system_packages_right
@@ -572,13 +608,50 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     let switch_left = OpamFile.SwitchExport.read_from_string switch_left
     and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
     let opam_diff = Opamdiff.compare switch_left switch_right in
-    Views.compare_builds
-      ~job_left ~job_right
-      ~build_left ~build_right
-      ~env_diff
-      ~pkg_diff
-      ~opam_diff
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    (job_left, job_right, build_left, build_right, build_left_file_size, build_right_file_size, env_diff, pkg_diff, opam_diff)
+    |> Lwt.return_ok
+
+  in
+
+  let compare_builds req =
+    process_comparison req >>= fun
+      (job_left, job_right, build_left, build_right, build_left_file_size, build_right_file_size, env_diff, pkg_diff, opam_diff) ->
+    if is_accept_json req then
+      let file_size_json = Option.fold ~none:`Null ~some:(fun size -> `Int size) in
+      let json_response =
+        `Assoc [
+          "left", `Assoc [
+            "job_name", `String job_left;
+            "uuid", `String (Uuidm.to_string build_left.uuid);
+            "platform", `String build_left.platform;
+            "start_time", `String (Ptime.to_rfc3339 build_left.start);
+            "finish_time", `String (Ptime.to_rfc3339 build_left.finish);
+            "main_binary", `Bool (Option.is_some build_left_file_size);
+            "main_binary_size", file_size_json build_left_file_size;
+          ];
+          "right", `Assoc [
+            "job_name", `String job_right;
+            "build", `String (Uuidm.to_string build_right.uuid);
+            "platform", `String build_right.platform;
+            "start_time", `String (Ptime.to_rfc3339 build_right.start);
+            "finish_time", `String (Ptime.to_rfc3339 build_right.finish);
+            "main_binary", `Bool (Option.is_some build_right_file_size);
+            "main_binary_size", file_size_json build_right_file_size;
+          ];
+          "env_diff", Utils.diff_map_to_json env_diff;
+          "package_diff", Utils.diff_map_to_json pkg_diff;
+          "opam_diff", Opamdiff.compare_to_json opam_diff
+        ] |> Yojson.Basic.to_string
+      in
+      Dream.json ~status:`OK json_response |> Lwt_result.ok
+    else
+      Views.compare_builds
+        ~job_left ~job_right
+        ~build_left ~build_right
+        ~env_diff
+        ~pkg_diff
+        ~opam_diff
+      |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let upload_binary req =
@@ -619,7 +692,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
-  let w f req = or_error_response (f req) in
+  let w f req = or_error_response req (f req) in
 
   [
     `Get, "/", (w (builds ~all:false ~filter_builds_later_than:expired_jobs));

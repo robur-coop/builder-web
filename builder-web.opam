@@ -50,10 +50,10 @@ depends: [
   "decompress" {>= "1.5.0"}
   "digestif" {>= "1.2.0"}
   "uuidm" {>= "0.9.9"}
+  "yojson"
   "alcotest" {>= "1.2.0" & with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
-  "yojson" {with-test}
 ]
 
 synopsis: "Web interface for builder"

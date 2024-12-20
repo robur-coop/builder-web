@@ -275,3 +275,55 @@ let compare left right =
     | Error _ as e, _ | _, (Error _ as e) -> e
   in
   (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_ret)
+
+  let compare_to_json
+  (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_diff) : Yojson.Basic.t =
+    let version_diff_to_json lst =
+      `List (List.map (fun { name; version_left; version_right } ->
+          `Assoc [
+            ("name", `String (OpamPackage.Name.to_string name));
+            ("version_left", `String (OpamPackage.Version.to_string version_left));
+            ("version_right", `String (OpamPackage.Version.to_string version_right))
+          ]
+        ) lst)
+    in
+    let package_set_to_json set =
+      `List (Set.fold (fun p acc ->
+          let json = `Assoc [
+            ("name", `String (OpamPackage.Name.to_string p.OpamPackage.name));
+            ("version", `String (OpamPackage.Version.to_string p.OpamPackage.version))
+          ] in
+          json :: acc
+        ) set [])
+    in
+    let opam_diff_to_json opam_diff =
+      `List (List.map (fun (diff : opam_diff) ->
+        `Assoc [
+
+          ("package_version", `String (OpamPackage.to_string diff.pkg));
+          ("otherwise_equal", `Bool diff.otherwise_equal)
+        ]
+
+        ) opam_diff)
+    in
+    let duniverse_to_json = function
+      | Ok (left, right, detailed_diff) ->
+        `Assoc [
+        ("left", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) left));
+        ("right", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) right));
+        ("detailed_diff",`List (List.map (fun (diff : duniverse_diff) ->
+          `Assoc [
+            ("name", `String diff.name);
+          ]) detailed_diff))
+      ]
+
+        | Error (`Msg msg) ->
+          `String msg
+    in
+    `Assoc [
+      ("opam_diff", opam_diff_to_json opam_diff);
+      ("version_diff", version_diff_to_json version_diff);
+      ("only_in_left", package_set_to_json left_pkgs);
+      ("only_in_right", package_set_to_json right_pkgs);
+      ("duniverse_diff", duniverse_to_json duniverse_diff)
+    ]
