@@ -406,17 +406,31 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
     >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
     let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
-    Views.Job_build.make
-      ~job_name
-      ~build
-      ~artifacts
-      ~main_binary
-      ~solo5_manifest
-      ~same_input_same_output
-      ~different_input_same_output
-      ~same_input_different_output
-      ~latest ~next ~previous
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    match Dream.header req "Accept" with
+    | Some accept when String.starts_with ~prefix:"application/json" accept ->
+      let json_response =
+        `Assoc [
+          "job_name", `String job_name;
+          "uuid", `String (Uuidm.to_string build.uuid);
+          "platform", `String build.platform;
+          "build_start_time", `String (Ptime.to_rfc3339 build.start);
+          "build_finish_time", `String (Ptime.to_rfc3339 build.finish);
+          "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
+        ] |> Yojson.Basic.to_string
+      in
+      Dream.json ~status:`OK json_response |> Lwt_result.ok
+    | _ ->
+      Views.Job_build.make
+        ~job_name
+        ~build
+        ~artifacts
+        ~main_binary
+        ~solo5_manifest
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest ~next ~previous
+      |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_build_file req =
