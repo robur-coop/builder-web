@@ -1,4 +1,3 @@
-
 module String_map = struct
   include Map.Make(String)
 
@@ -16,8 +15,8 @@ let diff_map_to_json (left, right, different_versions) =
     `List (List.map (fun (name, version1, version2) ->
       `Assoc [
         ("name", `String name);
-        ("version_in_left", `String version1);
-        ("version_in_right", `String version2)
+        ("version_left", `String version1);
+        ("version_right", `String version2)
       ]
     ) lst)
   in
