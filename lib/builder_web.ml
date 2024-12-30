@@ -621,7 +621,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       let json_response =
         `Assoc [
           "left", `Assoc [
-            "job_name", `String job_left;
+            "job", `String job_left;
             "uuid", `String (Uuidm.to_string build_left.uuid);
             "platform", `String build_left.platform;
             "start_time", `String (Ptime.to_rfc3339 build_left.start);
@@ -630,8 +630,8 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
             "main_binary_size", file_size_json build_left_file_size;
           ];
           "right", `Assoc [
-            "job_name", `String job_right;
-            "build", `String (Uuidm.to_string build_right.uuid);
+            "job", `String job_right;
+            "uuid", `String (Uuidm.to_string build_right.uuid);
             "platform", `String build_right.platform;
             "start_time", `String (Ptime.to_rfc3339 build_right.start);
             "finish_time", `String (Ptime.to_rfc3339 build_right.finish);
