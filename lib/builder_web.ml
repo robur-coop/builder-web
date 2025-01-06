@@ -411,7 +411,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     if is_accept_json req then
       let json_response =
         `Assoc [
-          "job_name", `String job_name;
+          "job", `String job_name;
           "uuid", `String (Uuidm.to_string build.uuid);
           "platform", `String build.platform;
           "start_time", `String (Ptime.to_rfc3339 build.start);
