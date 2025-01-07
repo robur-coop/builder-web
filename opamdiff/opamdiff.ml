@@ -168,10 +168,8 @@ let pp_version_diff ppf { name; version_left; version_right } =
 
 type opam_diff = {
   pkg : OpamPackage.t ;
-  build : (OpamTypes.command list * OpamTypes.command list) option ;
-  install : (OpamTypes.command list * OpamTypes.command list) option ;
-  url : (OpamFile.URL.t option * OpamFile.URL.t option) option ;
-  otherwise_equal : bool ;
+  effectively_equal : bool ;
+  diff : string ;
 }
 
 let commands_to_strings (l, r) =
@@ -186,46 +184,40 @@ let opt_url_to_string (l, r) =
   in
   url_to_s l, url_to_s r
 
-let pp_opam_diff ppf { pkg ; otherwise_equal ; _ } =
+let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
   Format.fprintf ppf "%a%s"
     pp_opampackage pkg
-    (if otherwise_equal then "" else " (and additional changes)")
-
-let rec strip_common_prefix a b =
-  match a, b with
-  | hd::tl, hd'::tl' ->
-    if hd = hd' then
-      strip_common_prefix tl tl'
-    else
-      a, b
-  | a, b -> a, b
+    (if effectively_equal then "" else " (effectively equal)")
 
 let detailed_opam_diff pkg l r =
-  let no_build_install_url p =
-    OpamFile.OPAM.with_url_opt None
-      (OpamFile.OPAM.with_install []
-         (OpamFile.OPAM.with_build [] p))
+  let ( let* ) = Result.bind in
+  let opaml = OpamFile.OPAM.write_to_string l in
+  let opamr =
+    let o = OpamFile.make (OpamFilename.raw "opam") in
+    OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:opaml o r
   in
-  let otherwise_equal =
+  let effectively_equal =
+    let no_build_install_url p =
+      OpamFile.OPAM.with_url_opt None
+        (OpamFile.OPAM.with_install []
+           (OpamFile.OPAM.with_build [] p))
+    in
     OpamFile.OPAM.effectively_equal
       (no_build_install_url l) (no_build_install_url r)
-  and build =
-    if OpamFile.OPAM.build l = OpamFile.OPAM.build r then
-      None
-    else
-      Some (strip_common_prefix (OpamFile.OPAM.build l) (OpamFile.OPAM.build r))
-  and install =
-    if OpamFile.OPAM.install l = OpamFile.OPAM.install r then
-      None
-    else
-      Some (strip_common_prefix (OpamFile.OPAM.install l) (OpamFile.OPAM.install r))
-  and url =
-    if OpamFile.OPAM.url l = OpamFile.OPAM.url r then
-      None
-    else
-      Some (OpamFile.OPAM.url l, OpamFile.OPAM.url r)
   in
-  { pkg ; build ; install ; url ; otherwise_equal }
+  let diff =
+    let* tmpl = Bos.OS.File.tmp "opaml_%s" in
+    let* () = Bos.OS.File.write tmpl opaml in
+    let* tmpr = Bos.OS.File.tmp "opamr_%s" in
+    let* () = Bos.OS.File.write tmpr opamr in
+    let cmd = Bos.Cmd.(v "diff" % "-u" % p tmpl % p tmpr) in
+    Bos.OS.Cmd.(run_out cmd |> out_string)
+  in
+  let diff = match diff with
+    | Ok (s, _) -> s
+    | Error `Msg m -> "error when comparing the opam files: " ^ m
+  in
+  { pkg ; effectively_equal ; diff }
 
 let detailed_opam_diffs left right pkgs =
   OpamPackage.Set.fold (fun p acc ->
@@ -299,9 +291,9 @@ let compare left right =
     let opam_diff_to_json opam_diff =
       `List (List.map (fun (diff : opam_diff) ->
         `Assoc [
-
           ("package_version", `String (OpamPackage.to_string diff.pkg));
-          ("otherwise_equal", `Bool diff.otherwise_equal)
+          ("effectively_equal", `Bool diff.effectively_equal);
+          ("diff", `String diff.diff);
         ]
 
         ) opam_diff)

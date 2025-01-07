@@ -1,9 +1,7 @@
 type opam_diff = {
   pkg : OpamPackage.t ;
-  build : (OpamTypes.command list * OpamTypes.command list) option ;
-  install : (OpamTypes.command list * OpamTypes.command list) option ;
-  url : (OpamFile.URL.t option * OpamFile.URL.t option) option ;
-  otherwise_equal : bool ;
+  effectively_equal : bool ;
+  diff : string ;
 }
 
 type version_diff = {
