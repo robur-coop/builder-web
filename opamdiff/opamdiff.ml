@@ -172,18 +172,6 @@ type opam_diff = {
   diff : string ;
 }
 
-let commands_to_strings (l, r) =
-    let v a =
-      OpamPrinter.FullPos.value (OpamPp.print OpamFormat.V.command a)
-    in
-    List.map v l, List.map v r
-
-let opt_url_to_string (l, r) =
-  let url_to_s = function
-    | None -> "" | Some u -> OpamFile.URL.write_to_string u
-  in
-  url_to_s l, url_to_s r
-
 let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
   Format.fprintf ppf "%a%s"
     pp_opampackage pkg
@@ -268,7 +256,7 @@ let compare left right =
   in
   (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_ret)
 
-  let compare_to_json
+let compare_to_json
   (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_diff) : Yojson.Basic.t =
     let version_diff_to_json lst =
       `List (List.map (fun { name; version_left; version_right } ->
@@ -276,17 +264,15 @@ let compare left right =
             ("name", `String (OpamPackage.Name.to_string name));
             ("version_left", `String (OpamPackage.Version.to_string version_left));
             ("version_right", `String (OpamPackage.Version.to_string version_right))
-          ]
-        ) lst)
+          ]) lst)
     in
     let package_set_to_json set =
       `List (Set.fold (fun p acc ->
           let json = `Assoc [
-            ("name", `String (OpamPackage.Name.to_string p.OpamPackage.name));
-            ("version", `String (OpamPackage.Version.to_string p.OpamPackage.version))
-          ] in
-          json :: acc
-        ) set [])
+              ("name", `String (OpamPackage.Name.to_string p.OpamPackage.name));
+              ("version", `String (OpamPackage.Version.to_string p.OpamPackage.version))
+            ] in
+          json :: acc) set [])
     in
     let opam_diff_to_json opam_diff =
       `List (List.map (fun (diff : opam_diff) ->
@@ -294,23 +280,20 @@ let compare left right =
           ("package_version", `String (OpamPackage.to_string diff.pkg));
           ("effectively_equal", `Bool diff.effectively_equal);
           ("diff", `String diff.diff);
-        ]
-
-        ) opam_diff)
+        ]) opam_diff)
     in
     let duniverse_to_json = function
       | Ok (left, right, detailed_diff) ->
         `Assoc [
-        ("left", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) left));
-        ("right", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) right));
-        ("detailed_diff",`List (List.map (fun (diff : duniverse_diff) ->
-          `Assoc [
-            ("name", `String diff.name);
-          ]) detailed_diff))
-      ]
-
-        | Error (`Msg msg) ->
-          `String msg
+          ("left", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) left));
+          ("right", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) right));
+          ("detailed_diff",`List (List.map (fun (diff : duniverse_diff) ->
+               `Assoc [
+                 ("name", `String diff.name);
+               ]) detailed_diff))
+        ]
+      | Error (`Msg msg) ->
+        `String msg
     in
     `Assoc [
       ("opam_diff", opam_diff_to_json opam_diff);
