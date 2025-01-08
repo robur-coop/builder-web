@@ -829,7 +829,8 @@ let opam_diffs diffs =
   List.concat_map (fun pd ->
       H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
       H.h5 [ H.txt "diff" ] ::
-      H.code [ H.txt pd.diff ; H.br () ] :: [])
+      H.pre [ H.code [ H.txt pd.diff ] ] ::
+      H.br () :: [])
     diffs
 
 let compare_builds
