@@ -828,33 +828,8 @@ let duniverse_diffs diffs =
 let opam_diffs diffs =
   List.concat_map (fun pd ->
       H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
-      (match pd.Opamdiff.build with None -> [] | Some a ->
-          let l, r = Opamdiff.commands_to_strings a in
-          [
-            H.h5 [ H.txt "build instruction (without common prefix) \
-                          modifications, old:" ] ;
-            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
-            H.h5 [ H.txt "new" ] ;
-            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
-          ]) @
-      (match pd.Opamdiff.install with None -> [] | Some a ->
-          let l, r = Opamdiff.commands_to_strings a in
-          [
-            H.h5 [ H.txt "install instruction (without common prefix) \
-                          modifications, old:" ] ;
-            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) l) ;
-            H.h5 [ H.txt "new" ] ;
-            H.code (List.concat_map (fun s -> [ H.txt s ; H.br () ]) r)
-          ]) @
-      (match pd.Opamdiff.url with None -> [] | Some a ->
-          let l, r = Opamdiff.opt_url_to_string a in
-          [
-            H.h5 [ H.txt "URL" ] ;
-            txtf "old: %s" l;
-            H.br ();
-            txtf "new: %s" r
-          ]) @
-      [ H.br () ])
+      H.h5 [ H.txt "diff" ] ::
+      H.code [ H.txt pd.diff ; H.br () ] :: [])
     diffs
 
 let compare_builds

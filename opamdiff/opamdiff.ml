@@ -168,64 +168,59 @@ let pp_version_diff ppf { name; version_left; version_right } =
 
 type opam_diff = {
   pkg : OpamPackage.t ;
-  build : (OpamTypes.command list * OpamTypes.command list) option ;
-  install : (OpamTypes.command list * OpamTypes.command list) option ;
-  url : (OpamFile.URL.t option * OpamFile.URL.t option) option ;
-  otherwise_equal : bool ;
+  effectively_equal : bool ;
+  diff : string ;
 }
 
-let commands_to_strings (l, r) =
-    let v a =
-      OpamPrinter.FullPos.value (OpamPp.print OpamFormat.V.command a)
-    in
-    List.map v l, List.map v r
-
-let opt_url_to_string (l, r) =
-  let url_to_s = function
-    | None -> "" | Some u -> OpamFile.URL.write_to_string u
-  in
-  url_to_s l, url_to_s r
-
-let pp_opam_diff ppf { pkg ; otherwise_equal ; _ } =
+let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
   Format.fprintf ppf "%a%s"
     pp_opampackage pkg
-    (if otherwise_equal then "" else " (and additional changes)")
-
-let rec strip_common_prefix a b =
-  match a, b with
-  | hd::tl, hd'::tl' ->
-    if hd = hd' then
-      strip_common_prefix tl tl'
-    else
-      a, b
-  | a, b -> a, b
+    (if effectively_equal then "" else " (effectively equal)")
 
 let detailed_opam_diff pkg l r =
-  let no_build_install_url p =
-    OpamFile.OPAM.with_url_opt None
-      (OpamFile.OPAM.with_install []
-         (OpamFile.OPAM.with_build [] p))
+  let opaml = OpamFile.OPAM.write_to_string l in
+  let opamr =
+    (* Let's minimize the difference between opaml and opamr by taking opaml
+       as template for opamr. *)
+    let o = OpamFile.make (OpamFilename.raw "opam") in
+    OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:opaml o r
   in
-  let otherwise_equal =
+  let effectively_equal =
+    let no_build_install_url p =
+      OpamFile.OPAM.with_url_opt None
+        (OpamFile.OPAM.with_install []
+           (OpamFile.OPAM.with_build [] p))
+    in
     OpamFile.OPAM.effectively_equal
       (no_build_install_url l) (no_build_install_url r)
-  and build =
-    if OpamFile.OPAM.build l = OpamFile.OPAM.build r then
-      None
-    else
-      Some (strip_common_prefix (OpamFile.OPAM.build l) (OpamFile.OPAM.build r))
-  and install =
-    if OpamFile.OPAM.install l = OpamFile.OPAM.install r then
-      None
-    else
-      Some (strip_common_prefix (OpamFile.OPAM.install l) (OpamFile.OPAM.install r))
-  and url =
-    if OpamFile.OPAM.url l = OpamFile.OPAM.url r then
-      None
-    else
-      Some (OpamFile.OPAM.url l, OpamFile.OPAM.url r)
   in
-  { pkg ; build ; install ; url ; otherwise_equal }
+  let diff =
+    try
+      Bos.OS.File.with_tmp_oc "opaml_%s"
+        (fun pl oc () ->
+           Out_channel.output_string oc opaml;
+           Out_channel.close oc;
+           Bos.OS.File.with_tmp_oc "opamr_%s"
+             (fun pr oc () ->
+                Out_channel.output_string oc opamr;
+                Out_channel.close oc;
+                let cmd = Bos.Cmd.(v "diff" % "-u" % p pl % p pr) in
+                Bos.OS.Cmd.(run_out cmd |> out_string))
+        ())
+        ()
+    with e ->
+      Error (`Msg ("exception " ^ Printexc.to_string e))
+  in
+  let diff = match diff with
+    | Ok (Ok (Ok (data, _))) -> data
+    | Ok (Ok (Error `Msg msg))
+    | Ok (Error `Msg msg)
+    | Error `Msg msg ->
+      Logs.err (fun m -> m "Error %s while running diff on opam files@.@.%s@.@.%s@.@."
+                   msg opaml opamr);
+      "Error comparing opam files"
+  in
+  { pkg ; effectively_equal ; diff }
 
 let detailed_opam_diffs left right pkgs =
   OpamPackage.Set.fold (fun p acc ->
@@ -276,7 +271,7 @@ let compare left right =
   in
   (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_ret)
 
-  let compare_to_json
+let compare_to_json
   (opam_diff, version_diff, left_pkgs, right_pkgs, duniverse_diff) : Yojson.Basic.t =
     let version_diff_to_json lst =
       `List (List.map (fun { name; version_left; version_right } ->
@@ -284,41 +279,36 @@ let compare left right =
             ("name", `String (OpamPackage.Name.to_string name));
             ("version_left", `String (OpamPackage.Version.to_string version_left));
             ("version_right", `String (OpamPackage.Version.to_string version_right))
-          ]
-        ) lst)
+          ]) lst)
     in
     let package_set_to_json set =
       `List (Set.fold (fun p acc ->
           let json = `Assoc [
-            ("name", `String (OpamPackage.Name.to_string p.OpamPackage.name));
-            ("version", `String (OpamPackage.Version.to_string p.OpamPackage.version))
-          ] in
-          json :: acc
-        ) set [])
+              ("name", `String (OpamPackage.Name.to_string p.OpamPackage.name));
+              ("version", `String (OpamPackage.Version.to_string p.OpamPackage.version))
+            ] in
+          json :: acc) set [])
     in
     let opam_diff_to_json opam_diff =
       `List (List.map (fun (diff : opam_diff) ->
         `Assoc [
-
           ("package_version", `String (OpamPackage.to_string diff.pkg));
-          ("otherwise_equal", `Bool diff.otherwise_equal)
-        ]
-
-        ) opam_diff)
+          ("effectively_equal", `Bool diff.effectively_equal);
+          ("diff", `String diff.diff);
+        ]) opam_diff)
     in
     let duniverse_to_json = function
       | Ok (left, right, detailed_diff) ->
         `Assoc [
-        ("left", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) left));
-        ("right", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) right));
-        ("detailed_diff",`List (List.map (fun (diff : duniverse_diff) ->
-          `Assoc [
-            ("name", `String diff.name);
-          ]) detailed_diff))
-      ]
-
-        | Error (`Msg msg) ->
-          `String msg
+          ("left", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) left));
+          ("right", `List (List.map (fun (k, v) -> `Assoc [("name", `String k); ("value", `String v)]) right));
+          ("detailed_diff",`List (List.map (fun (diff : duniverse_diff) ->
+               `Assoc [
+                 ("name", `String diff.name);
+               ]) detailed_diff))
+        ]
+      | Error (`Msg msg) ->
+        `String msg
     in
     `Assoc [
       ("opam_diff", opam_diff_to_json opam_diff);
