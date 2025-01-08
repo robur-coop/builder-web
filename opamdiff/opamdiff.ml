@@ -178,9 +178,10 @@ let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
     (if effectively_equal then "" else " (effectively equal)")
 
 let detailed_opam_diff pkg l r =
-  let ( let* ) = Result.bind in
   let opaml = OpamFile.OPAM.write_to_string l in
   let opamr =
+    (* Let's minimize the difference between opaml and opamr by taking opaml
+       as template for opamr. *)
     let o = OpamFile.make (OpamFilename.raw "opam") in
     OpamFile.OPAM.to_string_with_preserved_format ~format_from_string:opaml o r
   in
@@ -194,16 +195,30 @@ let detailed_opam_diff pkg l r =
       (no_build_install_url l) (no_build_install_url r)
   in
   let diff =
-    let* tmpl = Bos.OS.File.tmp "opaml_%s" in
-    let* () = Bos.OS.File.write tmpl opaml in
-    let* tmpr = Bos.OS.File.tmp "opamr_%s" in
-    let* () = Bos.OS.File.write tmpr opamr in
-    let cmd = Bos.Cmd.(v "diff" % "-u" % p tmpl % p tmpr) in
-    Bos.OS.Cmd.(run_out cmd |> out_string)
+    try
+      Bos.OS.File.with_tmp_oc "opaml_%s"
+        (fun pl oc () ->
+           Out_channel.output_string oc opaml;
+           Out_channel.close oc;
+           Bos.OS.File.with_tmp_oc "opamr_%s"
+             (fun pr oc () ->
+                Out_channel.output_string oc opamr;
+                Out_channel.close oc;
+                let cmd = Bos.Cmd.(v "diff" % "-u" % p pl % p pr) in
+                Bos.OS.Cmd.(run_out cmd |> out_string))
+        ())
+        ()
+    with e ->
+      Error (`Msg ("exception " ^ Printexc.to_string e))
   in
   let diff = match diff with
-    | Ok (s, _) -> s
-    | Error `Msg m -> "error when comparing the opam files: " ^ m
+    | Ok (Ok (Ok (data, _))) -> data
+    | Ok (Ok (Error `Msg msg))
+    | Ok (Error `Msg msg)
+    | Error `Msg msg ->
+      Logs.err (fun m -> m "Error %s while running diff on opam files@.@.%s@.@.%s@.@."
+                   msg opaml opamr);
+      "Error comparing opam files"
   in
   { pkg ; effectively_equal ; diff }
 
