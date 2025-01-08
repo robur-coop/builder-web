@@ -827,13 +827,10 @@ let duniverse_diffs diffs =
 
 let opam_diffs diffs =
   List.concat_map (fun pd ->
-      let diff =
-        List.concat_map (fun line -> [ H.txt line ; H.br () ])
-          (String.split_on_char '\n' pd.Opamdiff.diff)
-      in
       H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
       H.h5 [ H.txt "diff" ] ::
-      H.code diff :: [])
+      H.pre [ H.code [ H.txt pd.diff ] ] ::
+      H.br () :: [])
     diffs
 
 let compare_builds
