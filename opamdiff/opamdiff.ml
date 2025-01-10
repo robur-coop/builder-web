@@ -195,6 +195,11 @@ let detailed_opam_diff pkg l r =
       (no_build_install_url l) (no_build_install_url r)
   in
   let diff =
+    let label_l =
+      Printf.sprintf "left/%s/opam" (OpamPackage.name_to_string pkg)
+    and label_r =
+      Printf.sprintf "left/%s/opam" (OpamPackage.name_to_string pkg)
+    in
     try
       Bos.OS.File.with_tmp_oc "opaml_%s"
         (fun pl oc () ->
@@ -204,7 +209,10 @@ let detailed_opam_diff pkg l r =
              (fun pr oc () ->
                 Out_channel.output_string oc opamr;
                 Out_channel.close oc;
-                let cmd = Bos.Cmd.(v "diff" % "-u" % p pl % p pr) in
+                let cmd =
+                  Bos.Cmd.(v "diff" % "-u" % "--label" % label_l % "--label" % label_r %
+                           p pl % p pr)
+                in
                 Bos.OS.Cmd.(run_out cmd |> out_string))
         ())
         ()
