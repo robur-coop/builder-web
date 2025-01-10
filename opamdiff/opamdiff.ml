@@ -198,7 +198,7 @@ let detailed_opam_diff pkg l r =
     let label_l =
       Printf.sprintf "left/%s/opam" (OpamPackage.name_to_string pkg)
     and label_r =
-      Printf.sprintf "left/%s/opam" (OpamPackage.name_to_string pkg)
+      Printf.sprintf "right/%s/opam" (OpamPackage.name_to_string pkg)
     in
     try
       Bos.OS.File.with_tmp_oc "opaml_%s"
