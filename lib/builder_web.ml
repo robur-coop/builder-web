@@ -516,6 +516,17 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> Lwt_result.ok
   in
 
+  let job_build_full req =
+    let _job_name = Dream.param req "job"
+    and build = Dream.param req "build" in
+    get_uuid build >>= fun uuid ->
+    Dream.sql req (Model.exec_of_build datadir uuid)
+    |> if_error "Error getting build" >>= fun exec ->
+    ignore exec;
+    Dream.respond ~status:`Not_Found ""
+    |> Lwt_result.ok
+  in
+
   let upload req =
     let* body = Dream.body req in
     Builder.Asn.exec_of_str body |> Lwt.return
@@ -708,6 +719,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/job/:job/build/:build/script", (w (job_build_static_file `Script));
     `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
+    `Get, "/job/:job/build/:build/exec", (w job_build_full);
     `Get, "/failed-builds", (w failed_builds);
     `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);

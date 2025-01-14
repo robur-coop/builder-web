@@ -104,3 +104,6 @@ val add_build :
    Builder.execution_result * (Fpath.t * string) list) ->
   Caqti_lwt.connection ->
   (unit, [> Caqti_error.call_or_retrieve | `Msg of string ]) result Lwt.t
+
+val exec_of_build : Fpath.t -> Uuidm.t -> Caqti_lwt.connection ->
+  (string, [> Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t ]) result Lwt.t

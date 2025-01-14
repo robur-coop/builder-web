@@ -523,3 +523,43 @@ let add_build
       | End_of_file ->
         Unix.closedir dh;
         Lwt.return (Ok ())
+
+let console_of_string data =
+  let lines = String.split_on_char '\n' data in
+  (* remove last empty line *)
+  let lines =
+    match List.rev lines with
+    | "" :: lines -> List.rev lines
+    | _ -> lines
+  in
+  List.map (fun line ->
+      match String.split_on_char ':' line with
+      | ts :: tail ->
+        let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
+        Int64.to_int (Duration.of_f delta), String.concat ":" tail
+      | _ -> assert false)
+    lines
+
+let exec_of_build datadir uuid (module Db : CONN) =
+  let open Builder_db in
+  Db.find_opt Build.get_by_uuid uuid >>= not_found >>= fun (build_id, build) ->
+  let { Builder_db.Build.start; finish; result;
+        job_id; console; script; platform; _ } =
+    build
+  in
+  Db.find Builder_db.Job.get job_id >>= fun job_name ->
+  read_file datadir script >>= fun script ->
+  let job = { Builder.name = job_name; platform; script } in
+  read_file datadir console >>= fun console ->
+  let out = console_of_string console in
+  Db.collect_list Builder_db.Build_artifact.get_all_by_build build_id >>= fun artifacts ->
+  Lwt_list.fold_left_s (fun acc (_id, ({ filepath; _ } as file)) ->
+      match acc with
+      | Error _ as e -> Lwt.return e
+      | Ok acc ->
+        build_artifact_data datadir file >>= fun data ->
+        Lwt.return (Ok ((filepath, data) :: acc)))
+    (Ok []) artifacts >>= fun data ->
+  let exec = (job, uuid, out, start, finish, result, data) in
+  let data = Builder.Asn.exec_to_str exec in
+  Lwt.return (Ok data)
