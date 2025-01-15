@@ -526,22 +526,20 @@ let add_build
 
 (* NOTE: this function is duplicatedi in bin/builder_db_app.ml *)
 let console_of_string data =
-  (* remove last empty line *)
-  let data =
-    if String.ends_with ~suffix:"\n" data then
-      String.sub data 0 (String.length data - 2)
-    else data
-  in
   let lines = String.split_on_char '\n' data in
-  List.map (fun line ->
+  List.filter_map (fun line ->
       match String.index line ':' with
+      | 0 -> Log.warn (fun m -> m "console line starting with colon %S" line); None
       | i ->
         (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
         let delta = float_of_string (String.sub line 0 (i - 1)) in
         let delta = Int64.to_int (Duration.of_f delta) in
         let line = String.sub line i (String.length line - i) in
-        delta, line
-      | exception Not_found -> assert false)
+        Some (delta, line)
+      | exception Not_found ->
+        if line <> "" then
+          Log.warn (fun m -> m "Unexpected console line %S" line);
+        None)
     lines
 
 let exec_of_build datadir uuid (module Db : CONN) =
