@@ -522,8 +522,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     get_uuid build >>= fun uuid ->
     Dream.sql req (Model.exec_of_build datadir uuid)
     |> if_error "Error getting build" >>= fun exec ->
-    ignore exec;
-    Dream.respond ~status:`Not_Found ""
+    Dream.respond ~headers:["Content-Type", "application/octet-stream"] exec
     |> Lwt_result.ok
   in
 
