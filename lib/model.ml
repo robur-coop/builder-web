@@ -524,20 +524,24 @@ let add_build
         Unix.closedir dh;
         Lwt.return (Ok ())
 
+(* NOTE: this function is duplicatedi in bin/builder_db_app.ml *)
 let console_of_string data =
-  let lines = String.split_on_char '\n' data in
   (* remove last empty line *)
-  let lines =
-    match List.rev lines with
-    | "" :: lines -> List.rev lines
-    | _ -> lines
+  let data =
+    if String.ends_with ~suffix:"\n" data then
+      String.sub data 0 (String.length data - 2)
+    else data
   in
+  let lines = String.split_on_char '\n' data in
   List.map (fun line ->
-      match String.split_on_char ':' line with
-      | ts :: tail ->
-        let delta = float_of_string (String.sub ts 0 (String.length ts - 1)) in
-        Int64.to_int (Duration.of_f delta), String.concat ":" tail
-      | _ -> assert false)
+      match String.index line ':' with
+      | i ->
+        (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
+        let delta = float_of_string (String.sub line 0 (i - 1)) in
+        let delta = Int64.to_int (Duration.of_f delta) in
+        let line = String.sub line i (String.length line - i) in
+        delta, line
+      | exception Not_found -> assert false)
     lines
 
 let exec_of_build datadir uuid (module Db : CONN) =
