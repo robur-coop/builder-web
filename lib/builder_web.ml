@@ -307,7 +307,10 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> if_error "Error getting jobs"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
     >>= fun jobs ->
-    Views.Builds.make ~all jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    if is_accept_json req then
+      Views.Builds.make_json ~all jobs |> Yojson.Basic.to_string |> Dream.json |> Lwt_result.ok
+    else
+      Views.Builds.make ~all jobs |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job req =
@@ -319,8 +322,13 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:false ~job_name ~platform ~readme builds
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    if is_accept_json req then
+      Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds
+      |> Yojson.Basic.to_string
+      |> Dream.json |> Lwt_result.ok
+    else
+      Views.Job.make ~failed:false ~job_name ~platform ~readme builds
+      |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let job_with_failed req =
@@ -332,8 +340,13 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     |> if_error "Error getting job"
       ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
     >>= fun (readme, builds) ->
-    Views.Job.make ~failed:true ~job_name ~platform ~readme builds
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+    if is_accept_json req then
+      Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds
+      |> Yojson.Basic.to_string
+      |> Dream.json |> Lwt_result.ok
+    else
+      Views.Job.make ~failed:true ~job_name ~platform ~readme builds
+      |> string_of_html |> Dream.html |> Lwt_result.ok
   in
 
   let redirect_latest req ~job_name ~platform ~artifact =
