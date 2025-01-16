@@ -374,6 +374,23 @@ have questions or suggestions.
        @ make_failed_builds
        @ make_all_or_active all)
 
+  let make_json ~all:_ section_job_map =
+    let all_jobs =
+      Utils.String_map.fold
+        (fun _section jobs acc ->
+           List.map (fun (job_name, _, _) -> `String job_name) jobs @ acc)
+        section_job_map []
+    in
+    let by_section =
+      Utils.String_map.fold
+        (fun section jobs acc ->
+           (section, `List (List.map (fun (job_name, _, _) -> `String job_name) jobs)) :: acc)
+        section_job_map []
+    in
+    `Assoc [
+      "jobs", `List all_jobs;
+      "jobs_by_section", `Assoc by_section;
+    ]
 end
 
 module Job = struct
@@ -452,7 +469,28 @@ module Job = struct
     let title = Fmt.str "Job %s %a" job_name pp_platform platform in
     layout ~nav ~title @@ make_body ~failed ~job_name ~platform ~readme builds
 
-
+  let make_json ~failed:_ ~job_name:_ ~platform:_ ~readme:_ builds =
+    (* For now we will ignore most arguments. It's to keep the arguments the
+       same as [make]. This is subject to change. *)
+    let build (build, main_binary) =
+      let main_binary =
+        match main_binary with
+        | None -> `Null
+        | Some { Builder_db.filepath; sha256; size } ->
+          `Assoc [
+            "filename", `String (Fpath.basename filepath);
+            "sha256", `String (Ohex.encode sha256);
+            "size", `Int size;
+          ]
+      in
+      `Assoc [
+        "uuid", `String (Uuidm.to_string build.Builder_db.Build.uuid);
+        "main_binary", main_binary
+      ]
+    in
+    `Assoc [
+      "builds", `List (List.map build builds);
+    ]
 end
 
 module Job_build = struct
