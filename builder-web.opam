@@ -19,6 +19,7 @@ depends: [
   "dune" {>= "2.7.0"}
   "builder" {>= "0.4.0"}
   "dream" {>= "1.0.0~alpha7"}
+  "dream-encoding"
   "bos"
   "ohex" {>= "0.2.0"}
   "lwt" {>= "5.7.0"}
