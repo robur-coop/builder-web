@@ -165,6 +165,7 @@ let setup_app level influx port host datadir cachedir configdir run_batch_viz_fl
     in
     Dream.run ~port ~interface:host ~tls:false ~error_handler
     @@ Dream.logger
+    @@ Dream_encoding.compress
     @@ Dream.sql_pool ("sqlite3:" ^ dbpath)
     @@ Http_status_metrics.handle
     @@ Builder_web.Middleware.remove_trailing_url_slash
