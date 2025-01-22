@@ -17,3 +17,10 @@
  (modules builder_db_app)
  (libraries builder_web builder_db builder_system caqti.blocking uri bos fmt
    logs logs.cli logs.fmt cmdliner mirage-crypto-rng.unix builder))
+
+(executable
+ (public_name builder-miou)
+ (name builder_miou_app)
+ (modules builder_miou_app)
+ (libraries builder_miou builder_db builder_system mirage-crypto-rng-miou-unix
+   fmt logs logs.cli logs.fmt fmt.tty cmdliner mirage-logs.cli caqti-miou.unix))
