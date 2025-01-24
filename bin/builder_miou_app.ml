@@ -46,7 +46,7 @@ let main () =
   Logs.debug (fun m -> m "Starting miou stuff");
   let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, 3000)) in
   let cfg = Vif.config sockaddr in
-  let sw = Caqti_miou.Switch.create () in
+  Caqti_miou.Switch.run @@ fun sw ->
   (* XXX: This fails!? *)
   Caqti_miou.Switch.check sw;
   match
