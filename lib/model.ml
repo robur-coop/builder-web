@@ -59,7 +59,16 @@ let build_artifacts build (module Db : CONN) =
   List.map snd
 
 let solo5_manifest datadir file =
-  let buf = Owee_buf.map_binary Fpath.(to_string (datadir // artifact_path file)) in
+  (* inlined from Owee_buf.map_binary *)
+  let path = Fpath.(to_string (datadir // artifact_path file)) in
+  let fd = Unix.openfile path [Unix.O_RDONLY] 0 in
+  let len = Unix.lseek fd 0 Unix.SEEK_END in
+  let buf =
+    Bigarray.array1_of_genarray
+      (Unix.map_file fd Bigarray.int8_unsigned
+         Bigarray.c_layout false [|len|]) in
+  Unix.close fd;
+  (* end of inlined code *)
   Solo5_elftool.query_manifest buf |> Result.to_option
 
 let platforms_of_job id (module Db : CONN) =
