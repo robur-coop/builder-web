@@ -26,7 +26,7 @@ depends: [
   "caqti" {>= "2.1.2"}
   "caqti-lwt"
   "caqti-driver-sqlite3"
-  "mirage-crypto-rng" {>= "0.11.0"}
+  "mirage-crypto-rng" {>= "1.2.0"}
   "kdf"
   "opam-core"
   "opam-format" {>= "2.1.0"}
