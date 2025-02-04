@@ -46,8 +46,8 @@ depends: [
   "cmarkit" {>= "0.3.0"}
   "tar" {>= "3.0.0"}
   "tar-unix" {>= "3.0.0"}
-  "owee"
-  "solo5-elftool" {>= "0.3.0" & < "0.4.0"}
+  "cachet"
+  "solo5-elftool" {>= "0.4.0"}
   "decompress" {>= "1.5.0"}
   "digestif" {>= "1.2.0"}
   "uuidm" {>= "0.9.9"}
