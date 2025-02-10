@@ -112,8 +112,8 @@ let layout
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
     (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly  text-gray-800 dark:text-gray-50 mx-auto p-10"]] [
-        H.div ~a:[H.a_class ["fixed text-center"]; H.a_style "padding: 9rem;"] [
-          H.img ~a:[H.a_class [""]] ~src:"https://i.ibb.co/RTbxHJs9/Screenshot-from-2025-02-08-19-55-25-removebg-preview.png" ~alt:"Robur Logo" ()
+        H.div ~a:[H.a_class ["fixed text-center"]; H.a_style ""] [
+          H.img ~a:[H.a_class [""]; H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
         ];
         H.div ~a:[H.a_class ["max-w-7xl mx-auto"]] [
           H.(div ~a:[a_class ["flex justify-between items-center"]] [
@@ -156,35 +156,35 @@ let layout
         H.script
         (H.txt "
           document.addEventListener('DOMContentLoaded', function () {
-          const themeToggle = document.getElementById('theme-toggle');
-          const html = document.documentElement;
+            const themeToggle = document.getElementById('theme-toggle');
+            const html = document.documentElement;
+            const logo = document.getElementById('robur-logo'); // Ensure the image has this ID
 
-          function updateIcon() {
-            themeToggle.innerText = html.classList.contains('dark') ? '☀️' : '🌑' ;
-          }
-
-          function toggleTheme() {
-            if (html.classList.contains('dark')) {
-              html.classList.remove('dark');
-              localStorage.setItem('theme', 'light');
-            } else {
-              html.classList.add('dark');
-              localStorage.setItem('theme', 'dark');
+            function updateTheme() {
+              const isDark = html.classList.contains('dark');
+              themeToggle.innerText = isDark ? '☀️' : '🌑';
+              logo.src = isDark
+                ? 'https://i.ibb.co/Y4YsvcDb/robur-logo.png'  // Dark mode logo
+                : 'https://i.ibb.co/r2DRDdTt/robur-logo-black-writing.png'; // Light mode logo
             }
-            updateIcon();
-          }
 
-          // Load user preference from localStorage
-          if (localStorage.getItem('theme') === 'dark') {
-            html.classList.add('dark');
-          }
+            function toggleTheme() {
+              html.classList.toggle('dark');
+              localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+              updateTheme();
+            }
 
-          // Set correct emoji on load
-          updateIcon();
+            // Load user preference from localStorage
+            if (localStorage.getItem('theme') === 'dark') {
+              html.classList.add('dark');
+            }
 
-          // Attach event listener (in case onclick fails)
-          themeToggle.addEventListener('click', toggleTheme);
-        });
+            // Set correct icon and logo on load
+            updateTheme();
+
+            // Attach event listener (in case onclick fails)
+            themeToggle.addEventListener('click', toggleTheme);
+          });
       ")
 
       ])
