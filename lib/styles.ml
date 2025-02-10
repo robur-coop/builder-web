@@ -50,6 +50,12 @@ html {
     }
 }
 
+#robur-logo {
+    transform: translate(-20%, 100%) rotate(270deg);
+    width: 60em;
+}
+
+
 nav ul {
 	display: flex;
 	list-style: none;
