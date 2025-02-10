@@ -144,7 +144,7 @@ let layout
               ]
             ]
           ]);
-        H.main body
+          H.main body
         ];
       ])
 
@@ -182,15 +182,15 @@ let artifact
       ~build:build.Builder_db.Build.uuid
       ~artifact:(`File filepath) ()
   in
-  [
-    H.a ~a:H.[a_href artifact_link] [
-      if basename then H.txt (Fpath.basename filepath)
-      else txtf "%a" Fpath.pp filepath
+  H.(div [
+    a ~a:[a_href artifact_link; a_class ["text-primary-500 underline"]] [
+      (if basename then txt ("Download " ^ Fpath.basename filepath)
+      else txtf "Download %a" Fpath.pp filepath);
+      txtf " (%a)" Fmt.byte_size size;
     ];
-    H.txt " ";
-    H.code [txtf "SHA256:%s" (Ohex.encode sha256)];
-    txtf " (%a)" Fmt.byte_size size;
-  ]
+    br ();
+    code [txtf "SHA256:%s" (Ohex.encode sha256)];
+  ])
 
 let page_not_found ~target ~referer =
   [
@@ -222,7 +222,7 @@ let viz_not_found =
         [ txtf "%s" title ];
     ]
   in
-  let static_css = static_css :: [ Tyxml.Html.Unsafe.data "\
+  let static_css = Styles.static_css :: [ Tyxml.Html.Unsafe.data "\
     body { background: rgb(191,191,191); }\
   "]
   in
@@ -308,76 +308,96 @@ module Builds = struct
       ]
     )
 
-  let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
-    [
-      check_icon latest_build.Builder_db.Build.result;
-      H.txt " ";
-      H.a ~a:[
-        H.a_href @@ Link.Job.make ~job_name
-          ~queries:[ `Platform platform ] ()
-      ]
-        [H.txt platform];
-      H.txt " ";
-      H.a ~a:[
-        H.a_href @@ Link.Job_build.make
-          ~job_name
-          ~build:latest_build.Builder_db.Build.uuid ()]
-        [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
-      H.txt " ";
+    let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
+      H.([
+          div ~a:[a_class ["grid grid-cols-3 space-y-2 p-2 rounded-lg"]]
+            [
+              div ~a:[a_class ["flex items-center space-x-2"]]
+                [
+                  check_icon latest_build.Builder_db.Build.result;
+                  a ~a:[
+                    a_href @@ Link.Job.make ~job_name ~queries:[ `Platform platform ] ();
+                    a_class ["text-primary-500 underline font-medium"]
+                  ]
+                  [txt platform]
+                ];
+              div ~a:[a_class ["text-gray-300"]]
+                [ a ~a:[
+                    a_href @@ Link.Job_build.make
+                      ~job_name
+                      ~build:latest_build.Builder_db.Build.uuid ();
+                    a_class ["underline text-primary-500"]
+                  ]
+                  [txtf "%a" pp_ptime latest_build.Builder_db.Build.start]; ];
 
-    ]
-    @ artifact
-      ~basename:true
-      ~job_name
-      ~build:latest_build
-      ~file:latest_artifact
-    @ [ H.br () ]
+              div ~a:[a_class [""]]
+                [ artifact ~basename:true ~job_name ~build:latest_build ~file:latest_artifact ];
+            ];
+        ])
 
-  let make_jobs jobs =
-    jobs |> List.map (fun (job_name, synopsis, platform_builds) ->
-        H.li (
-          [
-            H.a ~a:H.[a_href ("/job/" ^ job_name ^ "/")]
-              [H.txt job_name];
-            H.br ();
-            H.txt (Option.value ~default:"" synopsis);
-            H.br ()
-          ]
-          @ List.concat_map (make_platform_builds ~job_name) platform_builds
-        )
-      )
+      let make_jobs jobs =
+        H.(table
+              ~a:[a_class ["table-auto min-w-full"]]
+              ~thead:
+                (thead
+                    [
+                      tr
+                        [];
+                    ])
+        (List.map (fun (job_name, synopsis, platform_builds) ->
+              tr ~a:[a_class ["divide-y divide-gray-600"]]
+                [
+                  td
+                    ~a:[a_class ["px-6 py-4 font-medium text-gray-200"]]
+                    [
+                      a ~a:[a_href ("/job/" ^ job_name ^ "/"); a_class ["text-primary-500 font-bold"]]
+                        [txt job_name];
+                      br();
+                      txt (Option.value ~default:"" synopsis);
+                    ];
+
+                  td
+                    ~a:[a_class ["px-6 py-4 text-gray-400"]]
+                    [
+                      div ~a:[a_class ["flex flex-col text-wrap"]]
+                        (List.concat_map (make_platform_builds ~job_name) platform_builds);
+                    ];
+                ];
+                )
+            jobs))
 
   let make_body section_job_map =
     let aux  section jobs acc =
       acc @ [
-        H.h2 [ H.txt section ];
-        H.ul (make_jobs jobs)
+      H.div ~a:[H.a_class ["my-4 py-4 divide-y divide-gray-300"]] [
+          H.h2 ~a:[H.a_class ["text-xl uppercase font-bold my-4"]] [ H.txt section ];
+          make_jobs jobs;
+        ]
       ]
     in
     Utils.String_map.fold aux section_job_map []
 
   let make_failed_builds =
-    [ H.p [
-          H.txt "View the latest failed builds ";
-          H.a ~a:H.[a_href "/failed-builds"]
-            [H.txt "here"];
-          H.txt ".";
-        ]]
+    [ H.div ~a:H.[a_class ["flex justify-center mt-6"]] [
+        H.a ~a:H.[a_href "/failed-builds";
+                  a_class ["text-secondary-500 underline font-semibold"]]
+          [H.txt "View Latest Failed Builds"];
+      ]]
 
   let make_all_or_active all =
-      [ H.p [
-            H.txt (if all then "View active jobs " else "View all jobs ");
-            H.a ~a:H.[a_href (if all then "/" else "/all-builds")]
-              [H.txt "here"];
-            H.txt ".";
-          ]]
+    [ H.div ~a:H.[a_class ["flex justify-center mt-6"]] [
+        H.a ~a:H.[a_href (if all then "/" else "/all-builds");
+                  a_class ["text-primary-500 underline font-semibold"]]
+          [H.txt (if all then "View Active Jobs" else "View All Jobs")];
+      ]]
 
   let make ~all section_job_map =
     layout ~title:"Reproducible OPAM builds"
       (make_header
-       @ make_body section_job_map
-       @ make_failed_builds
-       @ make_all_or_active all)
+        @ make_body section_job_map
+        @ make_failed_builds
+        @ make_all_or_active all)
+
 
   let make_json ~all:_ section_job_map =
     let all_jobs =
@@ -401,48 +421,53 @@ end
 module Job = struct
 
   let make_header ~job_name ~platform ~readme =
-    H.h1 [txtf "Job %s %a" job_name pp_platform platform]
+    H.(h1 ~a:[a_class ["text-4xl font-bold text-center my-4"]] [txtf "Job %s %a" job_name pp_platform platform])
     :: (
       match readme with
       | None -> []
       | Some data ->
         [
-          H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
-          H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
+          H.(div ~a:[a_class ["flex justify-between items-center"]] [
+            h2 ~a:[a_id "readme"; a_class ["text-2xl"]] [txt "README"];
+            a ~a:[a_href "#builds"; a_class ["text-primary-500 underline"]] [txt "Skip to builds"];
+           ]);
           H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
         ]
     )
 
   let make_build ~job_name (build, main_binary) =
-    H.li (
+    H.(li ~a:[a_class ["my-4 p-4 border-t-1"]] (
       [
-        check_icon build.Builder_db.Build.result;
-        txtf " %s " build.platform;
-        H.a ~a:H.[
+        div ~a:[a_class ["flex my-2"]] [
+          check_icon build.Builder_db.Build.result;
+          p ~a:[a_class ["text-xl px-2"]] [txtf " %s " build.platform;];
+        ];
+        a ~a:[
             a_href @@ Link.Job_build.make
               ~job_name
-              ~build:build.Builder_db.Build.uuid () ]
+              ~build:build.Builder_db.Build.uuid (); a_class ["text-primary-500 underline font-mono my-2"] ]
           [
             txtf "%a" pp_ptime build.Builder_db.Build.start;
           ];
-        H.txt " ";
       ]
       @ match main_binary with
       | Some main_binary ->
-        artifact
+        [artifact
           ~basename:true
           ~job_name
           ~build
-          ~file:main_binary
+          ~file:main_binary]
       | None ->
         [ txtf "Build failure: %a" Builder.pp_execution_result
             build.Builder_db.Build.result ]
-    )
+    ))
 
   let make_builds ~failed ~job_name ~platform builds =
     [
-      H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
-      H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
+     H.(div ~a:[a_class ["flex justify-between items-center"]] [
+      h2 ~a:[a_id "builds"; a_class ["text-2xl"]] [txt "Builds"];
+      a ~a:[a_href "#readme"; a_class ["text-primary-500 underline"]] [txt "Back to readme"];
+     ]);
       H.ul (builds |> List.map (make_build ~job_name));
       let queries =
         platform |> Option.map (fun p -> `Platform p) |> Option.to_list
@@ -451,7 +476,7 @@ module Job = struct
         H.p [
           H.txt "Excluding failed builds " ;
           H.a ~a:H.[
-              a_href @@ Link.Job.make ~job_name ~queries ()
+              a_href @@ Link.Job.make ~job_name ~queries (); a_class ["text-primary-500 underline font-mono"]
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -459,7 +484,7 @@ module Job = struct
         H.p [
           H.txt "Including failed builds " ;
           H.a ~a:H.[
-              a_href @@ Link.Job.make_failed ~job_name ~queries ()
+              a_href @@ Link.Job.make_failed ~job_name ~queries (); a_class ["text-secondary-500 underline font-mono"]
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -536,16 +561,16 @@ module Job_build = struct
     let aux (file:Builder_db.file) =
       let sha256_hex = Ohex.encode file.sha256 in
       [
-        H.dt [
-          H.a ~a:H.[a_href @@ Link.Job_build_artifact.make
+      H.(dt [
+          a ~a:[a_href @@ Link.Job_build_artifact.make
                       ~job_name
                       ~build:build_uuid
-                      ~artifact:(`File file.filepath) ()
+                      ~artifact:(`File file.filepath) ();
+                    a_class ["text-primary-500 underline"]
                    ]
-            [H.code [txtf "%a" Fpath.pp file.filepath]] ];
+            [code [txtf "%a" Fpath.pp file.filepath; txtf " (%a)" Fmt.byte_size file.size]] ]);
         H.dd ([
             H.code [H.txt "SHA256:"; H.txt sha256_hex];
-            txtf " (%a)" Fmt.byte_size file.size;
           ] @
             match main_binary, solo5_manifest with
             | Some main_binary, Some solo5_manifest when main_binary = file ->
@@ -554,8 +579,8 @@ module Job_build = struct
       ]
     in
     [
-      H.h3 [H.txt "Build artifacts"];
-      H.dl (List.concat_map aux artifacts)
+      H.(h3 ~a:[a_class ["text-xl font-semibold my-4"]] [txt "Build artifacts"]);
+      H.(dl ~a:[a_class ["p-4 my-4"]] (List.concat_map aux artifacts))
     ]
 
   let make_reproductions
@@ -586,13 +611,15 @@ module Job_build = struct
         different_input_same_output
     in
     [
-      H.h3 [
+      H.(div ~a:[a_class ["my-4"]] [
+        h3 ~a:[a_class ["text-xl font-semibold"]] [
         txtf "Reproduced by %d builds"
-          (List.length (same_input_same_output @ different_input_same_output))] ;
-      H.ul @@ (
+          (List.length (same_input_same_output @ different_input_same_output))];
+      ul @@ (
         same_input_same_output_html
         @ different_input_same_output_html
       )
+      ])
     ]
 
   let make_not_reproducible
@@ -623,7 +650,7 @@ module Job_build = struct
       ~next
     =
     [
-      H.h3 [H.txt "Comparisons with other builds on the same platform"];
+      H.(h3 ~a:[a_class ["my-4 text-xl font-semibold"]] [txt "Comparisons with other builds on the same platform"]);
       let opt_build (ctx, build') =
         match build' with
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
@@ -631,7 +658,7 @@ module Job_build = struct
                    H.a ~a:[
                      H.a_href @@ Link.Compare_builds.make
                        ~left:b.uuid
-                       ~right:build.uuid () ]
+                       ~right:build.uuid () ; H.a_class ["underline text-primary-500 font-mono"] ]
                      [txtf "%a" pp_ptime b.start]]
           ]
         | _ -> []
@@ -656,29 +683,107 @@ module Job_build = struct
       ~latest ~next ~previous
     =
     [
-      H.h2 ~a:H.[a_id "build"] [txtf "Build %a" pp_ptime build.start];
-      H.p [txtf "Built on platform %s" build.platform ];
-      H.p [txtf "Build took %a." Ptime.Span.pp delta ];
-      H.p [txtf "Execution result: %a." Builder.pp_execution_result build.result];
-      H.h3 [H.txt "Build info"];
-      H.ul [
-        H.li [
-          H.a ~a:H.[
-              a_href @@ Link.Job_build_artifact.make
-                ~job_name
-                ~build:build.uuid
-                ~artifact:`Console ()
-            ] [H.txt "Console output"];
+      H.(h2 ~a:[a_id "build"; a_class ["text-2xl my-4 font-semibold"]] [txtf "Build %a" pp_ptime build.start]);
+      H.(div ~a:[a_class []] [
+        table
+          ~a:[a_class ["table-auto min-w-full border my-4"]]
+          ~thead:
+            (thead
+                [
+                  tr ~a:[a_class ["border"]]
+                    [
+                      th
+                        ~a:
+                          [
+                            a_class
+                              [
+                                "px-6 py-2 text-center \
+                                font-bold \
+                                text-primary-600 uppercase";
+                              ];
+                          ]
+                        [ txt "Platform" ];
+                      th
+                        ~a:
+                          [
+                            a_class
+                              [
+                                "px-6 py-2 text-center \
+                                font-bold \
+                                text-primary-600 uppercase";
+                              ];
+                          ]
+                        [ txt "Duration" ];
+                      th
+                        ~a:
+                          [
+                            a_class
+                              [
+                                "px-6 py-2 text-center \
+                                font-bold \
+                                text-primary-600 uppercase";
+                              ];
+                          ]
+                        [ txt "Execution Result" ];
+                    ];
+                ])
+                [
+                  tr ~a:[a_class ["text-center"]]
+                  [
+                    td
+                      ~a:
+                        [
+                          a_class
+                            [
+                              "px-6 py-1 \
+                              font-medium text-gray-200";
+                            ];
+                        ]
+                      [ txtf "%s" build.platform ];
+                    td
+                      ~a:
+                        [
+                          a_class
+                            [
+                              "px-6 py-1 \
+                              font-medium text-gray-200";
+                            ];
+                        ]
+                      [ txtf "%a." Ptime.Span.pp delta ];
+                    td
+                      ~a:
+                        [
+                          a_class
+                            [
+                              "px-6 py-1 \
+                              font-medium text-gray-200";
+                            ];
+                        ]
+                      [ txtf "%a" Builder.pp_execution_result build.result ];
+                  ]
+                ];
+      ]);
+      H.(h3 ~a:[a_class ["text-xl font-semibold my-2"]] [txt "Build info"]);
+      H.(div ~a:[a_class ["my-4 flex justify-between items-center"]] [
+        div [
+          a ~a:[
+            a_href @@ Link.Job_build_artifact.make
+              ~job_name
+              ~build:build.uuid
+              ~artifact:`Console ();
+              a_class ["text-primary-500 font-mono"]
+          ] [H.txt "Console output -->"];
         ];
-        H.li [
-          H.a ~a:H.[
-              a_href @@ Link.Job_build_artifact.make
-                ~job_name
-                ~build:build.uuid
-                ~artifact:`Script ()
-            ] [H.txt "Build script"];
+        div [
+          a ~a:[
+            a_href @@ Link.Job_build_artifact.make
+              ~job_name
+              ~build:build.uuid
+              ~artifact:`Script ();
+              a_class ["text-primary-500 font-mono"]
+          ] [txt "Build script -->"];
         ]
-      ];
+      ]);
     ]
     @ make_artifacts
       ~job_name
@@ -816,15 +921,15 @@ and the rest of the unaccounted data.\
         ~same_input_different_output
         ~latest ~next ~previous
     in
-    let style_grid = H.a_style "display: flex; " in
-    let style_col_left =
+    let _style_grid = H.a_style "display: flex; " in
+    let _style_col_left =
       H.a_style "width: 45em; min-width: 43em;" in
-    let style_col_right = H.a_style "width: 50%" in
+    let _style_col_right = H.a_style "width: 50%" in
     let body = [
-        H.h1 [txtf "Job %s" job_name];
-        H.div~a:[ style_grid ] [
-          H.div~a:[ style_col_left ]  left_column;
-          H.div~a:[ style_col_right ] right_column
+        H.(h1 ~a:[a_class ["text-4xl font-bold text-center my-4"]] [txtf "Job %s" job_name]);
+        H.div~a:[ H.a_class ["grid grid-cols-2 gap-10"] ] [
+          H.div~a:[ ]  left_column;
+          H.div~a:[  ] right_column
         ]
     ]
     in
@@ -869,10 +974,9 @@ let duniverse_diffs diffs =
       ]) diffs
 
 let opam_diffs diffs =
-  List.concat_map (fun pd ->
-      H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
-      H.h5 [ H.txt "diff" ] ::
-      H.pre [ H.code [ H.txt pd.diff ] ] ::
+   List.concat_map (fun pd ->
+      H.h4 ~a:[H.a_class ["text-md font-semibold text-primary-500"]] [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
+      H.pre [ H.code [H.txt pd.diff] ] ::
       H.br () :: [])
     diffs
 
@@ -891,41 +995,41 @@ let compare_builds
         if amount = 0 then
           items, data
         else
-          H.li [ H.a ~a:[H.a_href id_href] [txtf "%d %s" amount txt] ] :: items,
-          data @ H.h3 ~a:[H.a_id id] [H.txt txt] :: code)
+          H.li [ H.a ~a:[H.a_href id_href; H.a_class ["underline text-primary-500 font-mono"]] [txtf "%d %s" amount txt] ] :: items,
+          data @ H.h3 ~a:[H.a_id id; H.a_class ["text-xl font-semibold my-4"]] [H.txt txt] :: code)
       ([], [])
       ([ ("opam-packages-removed", "Opam packages removed",
-          OpamPackage.Set.cardinal left, [ H.code (packages left) ]) ;
+          OpamPackage.Set.cardinal left, [ H.(code ~a:[a_class ["code-diff"]] (packages left)) ]) ;
          ("opam-packages-installede", "New opam packages installed",
-          OpamPackage.Set.cardinal right, [ H.code (packages right) ]) ;
+          OpamPackage.Set.cardinal right, [ H.(code ~a:[a_class ["code-diff"]] (packages right)) ]) ;
          ("opam-packages-version-diff", "Opam packages with version changes",
-          List.length version_diff, [ H.code (package_diffs version_diff) ]) ;
+          List.length version_diff, [ H.(code ~a:[a_class ["code-diff"]] (package_diffs version_diff)) ]) ;
        ] @ (match duniverse with
           | Ok (duniverse_left, duniverse_right, duniverse_content_diff) ->
             [
               ("duniverse-dirs-removed", "Duniverse directories removed",
-               List.length duniverse_left, [ H.code (duniverse_dirs duniverse_left) ]) ;
+               List.length duniverse_left, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_dirs duniverse_left)) ]) ;
               ("duniverse-dirs-installed", "New duniverse directories installed",
-               List.length duniverse_right, [ H.code (duniverse_dirs duniverse_right) ]) ;
+               List.length duniverse_right, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_dirs duniverse_right)) ]) ;
               ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
-               List.length duniverse_content_diff, [ H.code (duniverse_diffs duniverse_content_diff) ]) ;
+               List.length duniverse_content_diff, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_diffs duniverse_content_diff)) ]) ;
             ]
           | Error `Msg msg -> [ "duniverse-dirs-error", "Duniverse parsing error", 1,  [ H.txt msg ] ]
         ) @ [
          ("opam-packages-opam-diff", "Opam packages with changes in their opam file",
           List.length opam_diff, opam_diffs opam_diff) ;
          ("env-removed", "Environment variables removed",
-          List.length removed_env, [ H.code (key_values removed_env) ]) ;
+          List.length removed_env, [ H.(code ~a:[a_class ["code-diff"]] (key_values removed_env)) ]) ;
          ("env-added", "New environment variables added",
-          List.length added_env, [ H.code (key_values added_env) ]) ;
+          List.length added_env, [ H.(code ~a:[a_class ["code-diff"]] (key_values added_env)) ]) ;
          ("env-changed", "Environment variables changed",
-          List.length changed_env, [ H.code (key_value_changes changed_env) ]) ;
+          List.length changed_env, [ H.(code ~a:[a_class ["code-diff"]] (key_value_changes changed_env)) ]) ;
          ("pkgs-removed", "System packages removed",
-          List.length removed_pkgs, [ H.code (key_values removed_pkgs) ]) ;
+          List.length removed_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_values removed_pkgs)) ]) ;
          ("pkgs-added", "New system packages added",
-          List.length added_pkgs, [ H.code (key_values added_pkgs) ]) ;
+          List.length added_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_values added_pkgs)) ]) ;
          ("pkgs-changed", "System packages changed",
-          List.length changed_pkgs, [ H.code (key_value_changes changed_pkgs) ]) ;
+          List.length changed_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_value_changes changed_pkgs)) ]) ;
        ])
   in
   layout
@@ -933,32 +1037,32 @@ let compare_builds
     ~title:(Fmt.str "Comparing builds %a and %a"
               Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
-      H.h1 [H.txt "Comparing builds"];
-      H.h2 [
-        H.txt "Builds ";
-        H.a ~a:H.[ a_href @@
+      H.(h1 ~a:[a_class ["text-center text-2xl font-semibold my-4"]] [txt "Comparing builds"]);
+      H.(h2 ~a:[a_class ["text-center text-xl font-semibold my-4"]] [
+        txt "Builds ";
+        (a ~a:[ a_href @@
                    Link.Job_build.make
                      ~job_name:job_left
-                     ~build:build_left.uuid () ]
+                     ~build:build_left.uuid (); a_class ["text-primary-500 underline font-mono"] ]
           [ txtf "%s@%a %a"
               job_left
               pp_ptime build_left.start
-              pp_platform (Some build_left.platform)];
-        H.txt " and ";
-        H.a ~a:H.[ a_href @@
+              pp_platform (Some build_left.platform)]);
+        txt " and ";
+        a ~a:[ a_href @@
                    Link.Job_build.make
                      ~job_name:job_right
-                     ~build:build_right.uuid () ]
+                     ~build:build_right.uuid (); a_class ["text-primary-500 underline font-mono"] ]
           [ txtf "%s@%a %a"
               job_right
               pp_ptime build_right.start
               pp_platform (Some build_right.platform)];
-      ];
-      H.h3 [ H.a ~a:H.[
+      ]);
+      H.(h3 ~a:[a_class ["text-right"]] [ a ~a:[
           a_href @@ Link.Compare_builds.make
             ~left:build_right.uuid
-            ~right:build_left.uuid () ]
-          [H.txt "Compare in reverse direction"]] ;
+            ~right:build_left.uuid (); a_class ["text-primary-500 underline font-mono"]  ]
+          [txt "Compare in reverse direction"]]) ;
       H.ul (List.rev items) ] @ data)
 
 let failed_builds ~start ~count builds =
