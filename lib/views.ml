@@ -111,14 +111,14 @@ let layout
   H.html
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
-    (H.body ~a:[H.a_class ["bg-black-molly mx-auto p-10"]] [
+    (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly  text-gray-800 dark:text-gray-50 mx-auto p-10"]] [
         H.div ~a:[H.a_class ["fixed text-center"]; H.a_style "padding: 9rem;"] [
           H.img ~a:[H.a_class [""]] ~src:"https://i.ibb.co/RTbxHJs9/Screenshot-from-2025-02-08-19-55-25-removebg-preview.png" ~alt:"Robur Logo" ()
         ];
         H.div ~a:[H.a_class ["max-w-7xl mx-auto"]] [
           H.(div ~a:[a_class ["flex justify-between items-center"]] [
             div [breadcrumb];
-            div [
+            div ~a:[a_class ["flex items-center space-x-4"]] [
               form ~a:[a_action "/hash"; a_method `Get; a_class ["mt-6 p-4"]] [
                 label ~a:[a_class ["block text-lg font-semibold mb-2 text-right"]] [
                       txt "Search artifact by SHA256";
@@ -130,7 +130,7 @@ let layout
                       a_id "sha256";
                       a_required ();
                       a_name "sha256";
-                      a_class ["w-full text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-500"]
+                      a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-500"]
                     ] ()
                   ];
                   div ~a:[a_class ["text-center"]] [
@@ -141,11 +141,52 @@ let layout
                     ] ()
                   ]
                 ]
+              ];
+              button ~a:[
+                a_id "theme-toggle";
+                a_class ["p-2 rounded-full border border-gray-300 bg-gray-100 dark:bg-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600"];
+              ] [
+                txt "🌙"
               ]
             ]
           ]);
           H.main body
         ];
+
+        H.script
+        (H.txt "
+          document.addEventListener('DOMContentLoaded', function () {
+          const themeToggle = document.getElementById('theme-toggle');
+          const html = document.documentElement;
+
+          function updateIcon() {
+            themeToggle.innerText = html.classList.contains('dark') ? '☀️' : '🌑' ;
+          }
+
+          function toggleTheme() {
+            if (html.classList.contains('dark')) {
+              html.classList.remove('dark');
+              localStorage.setItem('theme', 'light');
+            } else {
+              html.classList.add('dark');
+              localStorage.setItem('theme', 'dark');
+            }
+            updateIcon();
+          }
+
+          // Load user preference from localStorage
+          if (localStorage.getItem('theme') === 'dark') {
+            html.classList.add('dark');
+          }
+
+          // Set correct emoji on load
+          updateIcon();
+
+          // Attach event listener (in case onclick fails)
+          themeToggle.addEventListener('click', toggleTheme);
+        });
+      ")
+
       ])
 
 let toggleable ?(hidden=true) ~id ~description content =
@@ -348,7 +389,7 @@ module Builds = struct
               tr ~a:[a_class ["divide-y divide-gray-600"]]
                 [
                   td
-                    ~a:[a_class ["px-6 py-4 font-medium text-gray-200"]]
+                    ~a:[a_class ["px-6 py-4 font-medium"]]
                     [
                       a ~a:[a_href ("/job/" ^ job_name ^ "/"); a_class ["text-primary-500 font-bold"]]
                         [txt job_name];
@@ -736,7 +777,7 @@ module Job_build = struct
                           a_class
                             [
                               "px-6 py-1 \
-                              font-medium text-gray-200";
+                              font-medium";
                             ];
                         ]
                       [ txtf "%s" build.platform ];
@@ -746,7 +787,7 @@ module Job_build = struct
                           a_class
                             [
                               "px-6 py-1 \
-                              font-medium text-gray-200";
+                              font-medium";
                             ];
                         ]
                       [ txtf "%a." Ptime.Span.pp delta ];
@@ -756,7 +797,7 @@ module Job_build = struct
                           a_class
                             [
                               "px-6 py-1 \
-                              font-medium text-gray-200";
+                              font-medium";
                             ];
                         ]
                       [ txtf "%a" Builder.pp_execution_result build.result ];

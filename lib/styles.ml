@@ -26,6 +26,18 @@ html {
     -webkit-tap-highlight-color: transparent
 }
 
+.dark\:bg-black-molly {
+    &:where(.dark, .dark *) {
+        --tw-bg-opacity: 1;
+        background-color: #0B0D12 !important;
+        color: #FFFFFF !important
+    }
+}
+.dark\:text-gray-50 {
+    &:where(.dark, .dark *) {
+        color: #FFFFFF !important
+    }
+}
 
 nav ul {
   display: flex;
