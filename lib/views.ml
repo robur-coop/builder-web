@@ -11,13 +11,13 @@ let check_icon result =
   match result with
   | Builder.Exited 0 ->
     H.span ~a:H.[
-        a_style "color: green; cursor: pointer;";
+        a_class ["text-primary-500 cursor-pointer"];
         a_titlef "%a" Builder.pp_execution_result result;
       ]
       [H.txt "☑"]
   | _ ->
     H.span ~a:H.[
-        a_style "color: red; cursor: pointer;";
+        a_class ["text-secondary-500 cursor-pointer"];
         a_titlef "%a" Builder.pp_execution_result result;
       ]
       [H.txt "☒"]
@@ -31,52 +31,6 @@ type nav = [
 
 let pp_platform =
   Fmt.(option ~none:(any "") (append (any "on ") string))
-
-let static_css = Tyxml.Html.Unsafe.data {|
-body {
-  margin: 40px auto;
-  line-height: 1.6;
-  color: #444;
-  background: rgb(200,200,200);
-  padding: 0 10px;
-}
-nav ul {
-  display: flex;
-  list-style: none;
-}
-nav ul li::before {
-  content: "→";
-}
-nav ul li:first-child::before {
-  content: "";
-}
-nav a {
-  padding: .5em 1em;
-}
-h1,h2,h3{line-height:1.2}
-.output-ts {
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-.output-ts a {text-decoration: none;}
-.output-ts a:hover {text-decoration: underline;}
-.output-code {
-  overflow: visible;
-  white-space: pre;
-}
-.toggleable {
-  display: none;
-}
-.toggleable-descr {
-  cursor: pointer;
-  text-decoration: underline;
-  user-select: none;
-}
-:checked + .toggleable {
-  display: block;
-}
-|}
 
 let make_breadcrumbs nav =
   let to_nav kvs =
