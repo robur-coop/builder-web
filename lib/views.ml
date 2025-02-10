@@ -91,29 +91,61 @@ let layout
   =
   let breadcrumb = make_breadcrumbs nav in
   (*> Note: Last declared CSS wins - so one can override here*)
-  let static_css = static_css :: Option.to_list include_static_css
+  let static_css = Styles.static_css :: Option.to_list include_static_css
   in
   let body =
-    let style_grid_container = H.a_style "\
+    let _style_grid_container = H.a_style "\
       display: flex;
       align-items: center;
       justify-content: center;
       min-width: 83em;
     "
-    and style_grid = H.a_style @@
+    and _style_grid = H.a_style @@
       if manual_width then "" else "\
         width: 76%;\
       "
     in
-    [ H.div ~a:[ style_grid_container ]
-        [ H.div ~a:[ style_grid ] body ]]
+    [ H.div ~a:[  ]
+        [ H.div ~a:[  ] body ]]
   in
   H.html
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
-    (H.body [
-        breadcrumb;
+    (H.body ~a:[H.a_class ["bg-black-molly mx-auto p-10"]] [
+        H.div ~a:[H.a_class ["fixed text-center"]; H.a_style "padding: 9rem;"] [
+          H.img ~a:[H.a_class [""]] ~src:"https://i.ibb.co/RTbxHJs9/Screenshot-from-2025-02-08-19-55-25-removebg-preview.png" ~alt:"Robur Logo" ()
+        ];
+        H.div ~a:[H.a_class ["max-w-7xl mx-auto"]] [
+          H.(div ~a:[a_class ["flex justify-between items-center"]] [
+            div [breadcrumb];
+            div [
+              form ~a:[a_action "/hash"; a_method `Get; a_class ["mt-6 p-4"]] [
+                label ~a:[a_class ["block text-lg font-semibold mb-2 text-right"]] [
+                      txt "Search artifact by SHA256";
+                    ];
+                div ~a:[a_class ["w-full flex space-x-2 justify-end justify-items-center items-center"]] [
+                  div  [
+                    input ~a:[
+                      a_input_type `Search;
+                      a_id "sha256";
+                      a_required ();
+                      a_name "sha256";
+                      a_class ["w-full text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-500"]
+                    ] ()
+                  ];
+                  div ~a:[a_class ["text-center"]] [
+                    input ~a:[
+                      a_input_type `Submit;
+                      a_value "Search";
+                      a_class ["mt-3 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
+                    ] ()
+                  ]
+                ]
+              ]
+            ]
+          ]);
         H.main body
+        ];
       ])
 
 let toggleable ?(hidden=true) ~id ~description content =
