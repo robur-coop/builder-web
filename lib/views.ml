@@ -136,6 +136,8 @@ let layout
                 H.txt "🌙"
               ]
             ]
+          ]);
+          H.main body
           ];
           H.main body
         ];
@@ -482,7 +484,7 @@ module Job = struct
       | None ->
         [ txtf "Build failure: %a" Builder.pp_execution_result
             build.Builder_db.Build.result ]
-    )
+    ))
 
   let make_builds ~failed ~job_name ~platform builds =
     [
@@ -672,7 +674,7 @@ module Job_build = struct
       ~next
     =
     [
-      H.h3 [H.txt "Comparisons with other builds on the same platform"];
+      H.(h3 ~a:[a_class ["my-4 text-xl font-semibold"]] [txt "Comparisons with other builds on the same platform"]);
       let opt_build (ctx, build') =
         match build' with
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
@@ -747,7 +749,7 @@ module Job_build = struct
               H.a_class ["link"]
           ] [H.txt "Build script -->"];
         ]
-      ];
+      ]);
     ]
     @ make_artifacts
       ~job_name
