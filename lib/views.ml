@@ -238,24 +238,75 @@ have questions or suggestions.
 |}
 
   let make_header =
-    [
-      H.Unsafe.data (Utils.md_to_html data);
-      H.form ~a:H.[a_action "/hash"; a_method `Get] [
-        H.label [
-          H.txt "Search artifact by SHA256";
-          H.br ();
-          H.input ~a:H.[
-              a_input_type `Search;
-              a_id "sha256";
-              a_name "sha256";
-            ] ();
+    H.([
+      div ~a:[a_class ["header container mx-auto px-4 py-8 text-gray-800"]] [
+        (* Logo Section *)
+        div ~a:[a_class ["flex items-center mb-6"]] [
+          ];
+          h1 ~a:[a_class ["text-7xl font-bold text-primary-600 text-center"]]
+            [txt "Reproducible OPAM Builds"]
         ];
-        H.input ~a:H.[
-            a_input_type `Submit;
-            a_value "Search";
-          ] ();
-      ];
-    ]
+
+        div ~a:[a_class ["grid grid-cols-2 gap-3"]] [
+          div [
+            p ~a:[a_class ["text-lg mb-4"]] [
+              txt "This website offers binary MirageOS unikernels and supplementary OS packages. ";
+              txt "If you want to use our binary packages and setup unikernels, follow ";
+              a ~a:[a_href "https://robur.coop/Projects/Reproducible_builds"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "these instructions"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg mb-4"]] [
+              txt "The unikernels are statically linked executables where the execution target is ";
+              txt "independent of the build platform - so even if they're compiled on a FreeBSD ";
+              txt "system they can be run on a Linux or OpenBSD host. Many are executed using a ";
+              a ~a:[a_href "https://github.com/solo5/solo5"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "solo5"];
+              txt " tender."
+            ];
+          ];
+          div [
+            p ~a:[a_class ["text-lg mt-6 mb-4"]] [
+              txt "A persistent link to the latest successful build is available as ";
+              code ~a:[a_class ["px-2 py-1 rounded text-sm font-mono text-primary-500"]]
+                [txt "/job/*jobname*/build/latest/"];
+              txt ". Each build can be reproduced with ";
+              a ~a:[a_href "https://github.com/robur-coop/orb/"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "orb"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg mb-4"]] [
+              txt "The builds are scheduled and executed daily by ";
+              a ~a:[a_href "https://github.com/robur-coop/builder/"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "builder"];
+              txt ". This web interface is ";
+              a ~a:[a_href "https://git.robur.coop/robur/builder-web/"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "builder-web"];
+              txt ". Read further information ";
+              a ~a:[a_href "https://robur.coop/Projects/Reproducible_builds"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "on our project page"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg mt-6 mb-4"]] [
+              txt "This work has been funded by the European Union under the ";
+              a ~a:[a_href "https://pointer.ngi.eu"; a_class ["text-primary-500 underline font-mono"]]
+                [txt "NGI Pointer"];
+              txt " program. Contact team AT robur.coop if you have questions or suggestions."
+            ];
+          ];
+        ];
+        div ~a:[a_class ["my-4"]] [
+            h2 ~a:[a_class ["text-xl font-semibold mt-6 mb-2"]]
+            [txt "Execution Environments"];
+            ul ~a:[a_class ["list-disc list-inside text-lg space-y-2 font-mono"]] [
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".xen: "]; txt "Xen PVH virtual machine (on a Xen or QubesOS host)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".virtio: "]; txt "any virtio environment (qemu, GCE, KVM, BHyve)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".muem: "]; txt "on muen"]
+            ];
+        ]
+      ]
+    )
 
   let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
     [
