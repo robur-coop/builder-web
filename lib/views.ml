@@ -97,14 +97,14 @@ let layout
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
     (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly w-full text-gray-800 dark:text-gray-50 mx-auto p-10 md:grid md:grid-cols-4"]] [
         H.div ~a:[H.a_class ["text-center md:col-span-1 hidden md:block"]; H.a_style ""] [
-          H.img ~a:[H.a_class ["fixed"]; H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
+          H.img ~a:[H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
         ];
         H.div ~a:[H.a_class ["mx-auto w-full md:col-span-3 px-4"]] [
           H.(div ~a:[a_class ["flex justify-between items-center"]] [
             div [breadcrumb];
             div ~a:[a_class ["flex items-center space-x-4"]] [
-              form ~a:[a_action "/hash"; a_method `Get; a_class ["mt-6 p-4"]] [
-                label ~a:[a_class ["block text-lg font-semibold mb-2 text-right"]] [
+              form ~a:[a_action "/hash"; a_method `Get; a_class ["my-4 p-4"]] [
+                label ~a:[a_class ["block text-lg font-semibold my-2 text-right"]] [
                       txt "Search artifact by SHA256";
                     ];
                 div ~a:[a_class ["w-full flex space-x-2 justify-end justify-items-center items-center"]] [
@@ -114,14 +114,14 @@ let layout
                       a_id "sha256";
                       a_required ();
                       a_name "sha256";
-                      a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-500"]
+                      a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-200"]
                     ] ()
                   ];
                   div ~a:[a_class ["text-center"]] [
                     input ~a:[
                       a_input_type `Submit;
                       a_value "Search";
-                      a_class ["mt-3 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
+                      a_class ["my-4 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
                     ] ()
                   ]
                 ]
@@ -266,22 +266,22 @@ module Builds = struct
     H.([
       div ~a:[a_class ["header container mx-auto px-4 py-8 text-gray-800"]] [
         (* Logo Section *)
-        div ~a:[a_class ["flex items-center mb-6"]] [
+        div ~a:[a_class ["flex items-center my-4"]] [
           ];
-          h1 ~a:[a_class ["text-7xl font-bold text-primary-600 text-center"]]
+          h1 ~a:[a_class ["text-7xl font-bold text-primary-500 text-center"]]
             [txt "Reproducible OPAM Builds"]
         ];
 
         div ~a:[a_class ["grid grid-cols-2 gap-3"]] [
           div [
-            p ~a:[a_class ["text-lg mb-4"]] [
+            p ~a:[a_class ["text-lg my-4"]] [
               txt "This website offers binary MirageOS unikernels and supplementary OS packages. ";
               txt "If you want to use our binary packages and setup unikernels, follow ";
               a ~a:[a_href "https://robur.coop/Projects/Reproducible_builds"; a_class ["text-primary-500 underline font-mono"]]
                 [txt "these instructions"];
               txt "."
             ];
-            p ~a:[a_class ["text-lg mb-4"]] [
+            p ~a:[a_class ["text-lg my-4"]] [
               txt "The unikernels are statically linked executables where the execution target is ";
               txt "independent of the build platform - so even if they're compiled on a FreeBSD ";
               txt "system they can be run on a Linux or OpenBSD host. Many are executed using a ";
@@ -291,7 +291,7 @@ module Builds = struct
             ];
           ];
           div [
-            p ~a:[a_class ["text-lg mt-6 mb-4"]] [
+            p ~a:[a_class ["text-lg my-4"]] [
               txt "A persistent link to the latest successful build is available as ";
               code ~a:[a_class ["px-2 py-1 rounded text-sm font-mono text-primary-500"]]
                 [txt "/job/*jobname*/build/latest/"];
@@ -300,7 +300,7 @@ module Builds = struct
                 [txt "orb"];
               txt "."
             ];
-            p ~a:[a_class ["text-lg mb-4"]] [
+            p ~a:[a_class ["text-lg my-4"]] [
               txt "The builds are scheduled and executed daily by ";
               a ~a:[a_href "https://github.com/robur-coop/builder/"; a_class ["text-primary-500 underline font-mono"]]
                 [txt "builder"];
@@ -312,7 +312,7 @@ module Builds = struct
                 [txt "on our project page"];
               txt "."
             ];
-            p ~a:[a_class ["text-lg mt-6 mb-4"]] [
+            p ~a:[a_class ["text-lg my-4"]] [
               txt "This work has been funded by the European Union under the ";
               a ~a:[a_href "https://pointer.ngi.eu"; a_class ["text-primary-500 underline font-mono"]]
                 [txt "NGI Pointer"];
@@ -321,7 +321,7 @@ module Builds = struct
           ];
         ];
         div ~a:[a_class ["my-4"]] [
-            h2 ~a:[a_class ["text-xl font-semibold mt-6 mb-2"]]
+            h2 ~a:[a_class ["text-xl font-semibold my-2"]]
             [txt "Execution Environments"];
             ul ~a:[a_class ["list-disc list-inside text-lg space-y-2 font-mono"]] [
               li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"];
@@ -403,14 +403,14 @@ module Builds = struct
     Utils.String_map.fold aux section_job_map []
 
   let make_failed_builds =
-    [ H.div ~a:H.[a_class ["flex justify-center mt-6"]] [
+    [ H.div ~a:H.[a_class ["flex justify-center my-4"]] [
         H.a ~a:H.[a_href "/failed-builds";
                   a_class ["text-secondary-500 underline font-semibold"]]
           [H.txt "View Latest Failed Builds"];
       ]]
 
   let make_all_or_active all =
-    [ H.div ~a:H.[a_class ["flex justify-center mt-6"]] [
+    [ H.div ~a:H.[a_class ["flex justify-center my-4"]] [
         H.a ~a:H.[a_href (if all then "/" else "/all-builds");
                   a_class ["text-primary-500 underline font-semibold"]]
           [H.txt (if all then "View Active Jobs" else "View All Jobs")];
@@ -724,7 +724,7 @@ module Job_build = struct
                               [
                                 "px-4 py-4 text-center \
                                 font-bold \
-                                text-primary-600 uppercase";
+                                text-primary-500 uppercase";
                               ];
                           ]
                         [ txt "Platform" ];
@@ -735,7 +735,7 @@ module Job_build = struct
                               [
                                 "px-4 py-4 text-center \
                                 font-bold \
-                                text-primary-600 uppercase";
+                                text-primary-500 uppercase";
                               ];
                           ]
                         [ txt "Duration" ];
@@ -746,7 +746,7 @@ module Job_build = struct
                               [
                                 "px-4 py-4 text-center \
                                 font-bold \
-                                text-primary-600 uppercase";
+                                text-primary-500 uppercase";
                               ];
                           ]
                         [ txt "Execution Result" ];
