@@ -85,7 +85,6 @@ let make_breadcrumbs nav =
 let layout
     ?include_static_css
     ?(nav=`Default)
-    ?(manual_width=false)
     ~title
     body
   =
@@ -93,29 +92,14 @@ let layout
   (*> Note: Last declared CSS wins - so one can override here*)
   let static_css = Styles.static_css :: Option.to_list include_static_css
   in
-  let body =
-    let _style_grid_container = H.a_style "\
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 83em;
-    "
-    and _style_grid = H.a_style @@
-      if manual_width then "" else "\
-        width: 76%;\
-      "
-    in
-    [ H.div ~a:[  ]
-        [ H.div ~a:[  ] body ]]
-  in
   H.html
     (H.head (H.title (H.txt title))
        [H.style ~a:H.[a_mime_type "text/css"] static_css])
-    (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly  text-gray-800 dark:text-gray-50 mx-auto p-10"]] [
-        H.div ~a:[H.a_class ["fixed text-center"]; H.a_style ""] [
-          H.img ~a:[H.a_class [""]; H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
+    (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly w-full text-gray-800 dark:text-gray-50 mx-auto p-10 md:grid md:grid-cols-4"]] [
+        H.div ~a:[H.a_class ["text-center md:col-span-1 hidden md:block"]; H.a_style ""] [
+          H.img ~a:[H.a_class ["fixed"]; H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
         ];
-        H.div ~a:[H.a_class ["max-w-7xl mx-auto"]] [
+        H.div ~a:[H.a_class ["mx-auto w-full md:col-span-3 px-4"]] [
           H.(div ~a:[a_class ["flex justify-between items-center"]] [
             div [breadcrumb];
             div ~a:[a_class ["flex items-center space-x-4"]] [
@@ -230,7 +214,7 @@ let artifact
       txtf " (%a)" Fmt.byte_size size;
     ];
     br ();
-    code [txtf "SHA256:%s" (Ohex.encode sha256)];
+    p ~a:[a_class ["wrap"]] [txtf "SHA256:%s" (Ohex.encode sha256)];
   ])
 
 let page_not_found ~target ~referer =
@@ -398,7 +382,7 @@ module Builds = struct
                     ];
 
                   td
-                    ~a:[a_class ["px-6 py-4 text-gray-400"]]
+                    ~a:[a_class ["px-4 py-4 text-gray-400"]]
                     [
                       div ~a:[a_class ["flex flex-col text-wrap"]]
                         (List.concat_map (make_platform_builds ~job_name) platform_builds);
@@ -738,7 +722,7 @@ module Job_build = struct
                           [
                             a_class
                               [
-                                "px-6 py-2 text-center \
+                                "px-4 py-4 text-center \
                                 font-bold \
                                 text-primary-600 uppercase";
                               ];
@@ -749,7 +733,7 @@ module Job_build = struct
                           [
                             a_class
                               [
-                                "px-6 py-2 text-center \
+                                "px-4 py-4 text-center \
                                 font-bold \
                                 text-primary-600 uppercase";
                               ];
@@ -760,7 +744,7 @@ module Job_build = struct
                           [
                             a_class
                               [
-                                "px-6 py-2 text-center \
+                                "px-4 py-4 text-center \
                                 font-bold \
                                 text-primary-600 uppercase";
                               ];
@@ -776,7 +760,7 @@ module Job_build = struct
                         [
                           a_class
                             [
-                              "px-6 py-1 \
+                              "px-4 py-4 \
                               font-medium";
                             ];
                         ]
@@ -786,7 +770,7 @@ module Job_build = struct
                         [
                           a_class
                             [
-                              "px-6 py-1 \
+                              "px-4 py-4 \
                               font-medium";
                             ];
                         ]
@@ -796,7 +780,7 @@ module Job_build = struct
                         [
                           a_class
                             [
-                              "px-6 py-1 \
+                              "px-4 py-4 \
                               font-medium";
                             ];
                         ]
@@ -977,7 +961,6 @@ and the rest of the unaccounted data.\
     layout
       ~nav:(`Build (job_name, build))
       ~title:(Fmt.str "Job %s %a" job_name pp_ptime build.start)
-      ~manual_width:true
       body
 
 end
