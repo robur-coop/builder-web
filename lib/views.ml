@@ -103,40 +103,40 @@ let layout
           H.img ~a:[H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
         ];
         H.div ~a:[H.a_class ["mx-auto w-full md:col-span-3 px-4"]] [
-          H.(div ~a:[a_class ["md:flex justify-between items-center"]] [
-            div [breadcrumb];
-            div ~a:[a_class ["flex items-center space-x-4"]] [
-              form ~a:[a_action "/hash"; a_method `Get; a_class ["my-4 p-4"]] [
-                label ~a:[a_class ["block text-lg font-semibold my-2 text-right"]] [
-                      txt "Search artifact by SHA256";
+          H.div ~a:[H.a_class ["md:flex justify-between items-center"]] [
+            H.div [breadcrumb];
+            H.div ~a:[H.a_class ["flex items-center space-x-4"]] [
+              H.form ~a:[H.a_action "/hash"; H.a_method `Get; H.a_class ["my-4 p-4"]] [
+                H.label ~a:[H.a_class ["block text-lg font-semibold my-2 text-right"]] [
+                      H.txt "Search artifact by SHA256";
                     ];
-                div ~a:[a_class ["w-full flex space-x-2 justify-end justify-items-center items-center"]] [
-                  div  [
-                    input ~a:[
-                      a_input_type `Search;
-                      a_id "sha256";
-                      a_required ();
-                      a_name "sha256";
-                      a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-200"]
+                H.div ~a:[H.a_class ["w-full flex space-x-2 justify-end justify-items-center items-center"]] [
+                  H.div  [
+                    H.input ~a:[
+                      H.a_input_type `Search;
+                      H.a_id "sha256";
+                      H.a_required ();
+                      H.a_name "sha256";
+                      H.a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-200"]
                     ] ()
                   ];
-                  div ~a:[a_class ["text-center"]] [
-                    input ~a:[
-                      a_input_type `Submit;
-                      a_value "Search";
-                      a_class ["my-4 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
+                  H.div ~a:[H.a_class ["text-center"]] [
+                    H.input ~a:[
+                      H.a_input_type `Submit;
+                     H.a_value "Search";
+                      H.a_class ["my-4 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
                     ] ()
                   ]
                 ]
               ];
-              button ~a:[
-                a_id "theme-toggle";
-                a_class ["p-2 rounded-full border border-gray-300 bg-gray-100 dark:bg-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600"];
+              H.button ~a:[
+                H.a_id "theme-toggle";
+                H.a_class ["p-2 rounded-full border border-gray-300 bg-gray-100 dark:bg-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600"];
               ] [
-                txt "🌙"
+                H.txt "🌙"
               ]
             ]
-          ]);
+          ];
           H.main body
         ];
 
@@ -210,15 +210,15 @@ let artifact
       ~build:build.Builder_db.Build.uuid
       ~artifact:(`File filepath) ()
   in
-  H.(div [
-    a ~a:[a_href artifact_link; a_class ["link"]] [
-      (if basename then txt ("Download " ^ Fpath.basename filepath)
+  H.div [
+    H.a ~a:[H.a_href artifact_link; H.a_class ["link"]] [
+      (if basename then H.txt ("Download " ^ Fpath.basename filepath)
       else txtf "Download %a" Fpath.pp filepath);
       txtf " (%a)" Fmt.byte_size size;
     ];
-    br ();
-    p ~a:[a_class ["wrap"]] [txtf "SHA256:%s" (Ohex.encode sha256)];
-  ])
+    H.br ();
+    H.p ~a:[H.a_class ["wrap"]] [txtf "SHA256:%s" (Ohex.encode sha256)];
+  ]
 
 let page_not_found ~target ~referer =
   [
@@ -266,7 +266,7 @@ let viz_not_found =
 module Builds = struct
 
   let make_header =
-    H.([
+    H.[
       div ~a:[a_class ["header container mx-auto px-4 py-8 text-gray-800 w-full"]] [
         (* Logo Section *)
         div ~a:[a_class ["flex items-center my-4"]] [
@@ -334,10 +334,10 @@ module Builds = struct
             ];
         ]
       ]
-    )
+
 
     let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
-      H.([
+      H.[
           div ~a:[a_class ["md:grid grid-cols-3 space-y-2 p-2 rounded-lg"]]
             [
               div ~a:[a_class ["flex items-center space-x-2"]]
@@ -361,32 +361,32 @@ module Builds = struct
               div ~a:[a_class [""]]
                 [ artifact ~basename:true ~job_name ~build:latest_build ~file:latest_artifact ];
             ];
-        ])
+        ]
 
       let make_jobs jobs =
-        H.(div
-              ~a:[a_class ["min-w-full"]]
+        H.div
+              ~a:[H.a_class ["min-w-full"]]
         (List.map (fun (job_name, synopsis, platform_builds) ->
-              div ~a:[a_class ["md:grid md:grid-cols-4 divide-y dark:divide-gray-200 divide-gray-600"]]
+              H.div ~a:[H.a_class ["md:grid md:grid-cols-4 divide-y dark:divide-gray-200 divide-gray-600"]]
                 [
-                  div
-                    ~a:[a_class ["px-6 py-4 font-medium md:col-span-1"]]
+                  H.div
+                    ~a:[H.a_class ["px-6 py-4 font-medium md:col-span-1"]]
                     [
-                      a ~a:[a_href ("/job/" ^ job_name ^ "/"); a_class ["link font-bold"]]
-                        [txt job_name];
-                      br();
-                      txt (Option.value ~default:"" synopsis);
+                      H.a ~a:[H.a_href ("/job/" ^ job_name ^ "/"); H.a_class ["link font-bold"]]
+                        [H.txt job_name];
+                      H.br();
+                      H.txt (Option.value ~default:"" synopsis);
                     ];
 
-                  div
-                    ~a:[a_class ["px-4 py-4 text-gray-400 block md:col-span-3"]]
+                  H.div
+                    ~a:[H.a_class ["px-4 py-4 text-gray-400 block md:col-span-3"]]
                     [
-                      div ~a:[a_class ["md:flex flex-col wrap"]]
+                      H.div ~a:[H.a_class ["md:flex flex-col wrap"]]
                         (List.concat_map (make_platform_builds ~job_name) platform_builds);
                     ];
                 ];
                 )
-            jobs))
+            jobs)
 
   let make_body section_job_map =
     let aux  section jobs acc =
@@ -443,31 +443,31 @@ end
 module Job = struct
 
   let make_header ~job_name ~platform ~readme =
-    H.(h1 ~a:[a_class ["text-4xl font-bold text-center my-4 py-4"]] [txtf "Job %s %a" job_name pp_platform platform])
+    H.h1 ~a:[H.a_class ["text-4xl font-bold text-center my-4 py-4"]] [txtf "Job %s %a" job_name pp_platform platform]
     :: (
       match readme with
       | None -> []
       | Some data ->
         [
-          H.(div ~a:[a_class ["flex justify-between items-center"]] [
-            h2 ~a:[a_id "readme";] [txt "README"];
-            a ~a:[a_href "#builds"; a_class ["link"]] [txt "Skip to builds"];
-           ]);
+          H.div ~a:[H.a_class ["flex justify-between items-center"]] [
+            H.h2 ~a:[H.a_id "readme";] [H.txt "README"];
+            H.a ~a:[H.a_href "#builds"; H.a_class ["link"]] [H.txt "Skip to builds"];
+           ];
           H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
         ]
     )
 
   let make_build ~job_name (build, main_binary) =
-    H.(li ~a:[a_class ["my-4 p-4 border-t-1"]] (
+    H.li ~a:[H.a_class ["my-4 p-4 border-t-1"]] (
       [
-        div ~a:[a_class ["flex my-2"]] [
+        H.div ~a:[H.a_class ["flex my-2"]] [
           check_icon build.Builder_db.Build.result;
-          p ~a:[a_class ["text-xl px-2"]] [txtf " %s " build.platform;];
+          H.p ~a:[H.a_class ["text-xl px-2"]] [txtf " %s " build.platform;];
         ];
-        a ~a:[
-            a_href @@ Link.Job_build.make
+        H.a ~a:[
+            H.a_href @@ Link.Job_build.make
               ~job_name
-              ~build:build.Builder_db.Build.uuid (); a_class ["link"] ]
+              ~build:build.Builder_db.Build.uuid (); H.a_class ["link"] ]
           [
             txtf "%a" pp_ptime build.Builder_db.Build.start;
           ];
@@ -482,14 +482,14 @@ module Job = struct
       | None ->
         [ txtf "Build failure: %a" Builder.pp_execution_result
             build.Builder_db.Build.result ]
-    ))
+    )
 
   let make_builds ~failed ~job_name ~platform builds =
     [
-     H.(div ~a:[a_class ["flex justify-between items-center"]] [
-      h2 ~a:[a_id "builds"] [txt "Builds"];
-      a ~a:[a_href "#readme"; a_class ["link"]] [txt "Back to readme"];
-     ]);
+     H.div ~a:[H.a_class ["flex justify-between items-center"]] [
+      H.h2 ~a:[H.a_id "builds"] [H.txt "Builds"];
+      H.a ~a:[H.a_href "#readme"; H.a_class ["link"]] [H.txt "Back to readme"];
+     ];
       H.ul (builds |> List.map (make_build ~job_name));
       let queries =
         platform |> Option.map (fun p -> `Platform p) |> Option.to_list
@@ -583,14 +583,14 @@ module Job_build = struct
     let aux (file:Builder_db.file) =
       let sha256_hex = Ohex.encode file.sha256 in
       [
-      H.(dt [
-          a ~a:[a_href @@ Link.Job_build_artifact.make
+      H.dt [
+          H.a ~a:[H.a_href @@ Link.Job_build_artifact.make
                       ~job_name
                       ~build:build_uuid
                       ~artifact:(`File file.filepath) ();
-                    a_class ["link"]
+                    H.a_class ["link"]
                    ]
-            [code [txtf "%a" Fpath.pp file.filepath; txtf " (%a)" Fmt.byte_size file.size]] ]);
+            [H.code [txtf "%a" Fpath.pp file.filepath; txtf " (%a)" Fmt.byte_size file.size]] ];
         H.dd ([
             H.code ~a:[H.a_class ["wrap"]] [H.txt "SHA256:"; H.txt sha256_hex];
           ] @
@@ -601,8 +601,8 @@ module Job_build = struct
       ]
     in
     [
-      H.(h3 [txt "Build artifacts"]);
-      H.(dl ~a:[a_class ["p-4 my-4"]] (List.concat_map aux artifacts))
+      H.h3 [H.txt "Build artifacts"];
+      H.dl ~a:[H.a_class ["p-4 my-4"]] (List.concat_map aux artifacts)
     ]
 
   let make_reproductions
@@ -633,15 +633,15 @@ module Job_build = struct
         different_input_same_output
     in
     [
-      H.(div ~a:[a_class ["my-4"]] [
-        h3 [
+      H.div ~a:[H.a_class ["my-4"]] [
+        H.h3 [
         txtf "Reproduced by %d builds"
           (List.length (same_input_same_output @ different_input_same_output))];
-      ul @@ (
+      H.ul @@ (
         same_input_same_output_html
         @ different_input_same_output_html
       )
-      ])
+      ]
     ]
 
   let make_not_reproducible
@@ -672,7 +672,7 @@ module Job_build = struct
       ~next
     =
     [
-      H.(h3 [txt "Comparisons with other builds on the same platform"]);
+      H.h3 [H.txt "Comparisons with other builds on the same platform"];
       let opt_build (ctx, build') =
         match build' with
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
@@ -705,49 +705,49 @@ module Job_build = struct
       ~latest ~next ~previous
     =
     [
-      H.(h2 ~a:[a_id "build";] [txtf "Build %a" pp_ptime build.start]);
-      H.(div ~a:[a_class []] [
-        table
+      H.h2 ~a:[H.a_id "build";] [txtf "Build %a" pp_ptime build.start];
+      H.div ~a:[H.a_class []] [
+        H.table
           ~thead:
-            (thead
+            (H.thead
                 [
-                  tr ~a:[a_class ["border"]]
+                  H.tr ~a:[H.a_class ["border"]]
                     [
-                      th [ txt "Platform" ];
-                      th [ txt "Duration" ];
-                      th [ txt "Execution Result" ];
+                      H.th [ H.txt "Platform" ];
+                      H.th [ H.txt "Duration" ];
+                      H.th [ H.txt "Execution Result" ];
                     ];
                 ])
                 [
-                  tr ~a:[a_class ["text-center border"]]
+                  H.tr ~a:[H.a_class ["text-center border"]]
                   [
-                    td [ txtf "%s" build.platform ];
-                    td [ txtf "%a." Ptime.Span.pp delta ];
-                    td [ txtf "%a" Builder.pp_execution_result build.result ];
+                    H.td [ txtf "%s" build.platform ];
+                    H.td [ txtf "%a." Ptime.Span.pp delta ];
+                    H.td [ txtf "%a" Builder.pp_execution_result build.result ];
                   ]
                 ];
-      ]);
-      H.(h3 [txt "Build info"]);
-      H.(div ~a:[a_class ["my-4 md:flex justify-between items-center"]] [
-        div [
-          a ~a:[
-            a_href @@ Link.Job_build_artifact.make
+      ];
+      H.h3 [H.txt "Build info"];
+      H.div ~a:[H.a_class ["my-4 md:flex justify-between items-center"]] [
+        H.div [
+          H.a ~a:[
+            H.a_href @@ Link.Job_build_artifact.make
               ~job_name
               ~build:build.uuid
               ~artifact:`Console ();
-              a_class ["link"]
+              H.a_class ["link"]
           ] [H.txt "Console output -->"];
         ];
-        div [
-          a ~a:[
-            a_href @@ Link.Job_build_artifact.make
+        H.div [
+          H.a ~a:[
+            H.a_href @@ Link.Job_build_artifact.make
               ~job_name
               ~build:build.uuid
               ~artifact:`Script ();
-              a_class ["link"]
-          ] [txt "Build script -->"];
+              H.a_class ["link"]
+          ] [H.txt "Build script -->"];
         ]
-      ]);
+      ];
     ]
     @ make_artifacts
       ~job_name
@@ -886,7 +886,7 @@ and the rest of the unaccounted data.\
         ~latest ~next ~previous
     in
     let body = [
-        H.(h1 ~a:[a_class ["text-4xl font-bold text-center"]] [txtf "Job %s" job_name]);
+        H.h1 ~a:[H.a_class ["text-4xl font-bold text-center"]] [txtf "Job %s" job_name];
         H.div~a:[ H.a_class ["md:grid grid-cols-2 gap-8"] ] [
           H.div~a:[ ]  left_column;
           H.div~a:[  ] right_column
@@ -958,37 +958,37 @@ let compare_builds
           data @ H.h3 ~a:[H.a_id id;] [H.txt txt] :: code)
       ([], [])
       ([ ("opam-packages-removed", "Opam packages removed",
-          OpamPackage.Set.cardinal left, [ H.(code ~a:[a_class ["code-diff"]] (packages left)) ]) ;
+          OpamPackage.Set.cardinal left, [ H.code ~a:[H.a_class ["code-diff"]] (packages left) ]) ;
          ("opam-packages-installede", "New opam packages installed",
-          OpamPackage.Set.cardinal right, [ H.(code ~a:[a_class ["code-diff"]] (packages right)) ]) ;
+          OpamPackage.Set.cardinal right, [ H.code ~a:[H.a_class ["code-diff"]] (packages right) ]) ;
          ("opam-packages-version-diff", "Opam packages with version changes",
-          List.length version_diff, [ H.(code ~a:[a_class ["code-diff"]] (package_diffs version_diff)) ]) ;
+          List.length version_diff, [ H.code ~a:[H.a_class ["code-diff"]] (package_diffs version_diff) ]) ;
        ] @ (match duniverse with
           | Ok (duniverse_left, duniverse_right, duniverse_content_diff) ->
             [
               ("duniverse-dirs-removed", "Duniverse directories removed",
-               List.length duniverse_left, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_dirs duniverse_left)) ]) ;
+               List.length duniverse_left, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_dirs duniverse_left) ]) ;
               ("duniverse-dirs-installed", "New duniverse directories installed",
-               List.length duniverse_right, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_dirs duniverse_right)) ]) ;
+               List.length duniverse_right, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_dirs duniverse_right) ]) ;
               ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
-               List.length duniverse_content_diff, [ H.(code ~a:[a_class ["code-diff"]] (duniverse_diffs duniverse_content_diff)) ]) ;
+               List.length duniverse_content_diff, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_diffs duniverse_content_diff) ]) ;
             ]
           | Error `Msg msg -> [ "duniverse-dirs-error", "Duniverse parsing error", 1,  [ H.txt msg ] ]
         ) @ [
          ("opam-packages-opam-diff", "Opam packages with changes in their opam file",
           List.length opam_diff, opam_diffs opam_diff) ;
          ("env-removed", "Environment variables removed",
-          List.length removed_env, [ H.(code ~a:[a_class ["code-diff"]] (key_values removed_env)) ]) ;
+          List.length removed_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_values removed_env) ]) ;
          ("env-added", "New environment variables added",
-          List.length added_env, [ H.(code ~a:[a_class ["code-diff"]] (key_values added_env)) ]) ;
+          List.length added_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_values added_env) ]) ;
          ("env-changed", "Environment variables changed",
-          List.length changed_env, [ H.(code ~a:[a_class ["code-diff"]] (key_value_changes changed_env)) ]) ;
+          List.length changed_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_value_changes changed_env) ]) ;
          ("pkgs-removed", "System packages removed",
-          List.length removed_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_values removed_pkgs)) ]) ;
+          List.length removed_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_values removed_pkgs) ]) ;
          ("pkgs-added", "New system packages added",
-          List.length added_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_values added_pkgs)) ]) ;
+          List.length added_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_values added_pkgs) ]) ;
          ("pkgs-changed", "System packages changed",
-          List.length changed_pkgs, [ H.(code ~a:[a_class ["code-diff"]] (key_value_changes changed_pkgs)) ]) ;
+          List.length changed_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_value_changes changed_pkgs) ]) ;
        ])
   in
   layout
@@ -996,32 +996,32 @@ let compare_builds
     ~title:(Fmt.str "Comparing builds %a and %a"
               Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
-      H.(h1 ~a:[a_class ["text-center"]] [txt "Comparing builds"]);
-      H.(h2 ~a:[a_class ["text-center"]] [
-        txt "Builds ";
-        (a ~a:[ a_href @@
+      H.h1 ~a:[H.a_class ["text-center"]] [H.txt "Comparing builds"];
+      H.h2 ~a:[H.a_class ["text-center"]] [
+        H.txt "Builds ";
+        (H.a ~a:[ H.a_href @@
                    Link.Job_build.make
                      ~job_name:job_left
-                     ~build:build_left.uuid (); a_class ["link"] ]
+                     ~build:build_left.uuid (); H.a_class ["link"] ]
           [ txtf "%s@%a %a"
               job_left
               pp_ptime build_left.start
               pp_platform (Some build_left.platform)]);
-        txt " and ";
-        a ~a:[ a_href @@
+        H.txt " and ";
+        H.a ~a:[ H.a_href @@
                    Link.Job_build.make
                      ~job_name:job_right
-                     ~build:build_right.uuid (); a_class ["link"] ]
+                     ~build:build_right.uuid (); H.a_class ["link"] ]
           [ txtf "%s@%a %a"
               job_right
               pp_ptime build_right.start
               pp_platform (Some build_right.platform)];
-      ]);
-      H.(h3 ~a:[a_class ["text-right"]] [ a ~a:[
-          a_href @@ Link.Compare_builds.make
+      ];
+      H.h3 ~a:[H.a_class ["text-right"]] [ H.a ~a:[
+          H.a_href @@ Link.Compare_builds.make
             ~left:build_right.uuid
-            ~right:build_left.uuid (); a_class ["link"]  ]
-          [txt "Compare in reverse direction"]]) ;
+            ~right:build_left.uuid (); H.a_class ["link"]  ]
+          [H.txt "Compare in reverse direction"]] ;
       H.ul (List.rev items) ] @ data)
 
 let failed_builds ~start ~count builds =
