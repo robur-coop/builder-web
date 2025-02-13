@@ -674,7 +674,7 @@ module Job_build = struct
       ~next
     =
     [
-      H.(h3 ~a:[a_class ["my-4 text-xl font-semibold"]] [txt "Comparisons with other builds on the same platform"]);
+      H.(h3 [txt "Comparisons with other builds on the same platform"]);
       let opt_build (ctx, build') =
         match build' with
         | Some b when not (Uuidm.equal build.uuid b.Builder_db.Build.uuid) ->
