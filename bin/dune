@@ -23,4 +23,4 @@
  (name builder_miou_app)
  (modules builder_miou_app)
  (libraries builder_miou builder_db builder_system mirage-crypto-rng-miou-unix
-   fmt logs logs.cli logs.fmt fmt.tty cmdliner mirage-logs.cli caqti-miou.unix))
+   fmt logs logs.cli logs.fmt logs.threaded fmt.tty cmdliner mirage-logs.cli caqti-miou.unix))
