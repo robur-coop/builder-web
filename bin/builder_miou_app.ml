@@ -1,12 +1,3 @@
-module Log_404 =
-  (val Logs.(src_log @@
-             Src.create ~doc:"builder-web unrouted requests" "builder-web.unrouted")
-    : Logs.LOG)
-
-let default target server _req _ =
-  Log_404.debug (fun m -> m "Unrouted request for %S" target);
-  Vif.Response.with_string server `Not_found ""
-
 (* BEGIN: copy from miragevpn *)
 let reporter_with_ts ~dst () =
   let pp_tags f tags =
@@ -38,35 +29,30 @@ let reporter_with_ts ~dst () =
 let setup_log style_renderer level =
   Fmt_tty.setup_std_outputs ?style_renderer ();
   Logs.set_level level;
+  Logs_threaded.enable ();
   Logs.set_reporter (reporter_with_ts ~dst:Format.std_formatter ())
 (* END: copy from miragevpn *)
 
 let main () =
   Miou_unix.run @@ fun () ->
-  Logs.debug (fun m -> m "Starting miou stuff");
   let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, 3000)) in
   let cfg = Vif.config sockaddr in
   Caqti_miou.Switch.run @@ fun sw ->
-  (* XXX: This fails!? *)
-  Caqti_miou.Switch.check sw;
-  match
-    Caqti_miou_unix.connect_pool  ~sw
-      (Uri.make ~scheme:"sqlite3" ~path:"_builder/builder.sqlite3"
-         ~query:["create", ["false"]] ())
-  with
-  | Error e ->
-    Logs.err (fun m -> m "Database connect error: %a" Caqti_error.pp e);
+  let uri = Uri.make ~scheme:"sqlite3" ~path:"_builder/builder.sqlite3"
+    ~query:["create", ["false"]] () in
+  try
+    Vif.run ~cfg ~devices:Vif.Ds.[ Builder_miou.caqti ]
+      (Builder_miou.routes ())
+      { Builder_miou.sw; uri; filter_builds_later_than= 32 }
+  with Builder_miou.Wrong_version (appid, version) ->
+    if appid = Builder_db.application_id
+    then Printf.eprintf "Wrong database version: %Lu, expected %Lu"
+           version Builder_db.current_version
+    else Printf.eprintf "Wrong database application id: %lu, expected %lu"
+           appid Builder_db.application_id;
     exit 2
-  | Ok db ->
-    let devices =
-      Vif.[
-        D.rng;
-        Builder_miou.filter_builds_later_than_as_arg;
-      ]
-    in
-    Vif.run ~cfg ~default ~devices (Builder_miou.routes ()) db
-
 open Cmdliner
+
 let () =
   setup_log None None;
   let cmd =
