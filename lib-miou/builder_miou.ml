@@ -9,7 +9,13 @@ type cfg =
   ; uri : Uri.t
   ; filter_builds_later_than : int }
 
-let caqti : (cfg, (Caqti_miou.connection, Caqti_error.t) Caqti_miou_unix.Pool.t) Vif.D.device =
+type error = [ Caqti_error.t | `Not_found ]
+
+let pp_error ppf = function
+  | #Caqti_error.t as err -> Caqti_error.pp ppf err
+  | `Not_found -> Fmt.string ppf "Job not found"
+
+let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.D.device =
   let finally pool = Caqti_miou_unix.Pool.drain pool in
   Vif.D.device ~name:"caqti" ~finally [] @@ fun { sw; uri; _ } ->
   match Caqti_miou_unix.connect_pool ~sw uri with
@@ -100,21 +106,43 @@ let builds ?(filter_builds = false) ~all req server cfg =
   | Ok _ -> assert false
   | Error err ->
     let* () = Response.add ~field:"content-type" "text/plain" in
-    let str = Fmt.str "Database error: %a" Caqti_error.pp err in
+    let str = Fmt.str "Database error: %a" pp_error err in
     let* () = Response.with_string req str in
     Response.respond `Internal_server_error
 
-let job req (job : string) (platform : string option) _server _cfg =
+let job req job_name server _cfg =
+  let pool = Vif.G.device caqti server in
+  let platform = match Vif.Q.get req "platform" with
+    | platform :: _ -> Some platform
+    | [] -> None in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id, readme = Model.job_and_readme job_name conn in
+    let* builds = Model.builds_grouped_by_output job_id platform conn in
+    Ok (readme, builds) in
   let open Vif in
-  let* () = Response.with_string req (Fmt.str "job:%S, platform:%a" job Fmt.(Dump.option string) platform) in
-  Response.respond `OK
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    let* () = Response.add ~field:"content-type" "text/plain" in
+    let str = Fmt.str "Database error: %a" pp_error err in
+    let* () = Response.with_string req str in
+    Response.respond `Internal_server_error
+  | Ok (readme, builds) when is_accept_json req ->
+      let json = Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds in
+      let str = Yojson.Basic.to_string json in
+      let* () = Response.add ~field:"content-type" "application/json" in
+      let* () = Response.with_string req str in
+      Response.respond `OK
+  | Ok (readme, builds) ->
+      let html = Views.Job.make ~failed:false ~job_name ~platform ~readme builds in
+      let* () = Response.with_tyxml req html in
+      Response.respond `OK
 
 let[@warning "-33"] routes () =
   let open Vif.U in
   let open Vif.R in
-  let open Vif.T in
   [
     get (rel /?? nil) --> builds ~all:false ~filter_builds:true
   ; get (rel / "all-builds" /?? nil) --> builds ~all:true ~filter_builds:false
-  ; get (rel / "job" /% string /?? (("platform", string) *? nil)) --> job
+  ; get (rel / "job" /% string `Path /?? any) --> job
   ]
