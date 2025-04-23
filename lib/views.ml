@@ -986,3 +986,13 @@ let failed_builds ~start ~count builds =
              ]
        ])
 
+let robots_txt =
+{robots_txt|User-agent: *
+Disallow: /job/*/build/*/f/
+Disallow: /job/*/build/*/main-binary
+Disallow: /job/*/build/*/script
+Disallow: /job/*/build/*/console
+Disallow: /job/*/build/*/all.tar.gz
+Disallow: /job/*/build/*/exec
+Disallow: /compare/
+|robots_txt}
