@@ -715,6 +715,11 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
+  let robots _req =
+    let headers = [ "Content-Type", "text/plain; charset=utf-8" ] in
+    Dream.respond ~headers Views.robots_txt
+  in
+
   let w f req = or_error_response req (f req) in
 
   [
@@ -736,6 +741,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Get, "/robots.txt", robots;
     `Post, "/upload", (Authorization.authenticate (w upload));
     `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   ]
