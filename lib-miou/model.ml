@@ -31,11 +31,11 @@ let builds_grouped_by_output job_id platform (module Db : CONN) =
   Ok (List.rev lst)
 
 let builds_grouped_by_output_with_failed job_id platform ((module Db : CONN) as db) =
-  let+ builds = builds_grouped_by_output job_id platform db in
-  let+ failed = Db.collect_list Builder_db.Build.get_failed_builds (job_id, platform) in
+  let* builds = builds_grouped_by_output job_id platform db in
+  let* failed = Db.collect_list Builder_db.Build.get_failed_builds (job_id, platform) in
   let failed = List.map (fun b -> b, None) failed in
   let cmp (a, _) (b, _) = Ptime.compare b.Builder_db.Build.start a.Builder_db.Build.start in
-  List.merge cmp builds failed
+  Result.ok (List.merge cmp builds failed)
 
 let not_found = function
   | None -> Error `Not_found
@@ -50,3 +50,10 @@ let job_and_readme job (module Db : CONN) =
   let* readme_id = Db.find Builder_db.Tag.get_id_by_name "readme.md" in
   let* readme = Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) in
   Ok (job_id, readme)
+
+let latest_successful_build job_id platform (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest_successful (job_id, platform)
+
+let latest_successful_build_uuid job_id platform db =
+  let* build = latest_successful_build job_id platform db in
+  Option.map (fun build -> build.Builder_db.Build.uuid) build |> Result.ok

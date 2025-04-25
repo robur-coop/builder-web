@@ -1,9 +1,9 @@
-(* FIXME: log source *)
-module Log = Logs
+let src = Logs.Src.create "builder.miou"
 
-exception Wrong_version  of int32 * int64
+module Log = (val Logs.src_log src : Logs.LOG)
 
-(* partial *)
+exception Wrong_version of int32 * int64
+
 type cfg =
   { sw : Caqti_miou.Switch.t
   ; uri : Uri.t
@@ -14,6 +14,8 @@ type error = [ Caqti_error.t | `Not_found ]
 let pp_error ppf = function
   | #Caqti_error.t as err -> Caqti_error.pp ppf err
   | `Not_found -> Fmt.string ppf "Job not found"
+
+let hd_opt = function x :: _ -> Some x | [] -> None
 
 let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.D.device =
   let finally pool = Caqti_miou_unix.Pool.drain pool in
@@ -112,9 +114,7 @@ let builds ?(filter_builds = false) ~all req server cfg =
 
 let job req job_name server _cfg =
   let pool = Vif.G.device caqti server in
-  let platform = match Vif.Q.get req "platform" with
-    | platform :: _ -> Some platform
-    | [] -> None in
+  let platform = hd_opt (Vif.Q.get req "platform") in
   let fn conn =
     let ( let* ) = Result.bind in
     let* job_id, readme = Model.job_and_readme job_name conn in
@@ -138,6 +138,55 @@ let job req job_name server _cfg =
       let* () = Response.with_tyxml req html in
       Response.respond `OK
 
+let job_with_failed req job_name server _cfg =
+  let pool = Vif.G.device caqti server in
+  let platform = hd_opt (Vif.Q.get req "platform") in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id, readme = Model.job_and_readme job_name conn in
+    let* builds = Model.builds_grouped_by_output_with_failed job_id platform conn in
+    Ok (readme, builds) in
+  let open Vif in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+      let* () = Response.add ~field:"content-type" "text/plain" in
+      let str = Fmt.str "Database error: %a" pp_error err in
+      let* () = Response.with_string req str in
+      Response.respond `Internal_server_error
+  | Ok (readme, builds) when is_accept_json req ->
+      let json = Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds in
+      let str = Yojson.Basic.to_string json in
+      let* () = Response.add ~field:"content-type" "application/json" in
+      let* () = Response.with_string req str in
+      Response.respond `OK
+  | Ok (readme, builds) ->
+      let html = Views.Job.make ~failed:true ~job_name ~platform ~readme builds in
+      let* () = Response.with_tyxml req html in
+      Response.respond `OK
+
+let redirect_latest req job_name server _cfg =
+  let pool = Vif.G.device caqti server in
+  let platform = hd_opt (Vif.Q.get req "platform") in
+  let artifact = String.empty in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id = Model.job_id job_name conn in
+    let* job_id = Model.not_found job_id in
+    let* build = Model.latest_successful_build_uuid job_id platform conn in
+    Model.not_found build in
+  let open Vif in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+      let* () = Response.add ~field:"content-type" "text/plain" in
+      let str = Fmt.str "Database error: %a" pp_error err in
+      let* () = Response.with_string req str in
+      Response.respond `Internal_server_error
+  | Ok build ->
+    let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
+    let* () = Response.add ~field:"Location" uri in
+    let* () = Response.with_string req String.empty in
+    Response.respond `Moved_permanently
+
 let[@warning "-33"] routes () =
   let open Vif.U in
   let open Vif.R in
@@ -145,4 +194,6 @@ let[@warning "-33"] routes () =
     get (rel /?? nil) --> builds ~all:false ~filter_builds:true
   ; get (rel / "all-builds" /?? nil) --> builds ~all:true ~filter_builds:false
   ; get (rel / "job" /% string `Path /?? any) --> job
+  ; get (rel / "job" /% string `Path / "failed" /?? any) --> job_with_failed
+  ; get (rel / "job" /% string `Path / "build" / "latest" /?? any) --> redirect_latest
   ]
