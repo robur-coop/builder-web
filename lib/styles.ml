@@ -39,12 +39,16 @@ html {
 }
 
 #robur-logo {
-    transform: translate(-20%, 100%) rotate(270deg);
-    width: 60em;
+    transform: translate(-30%, 100%) rotate(270deg);
     position: fixed;
 }
 
 @media (max-width: 767px) {
+    #robur-logo {
+        display: none !important; /* Hide on small screens */
+    }
+}
+@media (max-height: 740px) {
     #robur-logo {
         display: none !important; /* Hide on small screens */
     }
