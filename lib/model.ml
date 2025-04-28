@@ -75,7 +75,13 @@ let build_artifact_stream_data datadir file =
            (* XXX(reynir): we don't handle Unix_error exceptions here *)
            let* l = Lwt_unix.read fd buf 0 (Bytes.length buf) in
            if l > 0 then
-             let* () = write (Bytes.sub_string buf 0 l) in
+             let* () =
+               let s =
+                 if l = Bytes.length buf then
+                   Bytes.unsafe_to_string buf
+                 else Bytes.sub_string buf 0 l in
+               write s
+             in
              loop ()
            else
              close ()
