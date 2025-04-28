@@ -39,7 +39,7 @@ html {
 }
 
 #robur-logo {
-    transform: translate(-30%, 100%) rotate(270deg);
+    transform: translate(-35%, 100%) rotate(270deg);
     position: fixed;
 }
 
