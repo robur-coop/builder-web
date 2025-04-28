@@ -455,7 +455,9 @@ module Job = struct
             H.h2 ~a:[H.a_id "readme";] [H.txt "README"];
             H.a ~a:[H.a_href "#builds"; H.a_class ["link"]] [H.txt "Skip to builds"];
            ];
-          H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          H.article [
+            H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          ];
         ]
     )
 

@@ -267,6 +267,10 @@ video {
     overflow-wrap: break-word;
 }
 
+article {
+    border: solid;
+}
+
 @media (min-width:640px) {
 	.container {
 		max-width: 640px
