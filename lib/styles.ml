@@ -93,19 +93,34 @@ abbr:where([title]) {
 	text-decoration: underline dotted
 }
 
-h1,
-h2,
-h3,
-h4,
-h5,
+h1 {
+    font-size: 2.5rem;  /* 40px */
+    font-weight: 700;   /* Bold */
+}
+
+h2 {
+    font-size: 2rem;    /* 32px */
+    font-weight: 600;
+}
+
+h3 {
+    font-size: 1.75rem; /* 28px */
+    font-weight: 600;
+}
+
+h4 {
+    font-size: 1.5rem;  /* 24px */
+    font-weight: 500;
+}
+
+h5 {
+    font-size: 1.25rem; /* 20px */
+    font-weight: 500;
+}
+
 h6 {
-	font-size: inherit;
-	font-weight: inherit;
-	margin-top: 1rem;
-	margin-bottom: 1rem;
-	font-size: 1.25rem;
-	line-height: 1.75rem;
-	font-weight: 600;
+    font-size: 1rem;    /* 16px */
+    font-weight: 500;
 }
 
 a {
