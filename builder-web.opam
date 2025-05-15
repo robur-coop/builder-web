@@ -44,7 +44,7 @@ depends: [
   "uri"
   "fmt" {>= "0.8.7"}
   "cmarkit" {>= "0.3.0"}
-  "tar" {>= "3.0.0"}
+  "tar" {>= "3.3.0"}
   "tar-unix" {>= "3.0.0"}
   "cachet" {>= "0.0.2"}
   "solo5-elftool" {>= "0.4.0"}

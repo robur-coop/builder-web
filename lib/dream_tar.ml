@@ -43,7 +43,7 @@ let header_of_file mod_time (file : Builder_db.file) =
 let contents datadir file : unit -> (string option, _, _) Tar.t =
   let state = ref `Initial in
   let dispenser () =
-    let ( let* ) = Tar.( let* ) in
+    let open Tar.Syntax in
     let src = Fpath.append datadir (Model.artifact_path file) in
     let* state' =
       match !state with

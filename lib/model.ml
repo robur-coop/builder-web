@@ -54,6 +54,45 @@ let build_artifact_by_id id (module Db : CONN) =
 let build_artifact_data datadir file =
   read_file datadir (artifact_path file)
 
+let build_artifact_stream_data datadir file =
+  let open Lwt.Syntax in
+  let filepath = Fpath.(datadir // artifact_path file) in
+  Lwt.catch
+    (fun () -> Lwt_result.ok (Lwt_unix.openfile (Fpath.to_string filepath) Unix.[ O_RDONLY ] 0))
+    (function
+      | Unix.Unix_error (e, _, _) ->
+        Log.warn (fun m -> m "Error reading local file %a: %s"
+                      Fpath.pp filepath (Unix.error_message e));
+        Lwt.return_error (`File_error filepath)
+      | e -> Lwt.reraise e)
+  >|= fun fd ->
+  fun ~write ~close ->
+    Lwt.finalize
+      (fun () ->
+         let buf = Bytes.create 65536 in
+         Bytes.fill buf 0 (Bytes.length buf) '\000';
+         let rec loop () =
+           (* XXX(reynir): we don't handle Unix_error exceptions here *)
+           let* l = Lwt_unix.read fd buf 0 (Bytes.length buf) in
+           if l > 0 then
+             let* () =
+               let s =
+                 if l = Bytes.length buf then
+                   Bytes.unsafe_to_string buf
+                 else Bytes.sub_string buf 0 l in
+               write s
+             in
+             loop ()
+           else
+             close ()
+         in
+         loop ())
+      (fun () ->
+         Lwt.catch (fun () -> Lwt_unix.close fd)
+           (function
+             | Unix.Unix_error _ -> Lwt.return_unit
+             | e -> Lwt.reraise e))
+
 let build_artifacts build (module Db : CONN) =
   Db.collect_list Builder_db.Build_artifact.get_all_by_build build >|=
   List.map snd

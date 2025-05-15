@@ -466,16 +466,18 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     | Some etag' when etag = etag' ->
       Dream.empty `Not_Modified |> Lwt_result.ok
     | _ ->
-      Model.build_artifact_data datadir file
-      |> if_error "Error getting build artifact"
-          ~log:(fun e -> Log.warn (fun m -> m "Error getting build artifact data for file %a: %a"
-                           Fpath.pp file.Builder_db.filepath
-                           pp_error e)) >>= fun data ->
       let headers = [
         "Content-Type", mime_lookup file.Builder_db.filepath;
         "ETag", etag;
       ] in
-      Dream.respond ~headers data |> Lwt_result.ok
+      Model.build_artifact_stream_data datadir file
+      |> if_error "Error getting build artifact"
+          ~log:(fun e -> Log.warn (fun m -> m "Error getting build artifact data for file %a: %a"
+                           Fpath.pp file.Builder_db.filepath
+                           pp_error e)) >>= fun fn ->
+      Dream.stream ~headers
+        (fun stream -> fn ~write:(Dream.write stream) ~close:(fun () -> Dream.close stream))
+      |> Lwt_result.ok
   in
 
   let job_build_static_file (file : [< `Console | `Script ]) req =
@@ -715,6 +717,11 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
       >>= fun () -> Dream.respond "" |> Lwt_result.ok
   in
 
+  let robots _req =
+    let headers = [ "Content-Type", "text/plain; charset=utf-8" ] in
+    Dream.respond ~headers Views.robots_txt
+  in
+
   let w f req = or_error_response req (f req) in
 
   [
@@ -736,6 +743,7 @@ let routes ~datadir ~cachedir ~configdir ~expired_jobs =
     `Get, "/all-builds", (w (builds ~all:true));
     `Get, "/hash", (w hash);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Get, "/robots.txt", robots;
     `Post, "/upload", (Authorization.authenticate (w upload));
     `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   ]

@@ -453,7 +453,9 @@ module Job = struct
             H.h2 ~a:[H.a_id "readme";] [H.txt "README"];
             H.a ~a:[H.a_href "#builds"; H.a_class ["link"]] [H.txt "Skip to builds"];
            ];
-          H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          H.article [
+            H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          ];
         ]
     )
 
@@ -1054,3 +1056,13 @@ let failed_builds ~start ~count builds =
              ]
        ])
 
+let robots_txt =
+{robots_txt|User-agent: *
+Disallow: /job/*/build/*/f/
+Disallow: /job/*/build/*/main-binary
+Disallow: /job/*/build/*/script
+Disallow: /job/*/build/*/console
+Disallow: /job/*/build/*/all.tar.gz
+Disallow: /job/*/build/*/exec
+Disallow: /compare/
+|robots_txt}

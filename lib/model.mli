@@ -19,6 +19,10 @@ val build_artifact_by_id : [`build_artifact] Builder_db.id -> Caqti_lwt.connecti
 val build_artifact_data : Fpath.t -> Builder_db.file ->
   (string, [> error ]) result Lwt.t
 
+val build_artifact_stream_data : Fpath.t -> Builder_db.file ->
+  (write:(string -> unit Lwt.t) -> close:(unit -> 'a Lwt.t) -> 'a Lwt.t,
+   [> `File_error of Fpath.t ]) Lwt_result.t
+
 val build_artifacts : [`build] Builder_db.id -> Caqti_lwt.connection ->
   (Builder_db.file list, [> Caqti_error.call_or_retrieve ]) result Lwt.t
 
