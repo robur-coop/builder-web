@@ -608,6 +608,7 @@ let exec_of_build datadir uuid (module Db : CONN) =
   read_file datadir console >>= fun console ->
   let out = console_of_string console in
   Db.collect_list Builder_db.Build_artifact.get_all_by_build build_id >>= fun artifacts ->
+  readme job_name (module Db) >>= fun readme_opt ->
   Lwt_list.fold_left_s (fun acc (_id, ({ filepath; _ } as file)) ->
       match acc with
       | Error _ as e -> Lwt.return e
@@ -615,6 +616,11 @@ let exec_of_build datadir uuid (module Db : CONN) =
         build_artifact_data datadir file >>= fun data ->
         Lwt.return (Ok ((filepath, data) :: acc)))
     (Ok []) artifacts >>= fun data ->
+  let data =
+    match readme_opt with
+    | None -> data
+    | Some readme -> (Fpath.v "README.md", readme) :: data
+  in
   let exec = (job, uuid, out, start, finish, result, data) in
   let data = Builder.Asn.exec_to_str exec in
   Lwt.return (Ok data)
