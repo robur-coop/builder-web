@@ -39,26 +39,20 @@ html {
 }
 
 #robur-logo {
-    transform: translate(-35%, 100%) rotate(270deg);
-    position: fixed;
+  @apply fixed z-10;
+  transform: translate(-20%, 100%) rotate(270deg);
+  max-width: 40vw;
+  max-height: 90vh;
+  bottom: 2rem;
+  left: 0;
+  pointer-events: none;
 }
 
-@media (max-width: 767px) {
-    #robur-logo {
-        display: none !important; /* Hide on small screens */
-    }
+@media (max-width: 767px), (max-height: 740px) {
+  #robur-logo {
+    display: none !important;
+  }
 }
-@media (max-height: 740px) {
-    #robur-logo {
-        display: none !important; /* Hide on small screens */
-    }
-}
-
-#robur-logo {
-    transform: translate(-20%, 100%) rotate(270deg);
-    width: 60em;
-}
-
 
 nav ul {
 	display: flex;
