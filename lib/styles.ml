@@ -39,12 +39,13 @@ html {
 }
 
 #robur-logo {
-  @apply fixed z-10;
+  position: fixed;
+  top: 30%;
+  left: 0;
   transform: translate(-20%, 100%) rotate(270deg);
   max-width: 40vw;
   max-height: 90vh;
-  bottom: 2rem;
-  left: 0;
+  z-index: 10;
   pointer-events: none;
 }
 
@@ -53,6 +54,7 @@ html {
     display: none !important;
   }
 }
+
 
 nav ul {
 	display: flex;
