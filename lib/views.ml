@@ -138,9 +138,8 @@ let layout
             ]
           ];
           H.main body
-          ];
-          H.main body
         ];
+
 
         H.script
         (H.txt "
@@ -174,9 +173,7 @@ let layout
             // Attach event listener (in case onclick fails)
             themeToggle.addEventListener('click', toggleTheme);
           });
-      ")
-
-      ])
+      ")])
 
 let toggleable ?(hidden=true) ~id ~description content =
   let checked = if hidden then [] else H.[a_checked ()] in
