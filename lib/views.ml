@@ -11,13 +11,13 @@ let check_icon result =
   match result with
   | Builder.Exited 0 ->
     H.span ~a:H.[
-        a_style "color: green; cursor: pointer;";
+        a_class ["text-primary-500 cursor-pointer"];
         a_titlef "%a" Builder.pp_execution_result result;
       ]
       [H.txt "☑"]
   | _ ->
     H.span ~a:H.[
-        a_style "color: red; cursor: pointer;";
+        a_class ["text-secondary-500 cursor-pointer"];
         a_titlef "%a" Builder.pp_execution_result result;
       ]
       [H.txt "☒"]
@@ -31,52 +31,6 @@ type nav = [
 
 let pp_platform =
   Fmt.(option ~none:(any "") (append (any "on ") string))
-
-let static_css = Tyxml.Html.Unsafe.data {|
-body {
-  margin: 40px auto;
-  line-height: 1.6;
-  color: #444;
-  background: rgb(200,200,200);
-  padding: 0 10px;
-}
-nav ul {
-  display: flex;
-  list-style: none;
-}
-nav ul li::before {
-  content: "→";
-}
-nav ul li:first-child::before {
-  content: "";
-}
-nav a {
-  padding: .5em 1em;
-}
-h1,h2,h3{line-height:1.2}
-.output-ts {
-  white-space: nowrap;
-  cursor: pointer;
-  user-select: none;
-}
-.output-ts a {text-decoration: none;}
-.output-ts a:hover {text-decoration: underline;}
-.output-code {
-  overflow: visible;
-  white-space: pre;
-}
-.toggleable {
-  display: none;
-}
-.toggleable-descr {
-  cursor: pointer;
-  text-decoration: underline;
-  user-select: none;
-}
-:checked + .toggleable {
-  display: block;
-}
-|}
 
 let make_breadcrumbs nav =
   let to_nav kvs =
@@ -131,36 +85,95 @@ let make_breadcrumbs nav =
 let layout
     ?include_static_css
     ?(nav=`Default)
-    ?(manual_width=false)
     ~title
     body
   =
   let breadcrumb = make_breadcrumbs nav in
   (*> Note: Last declared CSS wins - so one can override here*)
-  let static_css = static_css :: Option.to_list include_static_css
-  in
-  let body =
-    let style_grid_container = H.a_style "\
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      min-width: 83em;
-    "
-    and style_grid = H.a_style @@
-      if manual_width then "" else "\
-        width: 76%;\
-      "
-    in
-    [ H.div ~a:[ style_grid_container ]
-        [ H.div ~a:[ style_grid ] body ]]
+  let static_css = Styles.static_css :: Option.to_list include_static_css
   in
   H.html
     (H.head (H.title (H.txt title))
-       [H.style ~a:H.[a_mime_type "text/css"] static_css])
-    (H.body [
-        breadcrumb;
-        H.main body
-      ])
+       [
+        H.meta ~a:[ H.a_charset "UTF-8" ] ();
+        H.meta ~a:[H.a_name "viewport"; H.a_content "width=device-width, initial-scale=1.0";]();
+        H.style ~a:H.[a_mime_type "text/css"] static_css])
+    (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly w-full text-gray-800 dark:text-gray-50 mx-auto p-10 md:grid md:grid-cols-4"]] [
+        H.div ~a:[H.a_class ["text-center md:col-span-1 hidden md:block"]; H.a_style ""] [
+          H.img ~a:[H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
+        ];
+        H.div ~a:[H.a_class ["mx-auto w-full md:col-span-3 px-4"]] [
+          H.div ~a:[H.a_class ["md:flex justify-between items-center"]] [
+            H.div [breadcrumb];
+            H.div ~a:[H.a_class ["flex items-center space-x-4"]] [
+              H.form ~a:[H.a_action "/hash"; H.a_method `Get; H.a_class ["my-4 p-4"]] [
+                H.label ~a:[H.a_class ["block text-lg font-semibold my-2 text-right"]] [
+                      H.txt "Search artifact by SHA256";
+                    ];
+                H.div ~a:[H.a_class ["w-full flex space-x-2 justify-end justify-items-center items-center"]] [
+                  H.div  [
+                    H.input ~a:[
+                      H.a_input_type `Search;
+                      H.a_id "sha256";
+                      H.a_required ();
+                      H.a_name "sha256";
+                      H.a_class ["w-full border bg-gray-200 text-gray-800 rounded px-3 py-2 focus:ring-0 focus:ring-primary-200"]
+                    ] ()
+                  ];
+                  H.div ~a:[H.a_class ["text-center"]] [
+                    H.input ~a:[
+                      H.a_input_type `Submit;
+                     H.a_value "Search";
+                      H.a_class ["my-4 bg-primary-500 text-gray-50 cursor-pointer font-bold py-2 px-4 rounded hover:bg-primary-800"]
+                    ] ()
+                  ]
+                ]
+              ];
+              H.button ~a:[
+                H.a_id "theme-toggle";
+                H.a_class ["p-2 rounded-full border border-gray-300 bg-gray-100 dark:bg-gray-700 dark:text-white hover:bg-gray-200 dark:hover:bg-gray-600"];
+              ] [
+                H.txt "🌙"
+              ]
+            ]
+          ];
+          H.main body
+        ];
+
+
+        H.script
+        (H.txt "
+          document.addEventListener('DOMContentLoaded', function () {
+            const themeToggle = document.getElementById('theme-toggle');
+            const html = document.documentElement;
+            const logo = document.getElementById('robur-logo'); // Ensure the image has this ID
+
+            function updateTheme() {
+              const isDark = html.classList.contains('dark');
+              themeToggle.innerText = isDark ? '☀️' : '🌑';
+              logo.src = isDark
+                ? 'https://i.ibb.co/Y4YsvcDb/robur-logo.png'  // Dark mode logo
+                : 'https://i.ibb.co/r2DRDdTt/robur-logo-black-writing.png'; // Light mode logo
+            }
+
+            function toggleTheme() {
+              html.classList.toggle('dark');
+              localStorage.setItem('theme', html.classList.contains('dark') ? 'dark' : 'light');
+              updateTheme();
+            }
+
+            // Load user preference from localStorage
+            if (localStorage.getItem('theme') === 'dark') {
+              html.classList.add('dark');
+            }
+
+            // Set correct icon and logo on load
+            updateTheme();
+
+            // Attach event listener (in case onclick fails)
+            themeToggle.addEventListener('click', toggleTheme);
+          });
+      ")])
 
 let toggleable ?(hidden=true) ~id ~description content =
   let checked = if hidden then [] else H.[a_checked ()] in
@@ -196,14 +209,14 @@ let artifact
       ~build:build.Builder_db.Build.uuid
       ~artifact:(`File filepath) ()
   in
-  [
-    H.a ~a:H.[a_href artifact_link] [
-      if basename then H.txt (Fpath.basename filepath)
-      else txtf "%a" Fpath.pp filepath
+  H.div [
+    H.a ~a:[H.a_href artifact_link; H.a_class ["link"]] [
+      (if basename then H.txt ("Download " ^ Fpath.basename filepath)
+      else txtf "Download %a" Fpath.pp filepath);
+      txtf " (%a)" Fmt.byte_size size;
     ];
-    H.txt " ";
-    H.code [txtf "SHA256:%s" (Ohex.encode sha256)];
-    txtf " (%a)" Fmt.byte_size size;
+    H.br ();
+    H.p ~a:[H.a_class ["wrap"]] [txtf "SHA256:%s" (Ohex.encode sha256)];
   ]
 
 let page_not_found ~target ~referer =
@@ -236,7 +249,7 @@ let viz_not_found =
         [ txtf "%s" title ];
     ]
   in
-  let static_css = static_css :: [ Tyxml.Html.Unsafe.data "\
+  let static_css = Styles.static_css :: [ Tyxml.Html.Unsafe.data "\
     body { background: rgb(191,191,191); }\
   "]
   in
@@ -251,128 +264,161 @@ let viz_not_found =
 
 module Builds = struct
 
-  let data =
-    {|
-# Reproducible OPAM builds
-
-This website offers binary MirageOS unikernels and supplementary OS packages.
-If you want to use our binary packages and setup unikernels, follow
-[these instructions](https://robur.coop/Projects/Reproducible_builds).
-The unikernels are statically linked executables where the execution target is
-independent of the build platform - so even if they're compiled on a FreeBSD
-system they can be run on a Linux or OpenBSD host. Many are executed using a
-[solo5](https://github.com/solo5/solo5) tender.
-The filename suffix of the unikernel binary indicate the expected execution environment:
-- `.hvt`: hardware virtualized - requires `solo5-hvt`
-  ([Linux KVM](https://www.linux-kvm.org/page/Main_Page),
-   [FreeBSD BHyve](https://wiki.freebsd.org/bhyve),
-   [OpenBSD VMM](https://man.openbsd.org/vmm)),
-- `.spt`: sandboxed process - requires `solo5-spt` (Linux with seccomp),
-- `.xen`:  Xen PVH virtual machine (on a Xen or QubesOS host),
-- `.virtio`: any virtio environment (qemu, GCE, KVM, BHyve),
-- `.muen`: on [muen](https://muen.sk).
-
-A persistent link to the latest successful build is available as
-`/job/*jobname*/build/latest/`. Each build can be reproduced with
-[orb](https://github.com/robur-coop/orb/). The builds are scheduled and executed
-daily by [builder](https://github.com/robur-coop/builder/). This web interface is
-[builder-web](https://git.robur.coop/robur/builder-web/). Read further information
-[on our project page](https://robur.coop/Projects/Reproducible_builds). This
-work has been funded by the European Union under the
-[NGI Pointer](https://pointer.ngi.eu) program. Contact team ATrobur.coop if you
-have questions or suggestions.
-|}
-
   let make_header =
-    [
-      H.Unsafe.data (Utils.md_to_html data);
-      H.form ~a:H.[a_action "/hash"; a_method `Get] [
-        H.label [
-          H.txt "Search artifact by SHA256";
-          H.br ();
-          H.input ~a:H.[
-              a_input_type `Search;
-              a_id "sha256";
-              a_name "sha256";
-            ] ();
+    H.[
+      div ~a:[a_class ["header container mx-auto px-4 py-8 text-gray-800 w-full"]] [
+        (* Logo Section *)
+        div ~a:[a_class ["flex items-center my-4"]] [
+          ];
+          h1 ~a:[a_class ["md:text-7xl text-4xl font-bold text-primary-500 text-center"]]
+            [txt "Reproducible OPAM Builds"]
         ];
-        H.input ~a:H.[
-            a_input_type `Submit;
-            a_value "Search";
-          ] ();
-      ];
-    ]
 
-  let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
-    [
-      check_icon latest_build.Builder_db.Build.result;
-      H.txt " ";
-      H.a ~a:[
-        H.a_href @@ Link.Job.make ~job_name
-          ~queries:[ `Platform platform ] ()
+        div ~a:[a_class ["md:grid grid-cols-2 gap-4"]] [
+          div [
+            p ~a:[a_class ["text-lg my-4"]] [
+              txt "This website offers binary MirageOS unikernels and supplementary OS packages. ";
+              txt "If you want to use our binary packages and setup unikernels, follow ";
+              a ~a:[a_href "https://robur.coop/Projects/Reproducible_builds"; a_class ["link"]]
+                [txt "these instructions"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg my-4"]] [
+              txt "The unikernels are statically linked executables where the execution target is ";
+              txt "independent of the build platform - so even if they're compiled on a FreeBSD ";
+              txt "system they can be run on a Linux or OpenBSD host. Many are executed using a ";
+              a ~a:[a_href "https://github.com/solo5/solo5"; a_class ["link"]]
+                [txt "solo5"];
+              txt " tender."
+            ];
+          ];
+          div [
+            p ~a:[a_class ["text-lg my-4"]] [
+              txt "A persistent link to the latest successful build is available as ";
+              code ~a:[a_class ["px-2 py-1 rounded text-sm text-primary-500"]]
+                [txt "/job/*jobname*/build/latest/"];
+              txt ". Each build can be reproduced with ";
+              a ~a:[a_href "https://github.com/robur-coop/orb/"; a_class ["link"]]
+                [txt "orb"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg my-4"]] [
+              txt "The builds are scheduled and executed daily by ";
+              a ~a:[a_href "https://github.com/robur-coop/builder/"; a_class ["link"]]
+                [txt "builder"];
+              txt ". This web interface is ";
+              a ~a:[a_href "https://git.robur.coop/robur/builder-web/"; a_class ["link"]]
+                [txt "builder-web"];
+              txt ". Read further information ";
+              a ~a:[a_href "https://robur.coop/Projects/Reproducible_builds"; a_class ["link"]]
+                [txt "on our project page"];
+              txt "."
+            ];
+            p ~a:[a_class ["text-lg my-4"]] [
+              txt "This work has been funded by the European Union under the ";
+              a ~a:[a_href "https://pointer.ngi.eu"; a_class ["link"]]
+                [txt "NGI Pointer"];
+              txt " program. Contact team AT robur.coop if you have questions or suggestions."
+            ];
+          ];
+        ];
+        div ~a:[a_class ["my-4"]] [
+            h2
+            [txt "Execution Environments"];
+            ul ~a:[a_class ["list-disc list-inside text-lg space-y-2"]] [
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".xen: "]; txt "Xen PVH virtual machine (on a Xen or QubesOS host)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".virtio: "]; txt "any virtio environment (qemu, GCE, KVM, BHyve)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".muem: "]; txt "on muen"]
+            ];
+        ]
       ]
-        [H.txt platform];
-      H.txt " ";
-      H.a ~a:[
-        H.a_href @@ Link.Job_build.make
-          ~job_name
-          ~build:latest_build.Builder_db.Build.uuid ()]
-        [txtf "%a" pp_ptime latest_build.Builder_db.Build.start];
-      H.txt " ";
 
-    ]
-    @ artifact
-      ~basename:true
-      ~job_name
-      ~build:latest_build
-      ~file:latest_artifact
-    @ [ H.br () ]
 
-  let make_jobs jobs =
-    jobs |> List.map (fun (job_name, synopsis, platform_builds) ->
-        H.li (
-          [
-            H.a ~a:H.[a_href ("/job/" ^ job_name ^ "/")]
-              [H.txt job_name];
-            H.br ();
-            H.txt (Option.value ~default:"" synopsis);
-            H.br ()
-          ]
-          @ List.concat_map (make_platform_builds ~job_name) platform_builds
-        )
-      )
+    let make_platform_builds ~job_name (platform, latest_build, latest_artifact) =
+      H.[
+          div ~a:[a_class ["md:grid grid-cols-3 space-y-2 p-2 rounded-lg"]]
+            [
+              div ~a:[a_class ["flex items-center space-x-2"]]
+                [
+                  check_icon latest_build.Builder_db.Build.result;
+                  a ~a:[
+                    a_href @@ Link.Job.make ~job_name ~queries:[ `Platform platform ] ();
+                    a_class ["link font-medium"]
+                  ]
+                  [txt platform]
+                ];
+              div ~a:[a_class ["text-gray-300"]]
+                [ a ~a:[
+                    a_href @@ Link.Job_build.make
+                      ~job_name
+                      ~build:latest_build.Builder_db.Build.uuid ();
+                    a_class ["link"]
+                  ]
+                  [txtf "%a" pp_ptime latest_build.Builder_db.Build.start]; ];
+
+              div ~a:[a_class [""]]
+                [ artifact ~basename:true ~job_name ~build:latest_build ~file:latest_artifact ];
+            ];
+        ]
+
+      let make_jobs jobs =
+        H.div
+              ~a:[H.a_class ["min-w-full"]]
+        (List.map (fun (job_name, synopsis, platform_builds) ->
+              H.div ~a:[H.a_class ["md:grid md:grid-cols-4 divide-y dark:divide-gray-200 divide-gray-600"]]
+                [
+                  H.div
+                    ~a:[H.a_class ["px-6 py-4 font-medium md:col-span-1"]]
+                    [
+                      H.a ~a:[H.a_href ("/job/" ^ job_name ^ "/"); H.a_class ["link font-bold"]]
+                        [H.txt job_name];
+                      H.br();
+                      H.txt (Option.value ~default:"" synopsis);
+                    ];
+
+                  H.div
+                    ~a:[H.a_class ["px-4 py-4 text-gray-400 block md:col-span-3"]]
+                    [
+                      H.div ~a:[H.a_class ["md:flex flex-col wrap"]]
+                        (List.concat_map (make_platform_builds ~job_name) platform_builds);
+                    ];
+                ];
+                )
+            jobs)
 
   let make_body section_job_map =
     let aux  section jobs acc =
       acc @ [
-        H.h2 [ H.txt section ];
-        H.ul (make_jobs jobs)
+      H.div ~a:[H.a_class ["my-4 py-4"]] [
+          H.h2 ~a:[H.a_class ["uppercase font-bold text-2xl"]] [ H.txt section ];
+          make_jobs jobs;
+        ]
       ]
     in
     Utils.String_map.fold aux section_job_map []
 
   let make_failed_builds =
-    [ H.p [
-          H.txt "View the latest failed builds ";
-          H.a ~a:H.[a_href "/failed-builds"]
-            [H.txt "here"];
-          H.txt ".";
-        ]]
+    [ H.div ~a:H.[a_class ["flex justify-center my-4"]] [
+        H.a ~a:H.[a_href "/failed-builds";
+                  a_class ["link-red font-semibold"]]
+          [H.txt "View Latest Failed Builds"];
+      ]]
 
   let make_all_or_active all =
-      [ H.p [
-            H.txt (if all then "View active jobs " else "View all jobs ");
-            H.a ~a:H.[a_href (if all then "/" else "/all-builds")]
-              [H.txt "here"];
-            H.txt ".";
-          ]]
+    [ H.div ~a:H.[a_class ["flex justify-center my-4"]] [
+        H.a ~a:H.[a_href (if all then "/" else "/all-builds");
+                  a_class ["link font-semibold"]]
+          [H.txt (if all then "View Active Jobs" else "View All Jobs")];
+      ]]
 
   let make ~all section_job_map =
     layout ~title:"Reproducible OPAM builds"
       (make_header
-       @ make_body section_job_map
-       @ make_failed_builds
-       @ make_all_or_active all)
+        @ make_body section_job_map
+        @ make_failed_builds
+        @ make_all_or_active all)
+
 
   let make_json ~all:_ section_job_map =
     let all_jobs =
@@ -396,39 +442,44 @@ end
 module Job = struct
 
   let make_header ~job_name ~platform ~readme =
-    H.h1 [txtf "Job %s %a" job_name pp_platform platform]
+    H.h1 ~a:[H.a_class ["text-4xl font-bold text-center my-4 py-4"]] [txtf "Job %s %a" job_name pp_platform platform]
     :: (
       match readme with
       | None -> []
       | Some data ->
         [
-          H.h2 ~a:H.[a_id "readme"] [H.txt "README"];
-          H.a ~a:H.[a_href "#builds"] [H.txt "Skip to builds"];
-          H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          H.div ~a:[H.a_class ["flex justify-between items-center"]] [
+            H.h2 ~a:[H.a_id "readme";] [H.txt "README"];
+            H.a ~a:[H.a_href "#builds"; H.a_class ["link"]] [H.txt "Skip to builds"];
+           ];
+          H.article ~a:[H.a_class ["p-4"]] [
+            H.Unsafe.data (Utils.md_to_html ~adjust_heading:2 data)
+          ];
         ]
     )
 
   let make_build ~job_name (build, main_binary) =
-    H.li (
+    H.li ~a:[H.a_class ["my-4 p-4 border-t-1"]] (
       [
-        check_icon build.Builder_db.Build.result;
-        txtf " %s " build.platform;
-        H.a ~a:H.[
-            a_href @@ Link.Job_build.make
+        H.div ~a:[H.a_class ["flex my-2"]] [
+          check_icon build.Builder_db.Build.result;
+          H.p ~a:[H.a_class ["text-xl px-2"]] [txtf " %s " build.platform;];
+        ];
+        H.a ~a:[
+            H.a_href @@ Link.Job_build.make
               ~job_name
-              ~build:build.Builder_db.Build.uuid () ]
+              ~build:build.Builder_db.Build.uuid (); H.a_class ["link"] ]
           [
             txtf "%a" pp_ptime build.Builder_db.Build.start;
           ];
-        H.txt " ";
       ]
       @ match main_binary with
       | Some main_binary ->
-        artifact
+        [artifact
           ~basename:true
           ~job_name
           ~build
-          ~file:main_binary
+          ~file:main_binary]
       | None ->
         [ txtf "Build failure: %a" Builder.pp_execution_result
             build.Builder_db.Build.result ]
@@ -436,8 +487,10 @@ module Job = struct
 
   let make_builds ~failed ~job_name ~platform builds =
     [
-      H.h2 ~a:H.[a_id "builds"] [H.txt "Builds"];
-      H.a ~a:H.[a_href "#readme"] [H.txt "Back to readme"];
+     H.div ~a:[H.a_class ["flex justify-between items-center"]] [
+      H.h2 ~a:[H.a_id "builds"] [H.txt "Builds"];
+      H.a ~a:[H.a_href "#readme"; H.a_class ["link"]] [H.txt "Back to readme"];
+     ];
       H.ul (builds |> List.map (make_build ~job_name));
       let queries =
         platform |> Option.map (fun p -> `Platform p) |> Option.to_list
@@ -446,7 +499,7 @@ module Job = struct
         H.p [
           H.txt "Excluding failed builds " ;
           H.a ~a:H.[
-              a_href @@ Link.Job.make ~job_name ~queries ()
+              a_href @@ Link.Job.make ~job_name ~queries (); a_class ["link"]
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -454,7 +507,7 @@ module Job = struct
         H.p [
           H.txt "Including failed builds " ;
           H.a ~a:H.[
-              a_href @@ Link.Job.make_failed ~job_name ~queries ()
+              a_href @@ Link.Job.make_failed ~job_name ~queries (); a_class ["link-red"]
             ]
             [H.txt "here"] ;
           H.txt "." ]
@@ -531,16 +584,16 @@ module Job_build = struct
     let aux (file:Builder_db.file) =
       let sha256_hex = Ohex.encode file.sha256 in
       [
-        H.dt [
-          H.a ~a:H.[a_href @@ Link.Job_build_artifact.make
+      H.dt [
+          H.a ~a:[H.a_href @@ Link.Job_build_artifact.make
                       ~job_name
                       ~build:build_uuid
-                      ~artifact:(`File file.filepath) ()
+                      ~artifact:(`File file.filepath) ();
+                    H.a_class ["link"]
                    ]
-            [H.code [txtf "%a" Fpath.pp file.filepath]] ];
+            [H.code [txtf "%a" Fpath.pp file.filepath; txtf " (%a)" Fmt.byte_size file.size]] ];
         H.dd ([
-            H.code [H.txt "SHA256:"; H.txt sha256_hex];
-            txtf " (%a)" Fmt.byte_size file.size;
+            H.code ~a:[H.a_class ["wrap"]] [H.txt "SHA256:"; H.txt sha256_hex];
           ] @
             match main_binary, solo5_manifest with
             | Some main_binary, Some solo5_manifest when main_binary = file ->
@@ -550,7 +603,7 @@ module Job_build = struct
     in
     [
       H.h3 [H.txt "Build artifacts"];
-      H.dl (List.concat_map aux artifacts)
+      H.dl ~a:[H.a_class ["p-4 my-4"]] (List.concat_map aux artifacts)
     ]
 
   let make_reproductions
@@ -581,13 +634,15 @@ module Job_build = struct
         different_input_same_output
     in
     [
-      H.h3 [
+      H.div ~a:[H.a_class ["my-4"]] [
+        H.h3 [
         txtf "Reproduced by %d builds"
-          (List.length (same_input_same_output @ different_input_same_output))] ;
+          (List.length (same_input_same_output @ different_input_same_output))];
       H.ul @@ (
         same_input_same_output_html
         @ different_input_same_output_html
       )
+      ]
     ]
 
   let make_not_reproducible
@@ -626,7 +681,7 @@ module Job_build = struct
                    H.a ~a:[
                      H.a_href @@ Link.Compare_builds.make
                        ~left:b.uuid
-                       ~right:build.uuid () ]
+                       ~right:build.uuid () ; H.a_class ["link"] ]
                      [txtf "%a" pp_ptime b.start]]
           ]
         | _ -> []
@@ -651,27 +706,47 @@ module Job_build = struct
       ~latest ~next ~previous
     =
     [
-      H.h2 ~a:H.[a_id "build"] [txtf "Build %a" pp_ptime build.start];
-      H.p [txtf "Built on platform %s" build.platform ];
-      H.p [txtf "Build took %a." Ptime.Span.pp delta ];
-      H.p [txtf "Execution result: %a." Builder.pp_execution_result build.result];
+      H.h2 ~a:[H.a_id "build";] [txtf "Build %a" pp_ptime build.start];
+      H.div ~a:[H.a_class []] [
+        H.table
+          ~thead:
+            (H.thead
+                [
+                  H.tr ~a:[H.a_class ["border"]]
+                    [
+                      H.th [ H.txt "Platform" ];
+                      H.th [ H.txt "Duration" ];
+                      H.th [ H.txt "Execution Result" ];
+                    ];
+                ])
+                [
+                  H.tr ~a:[H.a_class ["text-center border"]]
+                  [
+                    H.td [ txtf "%s" build.platform ];
+                    H.td [ txtf "%a." Ptime.Span.pp delta ];
+                    H.td [ txtf "%a" Builder.pp_execution_result build.result ];
+                  ]
+                ];
+      ];
       H.h3 [H.txt "Build info"];
-      H.ul [
-        H.li [
-          H.a ~a:H.[
-              a_href @@ Link.Job_build_artifact.make
-                ~job_name
-                ~build:build.uuid
-                ~artifact:`Console ()
-            ] [H.txt "Console output"];
+      H.div ~a:[H.a_class ["my-4 md:flex justify-between items-center"]] [
+        H.div [
+          H.a ~a:[
+            H.a_href @@ Link.Job_build_artifact.make
+              ~job_name
+              ~build:build.uuid
+              ~artifact:`Console ();
+              H.a_class ["link"]
+          ] [H.txt "Console output -->"];
         ];
-        H.li [
-          H.a ~a:H.[
-              a_href @@ Link.Job_build_artifact.make
-                ~job_name
-                ~build:build.uuid
-                ~artifact:`Script ()
-            ] [H.txt "Build script"];
+        H.div [
+          H.a ~a:[
+            H.a_href @@ Link.Job_build_artifact.make
+              ~job_name
+              ~build:build.uuid
+              ~artifact:`Script ();
+              H.a_class ["link"]
+          ] [H.txt "Build script -->"];
         ]
       ];
     ]
@@ -811,22 +886,17 @@ and the rest of the unaccounted data.\
         ~same_input_different_output
         ~latest ~next ~previous
     in
-    let style_grid = H.a_style "display: flex; " in
-    let style_col_left =
-      H.a_style "width: 45em; min-width: 43em;" in
-    let style_col_right = H.a_style "width: 50%" in
     let body = [
-        H.h1 [txtf "Job %s" job_name];
-        H.div~a:[ style_grid ] [
-          H.div~a:[ style_col_left ]  left_column;
-          H.div~a:[ style_col_right ] right_column
+        H.h1 ~a:[H.a_class ["text-4xl font-bold text-center"]] [txtf "Job %s" job_name];
+        H.div~a:[ H.a_class ["md:grid grid-cols-2 gap-8"] ] [
+          H.div~a:[ ]  left_column;
+          H.div~a:[  ] right_column
         ]
     ]
     in
     layout
       ~nav:(`Build (job_name, build))
       ~title:(Fmt.str "Job %s %a" job_name pp_ptime build.start)
-      ~manual_width:true
       body
 
 end
@@ -864,10 +934,9 @@ let duniverse_diffs diffs =
       ]) diffs
 
 let opam_diffs diffs =
-  List.concat_map (fun pd ->
-      H.h4 [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
-      H.h5 [ H.txt "diff" ] ::
-      H.pre [ H.code [ H.txt pd.diff ] ] ::
+   List.concat_map (fun pd ->
+      H.h4 ~a:[H.a_class ["text-md text-primary-500"]] [ txtf "%a" Opamdiff.pp_opam_diff pd ] ::
+      H.pre [ H.code [H.txt pd.diff] ] ::
       H.br () :: [])
     diffs
 
@@ -886,41 +955,41 @@ let compare_builds
         if amount = 0 then
           items, data
         else
-          H.li [ H.a ~a:[H.a_href id_href] [txtf "%d %s" amount txt] ] :: items,
-          data @ H.h3 ~a:[H.a_id id] [H.txt txt] :: code)
+          H.li [ H.a ~a:[H.a_href id_href; H.a_class ["link"]] [txtf "%d %s" amount txt] ] :: items,
+          data @ H.h3 ~a:[H.a_id id;] [H.txt txt] :: code)
       ([], [])
       ([ ("opam-packages-removed", "Opam packages removed",
-          OpamPackage.Set.cardinal left, [ H.code (packages left) ]) ;
+          OpamPackage.Set.cardinal left, [ H.code ~a:[H.a_class ["code-diff"]] (packages left) ]) ;
          ("opam-packages-installede", "New opam packages installed",
-          OpamPackage.Set.cardinal right, [ H.code (packages right) ]) ;
+          OpamPackage.Set.cardinal right, [ H.code ~a:[H.a_class ["code-diff"]] (packages right) ]) ;
          ("opam-packages-version-diff", "Opam packages with version changes",
-          List.length version_diff, [ H.code (package_diffs version_diff) ]) ;
+          List.length version_diff, [ H.code ~a:[H.a_class ["code-diff"]] (package_diffs version_diff) ]) ;
        ] @ (match duniverse with
           | Ok (duniverse_left, duniverse_right, duniverse_content_diff) ->
             [
               ("duniverse-dirs-removed", "Duniverse directories removed",
-               List.length duniverse_left, [ H.code (duniverse_dirs duniverse_left) ]) ;
+               List.length duniverse_left, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_dirs duniverse_left) ]) ;
               ("duniverse-dirs-installed", "New duniverse directories installed",
-               List.length duniverse_right, [ H.code (duniverse_dirs duniverse_right) ]) ;
+               List.length duniverse_right, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_dirs duniverse_right) ]) ;
               ("duniverse-dirs-content-diff", "Duniverse directories with content changes",
-               List.length duniverse_content_diff, [ H.code (duniverse_diffs duniverse_content_diff) ]) ;
+               List.length duniverse_content_diff, [ H.code ~a:[H.a_class ["code-diff"]] (duniverse_diffs duniverse_content_diff) ]) ;
             ]
           | Error `Msg msg -> [ "duniverse-dirs-error", "Duniverse parsing error", 1,  [ H.txt msg ] ]
         ) @ [
          ("opam-packages-opam-diff", "Opam packages with changes in their opam file",
           List.length opam_diff, opam_diffs opam_diff) ;
          ("env-removed", "Environment variables removed",
-          List.length removed_env, [ H.code (key_values removed_env) ]) ;
+          List.length removed_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_values removed_env) ]) ;
          ("env-added", "New environment variables added",
-          List.length added_env, [ H.code (key_values added_env) ]) ;
+          List.length added_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_values added_env) ]) ;
          ("env-changed", "Environment variables changed",
-          List.length changed_env, [ H.code (key_value_changes changed_env) ]) ;
+          List.length changed_env, [ H.code ~a:[H.a_class ["code-diff"]] (key_value_changes changed_env) ]) ;
          ("pkgs-removed", "System packages removed",
-          List.length removed_pkgs, [ H.code (key_values removed_pkgs) ]) ;
+          List.length removed_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_values removed_pkgs) ]) ;
          ("pkgs-added", "New system packages added",
-          List.length added_pkgs, [ H.code (key_values added_pkgs) ]) ;
+          List.length added_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_values added_pkgs) ]) ;
          ("pkgs-changed", "System packages changed",
-          List.length changed_pkgs, [ H.code (key_value_changes changed_pkgs) ]) ;
+          List.length changed_pkgs, [ H.code ~a:[H.a_class ["code-diff"]] (key_value_changes changed_pkgs) ]) ;
        ])
   in
   layout
@@ -928,31 +997,31 @@ let compare_builds
     ~title:(Fmt.str "Comparing builds %a and %a"
               Uuidm.pp build_left.uuid Uuidm.pp build_right.uuid)
     ([
-      H.h1 [H.txt "Comparing builds"];
-      H.h2 [
+      H.h1 ~a:[H.a_class ["text-center"]] [H.txt "Comparing builds"];
+      H.h2 ~a:[H.a_class ["text-center"]] [
         H.txt "Builds ";
-        H.a ~a:H.[ a_href @@
+        (H.a ~a:[ H.a_href @@
                    Link.Job_build.make
                      ~job_name:job_left
-                     ~build:build_left.uuid () ]
+                     ~build:build_left.uuid (); H.a_class ["link"] ]
           [ txtf "%s@%a %a"
               job_left
               pp_ptime build_left.start
-              pp_platform (Some build_left.platform)];
+              pp_platform (Some build_left.platform)]);
         H.txt " and ";
-        H.a ~a:H.[ a_href @@
+        H.a ~a:[ H.a_href @@
                    Link.Job_build.make
                      ~job_name:job_right
-                     ~build:build_right.uuid () ]
+                     ~build:build_right.uuid (); H.a_class ["link"] ]
           [ txtf "%s@%a %a"
               job_right
               pp_ptime build_right.start
               pp_platform (Some build_right.platform)];
       ];
-      H.h3 [ H.a ~a:H.[
-          a_href @@ Link.Compare_builds.make
+      H.h3 ~a:[H.a_class ["text-right"]] [ H.a ~a:[
+          H.a_href @@ Link.Compare_builds.make
             ~left:build_right.uuid
-            ~right:build_left.uuid () ]
+            ~right:build_left.uuid (); H.a_class ["link"]  ]
           [H.txt "Compare in reverse direction"]] ;
       H.ul (List.rev items) ] @ data)
 
