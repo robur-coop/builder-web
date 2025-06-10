@@ -326,10 +326,11 @@ module Builds = struct
             h2
             [txt "Execution Environments"];
             ul ~a:[a_class ["list-disc list-inside text-lg space-y-2"]] [
-              li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".hvt: "; txt "hardware virtualized - requires solo5-hvt ("; a ~a:[a_href "https://www.linux-kvm.org/page/Main_Page"; a_class ["link"]] [txt "Linux KVM"]; txt ", "; a ~a:[a_href "https://wiki.freebsd.org/bhyve"; a_class ["link"]] [txt "FreeBSD BHyve"]; txt ", or "; a ~a:[a_href "https://man.openbsd.org/vmm"; a_class ["link"]] [txt "OpenBSD VMM"]; txt ")"]];
+              (* li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"]; *)
               li [span ~a:[a_class ["text-primary-500"]] [txt ".xen: "]; txt "Xen PVH virtual machine (on a Xen or QubesOS host)"];
               li [span ~a:[a_class ["text-primary-500"]] [txt ".virtio: "]; txt "any virtio environment (qemu, GCE, KVM, BHyve)"];
-              li [span ~a:[a_class ["text-primary-500"]] [txt ".muem: "]; txt "on muen"]
+              (* li [span ~a:[a_class ["text-primary-500"]] [txt ".muen: "]; txt "on muen"] *)
             ];
         ]
       ]
