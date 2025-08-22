@@ -41,7 +41,7 @@ let main () =
   let uri = Uri.make ~scheme:"sqlite3" ~path:"_builder/builder.sqlite3"
     ~query:["create", ["false"]] () in
   try
-    Vif.run ~cfg ~devices:Vif.Ds.[ Builder_miou.caqti ]
+    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_miou.caqti ]
       (Builder_miou.routes ())
       { Builder_miou.sw; uri; filter_builds_later_than= 32 }
   with Builder_miou.Wrong_version (appid, version) ->
