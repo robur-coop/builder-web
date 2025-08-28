@@ -39,6 +39,9 @@ let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Dev
           ignore e;
           Fmt.failwith "Error getting database version: %s" "TODO"
 
+let string_of_html =
+  Format.asprintf "%a" (Tyxml.Html.pp ())
+
 let default_log_warn ~status _e =
   Log.warn (fun m -> m "%a: some error" H2.Status.pp_hum status)
 
@@ -80,8 +83,8 @@ let builds ?(filter_builds = false) ~all req server cfg =
           match res with
           | Some (build, artifact) ->
             if Ptime.is_later ~than build.finish
-            then (Log.warn (fun m -> m "is later than"); Ok ((platform, build, artifact) :: acc))
-            else (Log.warn (fun m -> m "is earlier than"); Ok acc)
+            then Ok ((platform, build, artifact) :: acc)
+            else Ok acc
           | None ->
             Log.warn (fun m -> m "Job without builds: %s" job_name);
             Ok acc in
@@ -105,7 +108,12 @@ let builds ?(filter_builds = false) ~all req server cfg =
     let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let* () = Vif.Response.with_string req str in
     Vif.Response.respond `OK
-  | Ok _ -> assert false
+  | Ok jobs ->
+    let html = Views.Builds.make ~all jobs in
+    let str = string_of_html html in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let* () = Vif.Response.with_string req str in
+    Vif.Response.respond `OK
   | Error err ->
     let* () = Vif.Response.add ~field:"content-type" "text/plain" in
     let str = Fmt.str "Database error: %a" pp_error err in
