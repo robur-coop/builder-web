@@ -6,6 +6,7 @@ let not_found = function
   | Some v -> Ok v
 
 let staging datadir = Fpath.(datadir / "_staging")
+let cachedir datadir = Fpath.(datadir / "_cache")
 let artifact_path artifact =
   let sha256 = Ohex.encode artifact.Builder_db.sha256 in
   (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
@@ -117,6 +118,17 @@ let next_successful_build_different_output id (module Db : CONN) =
 let previous_successful_build_different_output id (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_previous_successful_different_output id
 
+let failed_builds ~start ~count platform (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_all_failed (start, count, platform)
+
+let build_console_by_uuid datadir uuid (module Db : CONN) =
+  let* (_id, { Builder_db.Build.console; _ }) = build uuid (module Db) in
+  Ok (Fpath.(datadir // console))
+
+let build_script_by_uuid datadir uuid (module Db : CONN) =
+  let* (_id, { Builder_db.Build.script; _ }) = build uuid (module Db) in
+  Ok (Fpath.(datadir // script))
+
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
 
@@ -133,3 +145,104 @@ let latest_successful_build job_id platform (module Db : CONN) =
 let latest_successful_build_uuid job_id platform db =
   let* build = latest_successful_build job_id platform db in
   Option.map (fun build -> build.Builder_db.Build.uuid) build |> Result.ok
+
+module Viz = struct
+  let viz_type_to_string = function
+    | `Treemap -> "treemap"
+    | `Dependencies -> "dependencies"
+
+  let viz_dir ~cachedir ~viz_typ ~version =
+    let typ_str = viz_type_to_string viz_typ in
+    Fpath.(cachedir / Fmt.str "%s_%d" typ_str version)
+
+  let viz_path ~cachedir ~viz_typ ~version ~input_hash =
+    Fpath.( viz_dir ~cachedir ~viz_typ ~version / input_hash + "html")
+
+  let choose_versioned_viz_path
+      ~cachedir
+      ~viz_typ
+      ~viz_input_hash
+      ~current_version =
+    let ( >>= ) = Result.bind in
+    let rec aux current_version =
+      let path =
+        viz_path ~cachedir
+          ~viz_typ
+          ~version:current_version
+          ~input_hash:viz_input_hash in
+      Bos.OS.File.exists path >>= fun path_exists ->
+      if path_exists then Ok path else (
+        if current_version = 1 then
+          Error (`Msg (Fmt.str "viz '%s': There exist no version of the requested \
+                                visualization"
+                         (viz_type_to_string viz_typ)))
+        else
+          aux @@ pred current_version
+      )
+    in
+    aux current_version
+
+  let get_viz_version_from_dirs ~cachedir ~viz_typ =
+    let* versioned_dirs = Bos.OS.Dir.contents cachedir in
+    let max_cached_version =
+      let viz_typ_str = viz_type_to_string viz_typ ^ "_" in
+      versioned_dirs
+      |> List.filter_map (fun versioned_dir ->
+          match Bos.OS.Dir.exists versioned_dir with
+          | Error (`Msg err) ->
+            Logs.warn (fun m -> m "%s" err);
+            None
+          | Ok false -> None
+          | Ok true ->
+            let dir_str = Fpath.filename versioned_dir in
+            if not (String.starts_with ~prefix:viz_typ_str dir_str) then
+              None
+            else
+              try
+                String.(sub dir_str
+                          (length viz_typ_str)
+                          (length dir_str - length viz_typ_str))
+                |> int_of_string
+                |> Option.some
+              with Failure _ ->
+                Logs.warn (fun m ->
+                    m "Failed to read visualization-version from directory: '%s'"
+                      (Fpath.to_string versioned_dir));
+                None
+        )
+      |> List.fold_left Int.max (-1)
+    in
+    if max_cached_version = -1 then
+      Result.error @@
+      `Msg (Fmt.str "Couldn't find any visualization-version of %s"
+              (viz_type_to_string viz_typ))
+    else
+      Result.ok max_cached_version
+
+  let hash_viz_input ~uuid typ conn =
+    let open Builder_db in
+    match typ with
+    | `Treemap ->
+      let* (_build_id, build) = build uuid conn in
+      let* main_binary = not_found build.main_binary in
+      let* main_binary = build_artifact_by_id main_binary conn in
+      let* debug_binary =
+        let bin = Fpath.(base main_binary.filepath + "debug") in
+        build_artifact uuid bin conn
+      in
+      Ok (Ohex.encode debug_binary.sha256)
+    | `Dependencies ->
+      let* opam_switch = build_artifact uuid (Fpath.v "opam-switch") conn in
+      Ok (Ohex.encode opam_switch.sha256)
+
+  let try_load_cached_visualization ~datadir ~uuid viz_typ conn =
+    let cachedir = cachedir datadir in
+    let* latest_viz_version = get_viz_version_from_dirs ~cachedir ~viz_typ in
+    let* viz_input_hash = hash_viz_input ~uuid viz_typ conn in
+    choose_versioned_viz_path
+      ~cachedir
+      ~current_version:latest_viz_version
+      ~viz_typ
+      ~viz_input_hash
+
+end

@@ -10,11 +10,12 @@ type cfg =
   ; datadir : Fpath.t
   ; filter_builds_later_than : int }
 
-type error = [ Caqti_error.t | `Not_found ]
+type error = [ Caqti_error.t | `Not_found | `Msg of string ]
 
 let pp_error ppf = function
   | #Caqti_error.t as err -> Caqti_error.pp ppf err
   | `Not_found -> Fmt.string ppf "Job not found"
+  | `Msg e -> Fmt.string ppf e
 
 let hd_opt = function x :: _ -> Some x | [] -> None
 
@@ -141,6 +142,28 @@ let builds ?(filter_builds = false) ~all req server cfg =
     let str = Fmt.str "Database error: %a" pp_error err in
     let* () = Vif.Response.with_string req str in
     Vif.Response.respond `Internal_server_error
+
+let failed_builds req server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let platform = hd_opt (Vif.Queries.get req "platform") in
+  let start, count =
+    let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
+    to_int 0 (hd_opt (Vif.Queries.get req "start")),
+    to_int 20 (hd_opt (Vif.Queries.get req "count"))
+  in
+  let fn conn = Model.failed_builds ~start ~count platform conn in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.with_string req "Internal server error.\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok builds ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.failed_builds ~start ~count builds in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
 let job req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -300,6 +323,45 @@ let job_build_file req _job_name build path server cfg =
         let* () = Vif.Response.with_source req stream in
         Vif.Response.respond `OK
 
+let job_build_static_file req _job_name build (file : [< `Console | `Script ]) server cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    match file with
+    | `Console ->
+      Model.build_console_by_uuid cfg.datadir build conn
+    | `Script ->
+      Model.build_script_by_uuid cfg.datadir build conn
+  in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok filepath ->
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+    Vif.Response.respond `OK
+
+let job_build_viz req _job_name build viz server cfg =
+  let pool = Vif.Server.device caqti server in
+  let open Vif.Response.Syntax in
+  let fn =
+    Model.Viz.try_load_cached_visualization
+      ~datadir:cfg.datadir ~uuid:build viz
+  in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok filepath ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+    Vif.Response.respond `OK
+
 let[@warning "-33"] routes () =
   let open Vif.Uri in
   let open Vif.Route in
@@ -311,12 +373,25 @@ let[@warning "-33"] routes () =
       (Uuidm.to_string ~upper:false)
       (Vif.Uri.string `Path)
   in
+  let script_or_console =
+    Tyre.(str "script" <|> str "console")
+    |> Tyre.conv (function `Left () -> `Script | `Right () -> `Console)
+      (function `Script -> `Left () | `Console -> `Right ())
+  in
+  let viz =
+    Tyre.(str "viztreemap" <|> str "vizdependencies")
+    |> Tyre.conv (function `Left () -> `Treemap | `Right () -> `Dependencies)
+      (function `Treemap -> `Left () | `Dependencies -> `Right ())
+  in
   [
     get (rel /?? nil) --> builds ~all:false ~filter_builds:true
   ; get (rel / "all-builds" /?? nil) --> builds ~all:true ~filter_builds:false
+  ; get (rel / "failed-builds" /?? any) --> failed_builds
   ; get (rel / "job" /% string `Path /?? any) --> job
   ; get (rel / "job" /% string `Path / "failed" /?? any) --> job_with_failed
   ; get (rel / "job" /% string `Path / "build" / "latest" /?? any) --> redirect_latest
   ; get (rel / "job" /% string `Path / "build" /% uuid /?? any) --> job_build
   ; get (rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any) --> job_build_file
+  ; get (rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any) --> job_build_static_file
+  ; get (rel / "job" /% string `Path / "build" /% uuid /% viz /?? any) --> job_build_viz
   ]
