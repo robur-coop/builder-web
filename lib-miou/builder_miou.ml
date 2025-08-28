@@ -7,6 +7,7 @@ exception Wrong_version of int32 * int64
 type cfg =
   { sw : Caqti_miou.Switch.t
   ; uri : Uri.t
+  ; datadir : Fpath.t
   ; filter_builds_later_than : int }
 
 type error = [ Caqti_error.t | `Not_found ]
@@ -39,6 +40,27 @@ let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Dev
           ignore e;
           Fmt.failwith "Error getting database version: %s" "TODO"
 
+(* mime lookup with orb knowledge *)
+let append_charset = function
+  (* mime types from nginx:
+     http://nginx.org/en/docs/http/ngx_http_charset_module.html#charset_types *)
+  | "text/html" | "text/xml" | "text/plain" | "text/vnd.wap.wml"
+  | "application/javascript" | "application/rss+xml" | "application/atom+xml"
+  as content_type ->
+    content_type ^ "; charset=utf-8" (* default to utf-8 *)
+  | content_type -> content_type
+
+let mime_lookup path =
+  append_charset
+    (match Fpath.to_string path with
+     | "build-environment" | "opam-switch" | "system-packages" ->
+       "text/plain"
+     | _ ->
+       if Fpath.has_ext "build-hashes" path
+       then "text/plain"
+       else if Fpath.is_prefix Fpath.(v "bin/") path
+       then "application/octet-stream"
+       else Magic_mime.lookup (Fpath.to_string path))
 let string_of_html =
   Format.asprintf "%a" (Tyxml.Html.pp ())
 
@@ -195,13 +217,106 @@ let redirect_latest req job_name server _cfg =
     let* () = Vif.Response.with_string req String.empty in
     Vif.Response.respond `Moved_permanently
 
+let job_build req job_name build server cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* (build_id, build) = Model.build build conn in
+    let* main_binary =
+      match build.Builder_db.Build.main_binary with
+      | None -> Ok None
+      | Some artifact ->
+        let* artifact = Model.build_artifact_by_id artifact conn in
+        Ok (Some artifact)
+    in
+    let* artifacts = Model.build_artifacts build_id conn in
+    let* same_input_same_output = Model.builds_with_same_input_and_same_main_binary build_id conn in
+    let* different_input_same_output = Model.builds_with_different_input_and_same_main_binary build_id conn in
+    let* same_input_different_output = Model.builds_with_same_input_and_different_main_binary build_id conn in
+    let* latest = Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn in
+    let* next = Model.next_successful_build_different_output build_id conn in
+    let* previous = Model.previous_successful_build_different_output build_id conn in
+    Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
+  in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+    let solo5_manifest = Option.bind main_binary (Model.solo5_manifest cfg.datadir) in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html =
+      Views.Job_build.make
+        ~job_name
+        ~build
+        ~artifacts
+        ~main_binary
+        ~solo5_manifest
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest
+        ~next
+        ~previous
+    in
+    let* () = Vif.Response.with_string req (string_of_html html) in
+    Vif.Response.respond `OK
+
+let job_build_file req _job_name build path server cfg =
+  let pool = Vif.Server.device caqti server in
+  let if_none_match = Vif.Headers.get (Vif.Request.headers req) "if-none-match" in
+  let fn path conn = Model.build_artifact build path conn in
+  let open Vif.Response.Syntax in
+  match Fpath.of_string path with
+  | Error `Msg _e ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    (* FIXME: referer *)
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_string req (string_of_html html) in
+    Vif.Response.respond `Not_found
+  | Ok path ->
+    match Caqti_miou_unix.Pool.use (fn path) pool with
+    | Error err ->
+      Log.warn (fun m -> m "Database error: %a" pp_error err);
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Internal server error\n" in
+      Vif.Response.respond `Internal_server_error
+    | Ok artifact ->
+      let etag = Base64.encode_string artifact.Builder_db.sha256 in
+      match if_none_match with
+      | Some etag' when etag = etag' ->
+        let* () = Vif.Response.empty in
+        Vif.Response.respond `Not_modified
+      | _ ->
+        let path = Model.build_artifact_path cfg.datadir artifact in
+        (* XXX: do we need to sanitize the path further?! *)
+        (* TODO: error handling for the file?! *)
+        let stream = Vif.Stream.Source.file (Fpath.to_string path) in
+        let* () = Vif.Response.add ~field:"content-type" (mime_lookup artifact.Builder_db.filepath) in
+        let* () = Vif.Response.add ~field:"etag" etag in
+        let* () = Vif.Response.with_source req stream in
+        Vif.Response.respond `OK
+
 let[@warning "-33"] routes () =
   let open Vif.Uri in
   let open Vif.Route in
+  let uuid =
+    Vif.Uri.conv
+      (fun s -> match (Uuidm.of_string s) with
+         | None -> Log.err (fun m -> m "bad uuid %S" s); invalid_arg "Uuidm.of_string"
+         | Some uuid -> uuid)
+      (Uuidm.to_string ~upper:false)
+      (Vif.Uri.string `Path)
+  in
   [
     get (rel /?? nil) --> builds ~all:false ~filter_builds:true
   ; get (rel / "all-builds" /?? nil) --> builds ~all:true ~filter_builds:false
   ; get (rel / "job" /% string `Path /?? any) --> job
   ; get (rel / "job" /% string `Path / "failed" /?? any) --> job_with_failed
   ; get (rel / "job" /% string `Path / "build" / "latest" /?? any) --> redirect_latest
+  ; get (rel / "job" /% string `Path / "build" /% uuid /?? any) --> job_build
+  ; get (rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any) --> job_build_file
   ]

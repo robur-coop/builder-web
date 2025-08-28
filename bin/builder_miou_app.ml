@@ -38,12 +38,13 @@ let main () =
   let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, 3000)) in
   let cfg = Vif.config sockaddr in
   Caqti_miou.Switch.run @@ fun sw ->
+  let datadir = Fpath.v "_builder" in
   let uri = Uri.make ~scheme:"sqlite3" ~path:"_builder/builder.sqlite3"
     ~query:["create", ["false"]] () in
   try
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_miou.caqti ]
       (Builder_miou.routes ())
-      { Builder_miou.sw; uri; filter_builds_later_than= 32 }
+      { Builder_miou.sw; uri; datadir; filter_builds_later_than= 32 }
   with Builder_miou.Wrong_version (appid, version) ->
     if appid = Builder_db.application_id
     then Printf.eprintf "Wrong database version: %Lu, expected %Lu"
