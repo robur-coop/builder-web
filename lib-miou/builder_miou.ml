@@ -58,6 +58,10 @@ module Url = struct
     Tyre.(str "viztreemap" <|> str "vizdependencies")
     |> Tyre.conv (function `Left () -> `Treemap | `Right () -> `Dependencies)
       (function `Treemap -> `Left () | `Dependencies -> `Right ())
+  let hex =
+    Tyre.regex Re.(rep (seq [xdigit; xdigit]))
+    |> Vif.Uri.conv (Ohex.decode ~skip_whitespace:false)
+      Ohex.encode
 
   let root = rel /?? nil
   let all_builds = rel / "all-builds" /?? nil
@@ -74,6 +78,8 @@ module Url = struct
   let job_build_static_file = rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any
   let job_build_viz = rel / "job" /% string `Path / "build" /% uuid /% viz /?? any
   let redirect_main_binary = rel / "job" /% string `Path / "build" /% uuid / "main-binary" /?? any
+
+  let hash = rel / "hash" /?? ("sha256", hex) ** any
 end
 
 (* mime lookup with orb knowledge *)
@@ -429,6 +435,32 @@ let job_build_viz req _job_name build viz server cfg =
     let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
     Vif.Response.respond `OK
 
+let hash req hash server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    Model.build_hash hash conn
+  in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok None ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Ok Some (job_name, build) ->
+    let url =
+      let open Vif.Uri in
+      rel / "job" /% string `Path / "build" /% Url.uuid /?? any
+    in
+    let* () = Vif.Response.empty in
+    Vif.Response.redirect_to req url
+      job_name build.uuid
+
 let[@warning "-33"] routes () =
   let open Vif.Uri in
   let open Vif.Route in
@@ -444,4 +476,5 @@ let[@warning "-33"] routes () =
   ; get Url.job_build_static_file --> job_build_static_file
   ; get Url.job_build_viz --> job_build_viz
   ; get Url.redirect_main_binary --> redirect_main_binary
+  ; get Url.hash --> hash
   ]
