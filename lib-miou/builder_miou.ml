@@ -41,6 +41,41 @@ let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Dev
           ignore e;
           Fmt.failwith "Error getting database version: %s" "TODO"
 
+module Url = struct
+  open Vif.Uri
+  let uuid =
+    Vif.Uri.conv
+      (fun s -> match (Uuidm.of_string s) with
+         | None -> Log.err (fun m -> m "bad uuid %S" s); invalid_arg "Uuidm.of_string"
+         | Some uuid -> uuid)
+      (Uuidm.to_string ~upper:false)
+      (Vif.Uri.string `Path)
+  let script_or_console =
+    Tyre.(str "script" <|> str "console")
+    |> Tyre.conv (function `Left () -> `Script | `Right () -> `Console)
+      (function `Script -> `Left () | `Console -> `Right ())
+  let viz =
+    Tyre.(str "viztreemap" <|> str "vizdependencies")
+    |> Tyre.conv (function `Left () -> `Treemap | `Right () -> `Dependencies)
+      (function `Treemap -> `Left () | `Dependencies -> `Right ())
+
+  let root = rel /?? nil
+  let all_builds = rel / "all-builds" /?? nil
+  let failed_builds = rel / "failed-builds" /?? any
+
+  let prefix_job = rel / "job" /% string `Path
+  let job = prefix_job /?? any
+  let job_with_failed = prefix_job / "failed" /?? any
+
+  (* XXX: we can't use [prefix_job] below due to types /o\ *)
+  let redirect_latest = prefix_job / "build" / "latest" /?? any
+  let job_build = rel / "job" /% string `Path / "build" /% uuid /?? any
+  let job_build_file = rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any
+  let job_build_static_file = rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any
+  let job_build_viz = rel / "job" /% string `Path / "build" /% uuid /% viz /?? any
+  let redirect_main_binary = rel / "job" /% string `Path / "build" /% uuid / "main-binary" /?? any
+end
+
 (* mime lookup with orb knowledge *)
 let append_charset = function
   (* mime types from nginx:
@@ -240,6 +275,38 @@ let redirect_latest req job_name server _cfg =
     let* () = Vif.Response.with_string req String.empty in
     Vif.Response.respond `Moved_permanently
 
+let redirect_main_binary req job_name build server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* _build_id, build = Model.build build conn in
+    match build.Builder_db.Build.main_binary with
+    | None -> Ok None
+    | Some artifact ->
+      let* artifact = Model.build_artifact_by_id artifact conn in
+      Ok (Some artifact)
+  in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use fn pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok None ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Ok Some artifact ->
+    let url =
+      let open Vif.Uri in
+      rel / "job" /% string `Path / "build" /% Url.uuid / "f" /% path /?? any
+    in
+    let* () = Vif.Response.empty in
+    Vif.Response.redirect_to req url
+      job_name build (Fpath.to_string artifact.filepath)
+
 let job_build req job_name build server cfg =
   let pool = Vif.Server.device caqti server in
   let fn conn =
@@ -365,33 +432,16 @@ let job_build_viz req _job_name build viz server cfg =
 let[@warning "-33"] routes () =
   let open Vif.Uri in
   let open Vif.Route in
-  let uuid =
-    Vif.Uri.conv
-      (fun s -> match (Uuidm.of_string s) with
-         | None -> Log.err (fun m -> m "bad uuid %S" s); invalid_arg "Uuidm.of_string"
-         | Some uuid -> uuid)
-      (Uuidm.to_string ~upper:false)
-      (Vif.Uri.string `Path)
-  in
-  let script_or_console =
-    Tyre.(str "script" <|> str "console")
-    |> Tyre.conv (function `Left () -> `Script | `Right () -> `Console)
-      (function `Script -> `Left () | `Console -> `Right ())
-  in
-  let viz =
-    Tyre.(str "viztreemap" <|> str "vizdependencies")
-    |> Tyre.conv (function `Left () -> `Treemap | `Right () -> `Dependencies)
-      (function `Treemap -> `Left () | `Dependencies -> `Right ())
-  in
   [
-    get (rel /?? nil) --> builds ~all:false ~filter_builds:true
-  ; get (rel / "all-builds" /?? nil) --> builds ~all:true ~filter_builds:false
-  ; get (rel / "failed-builds" /?? any) --> failed_builds
-  ; get (rel / "job" /% string `Path /?? any) --> job
-  ; get (rel / "job" /% string `Path / "failed" /?? any) --> job_with_failed
-  ; get (rel / "job" /% string `Path / "build" / "latest" /?? any) --> redirect_latest
-  ; get (rel / "job" /% string `Path / "build" /% uuid /?? any) --> job_build
-  ; get (rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any) --> job_build_file
-  ; get (rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any) --> job_build_static_file
-  ; get (rel / "job" /% string `Path / "build" /% uuid /% viz /?? any) --> job_build_viz
+    get Url.root --> builds ~all:false ~filter_builds:true
+  ; get Url.all_builds --> builds ~all:true ~filter_builds:false
+  ; get Url.failed_builds --> failed_builds
+  ; get Url.job --> job
+  ; get Url.job_with_failed --> job_with_failed
+  ; get Url.redirect_latest --> redirect_latest
+  ; get Url.job_build --> job_build
+  ; get Url.job_build_file --> job_build_file
+  ; get Url.job_build_static_file --> job_build_static_file
+  ; get Url.job_build_viz --> job_build_viz
+  ; get Url.redirect_main_binary --> redirect_main_binary
   ]
