@@ -769,13 +769,14 @@ let console_of_string data =
         (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
         let delta = float_of_string (String.sub line 0 (i - 1)) in
         let delta = Int64.to_int (Duration.of_f delta) in
-        let line = String.sub line i (String.length line - i) in
+        let line = String.sub line (succ i) (String.length line - (succ i)) in
         Some (delta, line)
       | exception Not_found ->
         if line <> "" then
           Logs.warn (fun m -> m "Unexpected console line %S" line);
         None)
     lines
+  |> List.rev (* in the exec format the order is reversed *)
 
 let extract_full () datadir dest uuid =
   let dbpath = datadir ^ "/builder.sqlite3" in
