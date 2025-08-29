@@ -43,6 +43,7 @@ let main () =
     ~query:["create", ["false"]] () in
   try
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_miou.caqti ]
+      ~middlewares:Vif.Middlewares.[ Builder_miou.auth_middleware ]
       (Builder_miou.routes ())
       { Builder_miou.sw; uri; datadir; filter_builds_later_than= 32 }
   with Builder_miou.Wrong_version (appid, version) ->

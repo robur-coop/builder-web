@@ -80,7 +80,58 @@ module Url = struct
   let redirect_main_binary = rel / "job" /% string `Path / "build" /% uuid / "main-binary" /?? any
 
   let hash = rel / "hash" /?? ("sha256", hex) ** any
+
+  let robots = rel / "robots.txt" /?? any
 end
+
+let auth_middleware =
+  let fn req _target server (_cfg : cfg) =
+    let pool = Vif.Server.device caqti server in
+    let hdrs = Vif.Request.headers_of_request req in
+    match Vif.Headers.get hdrs "Authorization" with
+    | None ->
+      Log.debug (fun m -> m "No Authorization header");
+      None
+    | Some data ->
+      match String.split_on_char ' ' data with
+      | ["Basic"; user_pass] ->
+        (match Base64.decode user_pass with
+         | Error `Msg msg ->
+           Log.info (fun m -> m "Invalid user / pasword encoding in %S: %S" data msg);
+           None
+         | Ok user_pass -> match String.split_on_char ':' user_pass with
+           | [] | [_] ->
+             Log.info (fun m -> m "Invalid user / pasword encoding in %S" data);
+             None
+           | user :: password ->
+             let pass = String.concat ":" password in
+             match Caqti_miou_unix.Pool.use (Model.user user) pool with
+             | Ok Some (id, user_info) ->
+               if Builder_web_auth.verify_password pass user_info
+               then (Log.debug (fun m -> m "Authenticated as %S" user); Some (id, user_info))
+               else (Log.info (fun m -> m "Invalid password for %S" user); None)
+             | Ok None ->
+               Log.info (fun m -> m "Login attempt for nonexistent user %S" user);
+               None
+             | Error e ->
+               Log.warn (fun m -> m "Error getting user: %a" pp_error e);
+               None)
+      | _ ->
+        Log.info (fun m -> m "Bad Authorization header: %S" data);
+        None
+  in
+  Vif.Middlewares.v ~name:"Basic auth" fn
+
+let authenticated req k =
+  match Vif.Request.get auth_middleware req with
+  | None ->
+    let open Vif.Response.Syntax in
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.add ~field:"www-authenticate" "Basic realm=\"builder-web\"" in
+    let* () = Vif.Response.with_string req "Unauthorized!\n" in
+    Vif.Response.respond `Unauthorized
+  | Some (user_id, user_info) ->
+    k user_id user_info
 
 (* mime lookup with orb knowledge *)
 let append_charset = function
@@ -461,8 +512,21 @@ let hash req hash server _cfg =
     Vif.Response.redirect_to req url
       job_name build.uuid
 
+let robots req _server _cfg =
+  let open Vif.Response.Syntax in
+  let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+  let* () = Vif.Response.with_string req Views.robots_txt in
+  Vif.Response.respond `OK
+
+let auth_test req _server _cfg =
+  authenticated req @@ fun user_id user_info ->
+  let open Vif.Response.Syntax in
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Fmt.kstr (Vif.Response.with_string req) "Authorized as %S (id %Lu).\n" user_info.username (Builder_db.Rep.id_to_int64 user_id) in
+    Vif.Response.respond `Unauthorized
+
+
 let[@warning "-33"] routes () =
-  let open Vif.Uri in
   let open Vif.Route in
   [
     get Url.root --> builds ~all:false ~filter_builds:true
@@ -477,4 +541,13 @@ let[@warning "-33"] routes () =
   ; get Url.job_build_viz --> job_build_viz
   ; get Url.redirect_main_binary --> redirect_main_binary
   ; get Url.hash --> hash
+  ; get Url.robots --> robots
+  (* TODO:
+    `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
+    `Get, "/job/:job/build/:build/exec", (w job_build_full);
+    `Get, "/compare/:build_left/:build_right", (w compare_builds);
+    `Post, "/upload", (Authorization.authenticate (w upload));
+    `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
+  *)
+    ; get Vif.Uri.(rel / "auth-test" /?? any) --> auth_test
   ]

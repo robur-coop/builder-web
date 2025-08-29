@@ -146,6 +146,9 @@ let latest_successful_build_uuid job_id platform db =
   let* build = latest_successful_build job_id platform db in
   Option.map (fun build -> build.Builder_db.Build.uuid) build |> Result.ok
 
+let user username (module Db : CONN) =
+  Db.find_opt Builder_db.User.get_user username
+
 module Viz = struct
   let viz_type_to_string = function
     | `Treemap -> "treemap"
