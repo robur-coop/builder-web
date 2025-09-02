@@ -1026,6 +1026,34 @@ let compare_builds
           [H.txt "Compare in reverse direction"]] ;
       H.ul (List.rev items) ] @ data)
 
+let compare_builds_json ~job_left ~job_right ~build_left ~build_right
+    ~build_left_file_size ~build_right_file_size
+    ~env_diff ~pkg_diff ~opam_diff =
+  let file_size_json = Option.fold ~none:`Null ~some:(fun size -> `Int size) in
+  `Assoc [
+    "left", `Assoc [
+      "job", `String job_left;
+      "uuid", `String (Uuidm.to_string build_left.Builder_db.Build.uuid);
+      "platform", `String build_left.platform;
+      "start_time", `String (Ptime.to_rfc3339 build_left.start);
+      "finish_time", `String (Ptime.to_rfc3339 build_left.finish);
+      "main_binary", `Bool (Option.is_some build_left_file_size);
+      "main_binary_size", file_size_json build_left_file_size;
+    ];
+    "right", `Assoc [
+      "job", `String job_right;
+      "uuid", `String (Uuidm.to_string build_right.Builder_db.Build.uuid);
+      "platform", `String build_right.platform;
+      "start_time", `String (Ptime.to_rfc3339 build_right.start);
+      "finish_time", `String (Ptime.to_rfc3339 build_right.finish);
+      "main_binary", `Bool (Option.is_some build_right_file_size);
+      "main_binary_size", file_size_json build_right_file_size;
+    ];
+    "env_diff", Utils.diff_map_to_json env_diff;
+    "package_diff", Utils.diff_map_to_json pkg_diff;
+    "opam_diff", Opamdiff.compare_to_json opam_diff
+  ]
+
 let failed_builds ~start ~count builds =
   let build (job_name, build) =
     H.li [

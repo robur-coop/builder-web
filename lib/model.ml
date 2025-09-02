@@ -1,24 +1,23 @@
-open Lwt_result.Infix
+let src = Logs.Src.create "builder-web.model" ~doc:"Builder-web model"
 
-let src = Logs.Src.create "builder-web.model" ~doc:"Builder_web model"
-module Log = (val Logs.src_log  src : Logs.LOG)
+module Log = (val Logs.src_log src : Logs.LOG)
 
-module type CONN = Caqti_lwt.CONNECTION
-
-type error = [ Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t | `Msg of string ]
+let ( let* ) = Result.bind
+let ( let+ ) x f = Result.map f x
 
 let pp_error ppf = function
   | `Not_found -> Format.fprintf ppf "value not found in database"
   | `File_error path -> Format.fprintf ppf "error reading file %a" Fpath.pp path
   | `Msg e -> Format.fprintf ppf "error %s" e
-  | #Caqti_error.call_or_retrieve as e ->
+  | #Caqti_error.t as e ->
     Caqti_error.pp ppf e
 
 let not_found = function
-  | None -> Lwt_result.fail `Not_found
-  | Some v -> Lwt_result.return v
+  | None -> Error `Not_found
+  | Some v -> Ok v
 
 let staging datadir = Fpath.(datadir / "_staging")
+let cachedir datadir = Fpath.(datadir / "_cache")
 let artifact_path artifact =
   let sha256 = Ohex.encode artifact.Builder_db.sha256 in
   (* NOTE: [sha256] is 64 characters when it's a hex sha256 checksum *)
@@ -30,72 +29,66 @@ let artifact_path artifact =
 
 let read_file datadir filepath =
   let filepath = Fpath.(datadir // filepath) in
-  Lwt.try_bind
-    (fun () -> Lwt_io.open_file ~mode:Lwt_io.Input (Fpath.to_string filepath))
-    (fun ic ->
-       let open Lwt.Infix in
-       Lwt_io.read ic >>= fun data ->
-       Lwt_io.close ic >>= fun () ->
-       Lwt_result.return data)
-    (function
-      | Unix.Unix_error (e, _, _) ->
-        Log.warn (fun m -> m "Error reading local file %a: %s"
-                      Fpath.pp filepath (Unix.error_message e));
-        Lwt.return_error (`File_error filepath)
-      | e -> Lwt.reraise e)
+  match
+    let fd = Unix.openfile (Fpath.to_string filepath) [Unix.O_RDONLY] 0 in
+    fd, Unix.fstat fd
+  with
+  | fd, { Unix.st_size; _ } ->
+    let buf = Bytes.create st_size in
+    let rec loop last_yield off =
+      let last_yield =
+        (* yield if we've read at least 128 kb since last yield *)
+        if off - last_yield >= 0x2000 then
+          (Miou.yield (); off)
+        else last_yield
+      in
+      match Unix.read fd buf off (min 0x7ff (st_size - off)) with
+      | 0 ->
+        Ok (Bytes.unsafe_to_string buf)
+      | l ->
+        loop last_yield (off + l)
+      | exception Unix.Unix_error _ ->
+        Error (`File_error filepath)
+    in
+    loop 0 0
+  | exception Unix.Unix_error _ ->
+    Error (`File_error filepath)
+
+let save path data =
+  try
+    let fd = Unix.openfile (Fpath.to_string path) [Unix.O_WRONLY; Unix.O_CREAT] 0o666 in
+    let rec loop off =
+      if off = String.length data then
+        Ok ()
+      else
+        let l = Unix.write_substring fd data off (String.length data - off) in
+        loop (off + l)
+    in
+    loop 0
+  with Unix.Unix_error _ -> Error (`File_error path)
+
+let save_artifact staging artifact data =
+  let sha256 = Ohex.encode artifact.Builder_db.sha256 in
+  let destpath = Fpath.(staging / sha256) in
+  save destpath data
+
+module type CONN = Caqti_miou.CONNECTION
 
 let build_artifact build filepath (module Db : CONN) =
-  Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath)
-  >>= not_found >|= snd
+  let* artifact = Db.find_opt Builder_db.Build_artifact.get_by_build_uuid (build, filepath) in
+  let* (_id, artifact) = not_found artifact in
+  Ok artifact
 
 let build_artifact_by_id id (module Db : CONN) =
   Db.find Builder_db.Build_artifact.get id
 
-let build_artifact_data datadir file =
-  read_file datadir (artifact_path file)
-
-let build_artifact_stream_data datadir file =
-  let open Lwt.Syntax in
-  let filepath = Fpath.(datadir // artifact_path file) in
-  Lwt.catch
-    (fun () -> Lwt_result.ok (Lwt_unix.openfile (Fpath.to_string filepath) Unix.[ O_RDONLY ] 0))
-    (function
-      | Unix.Unix_error (e, _, _) ->
-        Log.warn (fun m -> m "Error reading local file %a: %s"
-                      Fpath.pp filepath (Unix.error_message e));
-        Lwt.return_error (`File_error filepath)
-      | e -> Lwt.reraise e)
-  >|= fun fd ->
-  fun ~write ~close ->
-    Lwt.finalize
-      (fun () ->
-         let buf = Bytes.create 65536 in
-         Bytes.fill buf 0 (Bytes.length buf) '\000';
-         let rec loop () =
-           (* XXX(reynir): we don't handle Unix_error exceptions here *)
-           let* l = Lwt_unix.read fd buf 0 (Bytes.length buf) in
-           if l > 0 then
-             let* () =
-               let s =
-                 if l = Bytes.length buf then
-                   Bytes.unsafe_to_string buf
-                 else Bytes.sub_string buf 0 l in
-               write s
-             in
-             loop ()
-           else
-             close ()
-         in
-         loop ())
-      (fun () ->
-         Lwt.catch (fun () -> Lwt_unix.close fd)
-           (function
-             | Unix.Unix_error _ -> Lwt.return_unit
-             | e -> Lwt.reraise e))
+let build_artifact_data datadir build filepath conn =
+  let* artifact = build_artifact build filepath conn in
+  read_file datadir (artifact_path artifact)
 
 let build_artifacts build (module Db : CONN) =
-  Db.collect_list Builder_db.Build_artifact.get_all_by_build build >|=
-  List.map snd
+  let+ artifacts = Db.collect_list Builder_db.Build_artifact.get_all_by_build build in
+  List.map snd artifacts
 
 let solo5_manifest datadir file =
   let cachet =
@@ -115,188 +108,144 @@ let solo5_manifest datadir file =
   in
   Solo5_elftool.query_manifest cachet |> Result.to_option
 
+let jobs_with_section_synopsis (module Db : CONN) =
+  Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
+
 let platforms_of_job id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_platforms_for_job id
 
-let build uuid (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_by_uuid uuid >>=
-  not_found
-
 let build_with_main_binary job platform (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest_successful_with_binary (job, platform) >|=
-  Option.map (fun (_id, build, file) -> (build, file))
+  let+ opt = Db.find_opt Builder_db.Build.get_latest_successful_with_binary (job, platform) in
+  Option.map (fun (_id, build, file) -> (build, file)) opt
 
 let build_hash hash (module Db : CONN) =
   Db.find_opt Builder_db.Build.get_with_jobname_by_hash hash
 
 let build_exists uuid (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_by_uuid uuid >|=
-  Option.is_some
+  let+ opt = Db.find_opt Builder_db.Build.get_by_uuid uuid in
+  Option.is_some opt
 
-let latest_successful_build job_id platform (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_latest_successful (job_id, platform)
+let builds_grouped_by_output job_id platform (module Db : CONN) =
+  let* lst = Db.collect_list Builder_db.Build.get_all_artifact_sha (job_id, platform) in
+  let fn acc hash = match acc with
+    | Error _ as err -> err
+    | Ok builds ->
+        let* build = Db.find Builder_db.Build.get_with_main_binary_by_hash hash in
+        Ok (build :: builds) in
+  let* lst = List.fold_left fn (Ok []) lst in
+  Ok (List.rev lst)
 
-let latest_successful_build_uuid job_id platform db =
-  latest_successful_build job_id platform db >|= fun build ->
-  Option.map (fun build -> build.Builder_db.Build.uuid) build
+let builds_grouped_by_output_with_failed job_id platform ((module Db : CONN) as db) =
+  let* builds = builds_grouped_by_output job_id platform db in
+  let* failed = Db.collect_list Builder_db.Build.get_failed_builds (job_id, platform) in
+  let failed = List.map (fun b -> b, None) failed in
+  let cmp (a, _) (b, _) = Ptime.compare b.Builder_db.Build.start a.Builder_db.Build.start in
+  Result.ok (List.merge cmp builds failed)
 
-let previous_successful_build_different_output id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_previous_successful_different_output id
-
-let next_successful_build_different_output id (module Db : CONN) =
-  Db.find_opt Builder_db.Build.get_next_successful_different_output id
-
-let failed_builds ~start ~count platform (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_all_failed (start, count, platform)
-
-let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id >>= fun ids ->
-  Lwt_list.fold_left_s (fun acc input_id ->
-     match acc with
-     | Error _ as e -> Lwt.return e
-     | Ok metas ->
-       Db.find Builder_db.Build.get_one_by_input_id input_id >>= fun build ->
-       Lwt.return (Ok (build :: metas)))
-   (Ok []) ids
+let build uuid (module Db : CONN) =
+  let* build = Db.find_opt Builder_db.Build.get_by_uuid uuid in
+  not_found build
 
 let builds_with_same_input_and_same_main_binary id (module Db : CONN) =
   Db.collect_list Builder_db.Build.get_same_input_same_output_builds id
 
 let builds_with_same_input_and_different_main_binary id (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_same_input_different_output_hashes id >>= fun hashes ->
-  Lwt_list.fold_left_s (fun acc hash ->
+  let* hashes = Db.collect_list Builder_db.Build.get_same_input_different_output_hashes id in
+  List.fold_left (fun acc hash ->
      match acc with
-     | Error _ as e -> Lwt.return e
+     | Error _ as e -> e
      | Ok metas ->
-       Db.find Builder_db.Build.get_by_hash hash >>= fun build ->
-       Lwt.return (Ok (build :: metas)))
+       let* build = Db.find Builder_db.Build.get_by_hash hash in
+       Ok (build :: metas))
    (Ok []) hashes
 
+let builds_with_different_input_and_same_main_binary id (module Db : CONN) =
+  let* ids = Db.collect_list Builder_db.Build.get_different_input_same_output_input_ids id in
+  List.fold_left (fun acc input_id ->
+     match acc with
+     | Error _ as e -> e
+     | Ok metas ->
+       let* build = Db.find Builder_db.Build.get_one_by_input_id input_id in
+       Ok (build :: metas))
+   (Ok []) ids
+
+let next_successful_build_different_output id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_next_successful_different_output id
+
+let previous_successful_build_different_output id (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_previous_successful_different_output id
+
+let failed_builds ~start ~count platform (module Db : CONN) =
+  Db.collect_list Builder_db.Build.get_all_failed (start, count, platform)
+
 let build_console_by_uuid datadir uuid (module Db : CONN) =
-  build uuid (module Db) >>= fun (_id, { Builder_db.Build.console; _ })->
-  read_file datadir console
+  let* (_id, { Builder_db.Build.console; _ }) = build uuid (module Db) in
+  Ok (Fpath.(datadir // console))
 
 let build_script_by_uuid datadir uuid (module Db : CONN) =
-  build uuid (module Db) >>= fun (_id, { Builder_db.Build.script; _ })->
-  read_file datadir script
+  let* (_id, { Builder_db.Build.script; _ }) = build uuid (module Db) in
+  Ok (Fpath.(datadir // script))
+
+let readme job_id (module Db : CONN) =
+  let* readme_id = Db.find_opt Builder_db.Tag.get_id_by_name "readme.md" in
+  match readme_id with
+  | None -> Ok None
+  | Some readme_id ->
+    Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id)
 
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
 
-let readme job (module Db : CONN) =
-  job_id job (module Db) >>= not_found >>= fun job_id ->
-  Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
-  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id)
+let job_name job_id (module Db : CONN) =
+  Db.find Builder_db.Job.get job_id
 
 let job_and_readme job (module Db : CONN) =
-  job_id job (module Db) >>= not_found >>= fun job_id ->
-  Db.find Builder_db.Tag.get_id_by_name "readme.md" >>= fun readme_id ->
-  Db.find_opt Builder_db.Job_tag.get_value (readme_id, job_id) >|= fun readme ->
-  job_id, readme
+  let* job_id = job_id job (module Db) in
+  let* job_id = not_found job_id in
+  let* readme = readme job_id (module Db) in
+  Ok (job_id, readme)
 
-let builds_grouped_by_output job_id platform (module Db : CONN) =
-  Db.collect_list Builder_db.Build.get_all_artifact_sha (job_id, platform) >>= fun sha ->
-  Lwt_list.fold_left_s (fun acc hash ->
-    match acc with
-    | Error _ as e -> Lwt.return e
-    | Ok builds ->
-      Db.find Builder_db.Build.get_with_main_binary_by_hash hash >|= fun b ->
-      b :: builds)
-    (Ok []) sha >|= List.rev
+let latest_successful_build job_id platform (module Db : CONN) =
+  Db.find_opt Builder_db.Build.get_latest_successful (job_id, platform)
 
-let builds_grouped_by_output_with_failed job_id platform ((module Db : CONN) as db) =
-  builds_grouped_by_output job_id platform db >>= fun builds ->
-  Db.collect_list Builder_db.Build.get_failed_builds (job_id, platform) >|= fun failed ->
-  let failed = List.map (fun b -> b, None) failed in
-  let cmp (a, _) (b, _) = Ptime.compare b.Builder_db.Build.start a.Builder_db.Build.start in
-  List.merge cmp builds failed
-
-let jobs_with_section_synopsis (module Db : CONN) =
-  Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
-
-let job_name id (module Db : CONN) =
-  Db.find Builder_db.Job.get id
+let latest_successful_build_uuid job_id platform db =
+  let* build = latest_successful_build job_id platform db in
+  Option.map (fun build -> build.Builder_db.Build.uuid) build |> Result.ok
 
 let user username (module Db : CONN) =
   Db.find_opt Builder_db.User.get_user username
 
-let authorized user_id job_name (module Db : CONN) =
-  job_id job_name (module Db) >>=
-  (function None -> Lwt_result.fail (`Msg "No such job") | Some r -> Lwt_result.return r) >>= fun job_id ->
-  Db.find Builder_db.Access_list.get (user_id, job_id) >|= fun _id ->
-  ()
+let authorized user_id user job_name (module Db : CONN) =
+  if user.Builder_web_auth.restricted then
+    let* r = job_id job_name (module Db) in
+    match r with
+    | None -> Ok false
+    | Some job_id ->
+      let* r = Db.find_opt Builder_db.Access_list.get (user_id, job_id) in
+      Ok (Option.is_some r)
+  else Ok true
 
-let cleanup_staging datadir (module Db : Caqti_lwt.CONNECTION) =
-  let cleanup_staged staged =
-    match Uuidm.of_string (Fpath.to_string staged) with
-    | None ->
-      Log.warn (fun m -> m "Non-uuid staged files: %a" Fpath.pp
-                   Fpath.(staging datadir // staged));
-      Lwt.return (Bos.OS.Path.delete ~recurse:true Fpath.(staging datadir // staged))
-    | Some uuid ->
-      let staged = Fpath.(staging datadir // staged) in
-      Db.find_opt Builder_db.Build.get_by_uuid uuid >>= function
-      | Some (_id, build) ->
-        Db.find Builder_db.Job.get build.job_id >>= fun job_name ->
-        let destdir = Fpath.(datadir / job_name / Uuidm.to_string uuid) in
-        Lwt.return (Bos.OS.Path.move staged destdir)
-      | None ->
-        Lwt.return (Bos.OS.Path.delete ~recurse:true Fpath.(staging datadir // staged))
-  in
-  Lwt.return (Bos.OS.Dir.contents ~rel:true (staging datadir)) >>= fun stageds ->
-  Lwt_result.ok @@
-  Lwt_list.iter_s
-    (fun staged ->
-       Lwt.map (function
-       | Error (_ as e) ->
-         Log.warn (fun m -> m "Failed cleaning up staged files %a in %a: %a"
-                      Fpath.pp staged
-                      Fpath.pp Fpath.(staging datadir // staged)
-                      pp_error e)
-       | Ok () -> ())
-       (cleanup_staged staged))
-    stageds
-
-let save path data =
-  let open Lwt.Infix in
-  Lwt.catch
-    (fun () ->
-       Lwt_io.open_file ~mode:Lwt_io.Output (Fpath.to_string path) >>= fun oc ->
-       Lwt_io.write oc data >>= fun () ->
-       Lwt_io.close oc
-       |> Lwt_result.ok)
-    (function
-      | Unix.Unix_error (e, _, _) ->
-          Lwt_result.fail (`Msg (Unix.error_message e))
-      | e -> Lwt.reraise e)
-
-let save_artifacts staging artifacts =
-  List.fold_left
-    (fun r (file, data) ->
-       r >>= fun () ->
-       let sha256 = Ohex.encode file.Builder_db.sha256 in
-       let destpath = Fpath.(staging / sha256) in
-       save destpath data)
-    (Lwt_result.return ())
-    artifacts
+(* Quite a few helpers for [add_build]: *)
 
 let commit_files datadir staging_dir job_name uuid artifacts =
   (* First we move the artifacts *)
-  List.fold_left
-    (fun r artifact ->
-       r >>= fun () ->
-       let sha256 = Ohex.encode artifact.Builder_db.sha256 in
-       let src = Fpath.(staging_dir / sha256) in
-       let dest = Fpath.(datadir // artifact_path artifact) in
-       Lwt.return (Bos.OS.Dir.create (Fpath.parent dest)) >>= fun _created ->
-       Lwt.return (Bos.OS.Path.move ~force:true src dest))
-    (Lwt_result.return ())
-    artifacts >>= fun () ->
+  let* () =
+    List.fold_left
+      (fun r artifact ->
+         let* () = r in
+         let sha256 = Ohex.encode artifact.Builder_db.sha256 in
+         let src = Fpath.(staging_dir / sha256) in
+         let dest = Fpath.(datadir // artifact_path artifact) in
+         let* _created = Bos.OS.Dir.create (Fpath.parent dest) in
+         Bos.OS.Path.move ~force:true src dest)
+      (Ok ())
+      artifacts
+  in
   (* Now the staging dir only contains script & console *)
   let job_dir = Fpath.(datadir / job_name) in
   let dest = Fpath.(job_dir / Uuidm.to_string uuid) in
-  Lwt.return (Bos.OS.Dir.create job_dir) >>= fun _ ->
-  Lwt.return (Bos.OS.Path.move staging_dir dest)
+  let* _created = (Bos.OS.Dir.create job_dir) in
+  Bos.OS.Path.move staging_dir dest
 
 let infer_section_and_synopsis artifacts =
   let infer_synopsis_and_descr switch root =
@@ -350,9 +299,9 @@ let infer_section_and_synopsis artifacts =
 
 let compute_input_id artifacts =
   let get_hash filename =
-    match List.find_opt (fun b -> Fpath.equal b.Builder_db.filepath filename) artifacts with
+    match List.find_opt (fun (b, _data) -> Fpath.equal b.Builder_db.filepath filename) artifacts with
     | None -> None
-    | Some x -> Some x.sha256
+    | Some (x, _data) -> Some x.sha256
   in
   match
     get_hash (Fpath.v "opam-switch"),
@@ -372,15 +321,56 @@ let save_console_and_script staging_dir job_name uuid console script =
       console
     |> String.concat ""
   in
-  save (out_staging "script") script >>= fun () ->
-  save (out_staging "console") (console_to_string console) >|= fun () ->
-  (out "console", out "script")
+  let* () = save (out_staging "script") script in
+  let* () = save (out_staging "console") (console_to_string console) in
+  Ok (out "console", out "script")
 
 let prepare_staging staging_dir =
-  Lwt.return (Bos.OS.Dir.create staging_dir) >>= fun created ->
+  let* created = Bos.OS.Dir.create staging_dir in
   if not created
-  then Lwt_result.fail (`Msg "build directory already exists")
-  else Lwt_result.return ()
+  then Error (`Msg "build directory already exists")
+  else Ok ()
+
+let execute_hooks ~datadir ~configdir job_name uuid platform start main_binary =
+  let cachedir = cachedir datadir in
+  let time =
+    let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
+    Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
+  and uuid = Uuidm.to_string uuid
+  and sha256 = Ohex.encode main_binary.Builder_db.sha256
+  in
+  let cmd cmd =
+    Filename.quote_command cmd
+         [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job_name ;
+           "--uuid=" ^ uuid ; "--platform=" ^ platform ;
+           "--cache-dir=" ^ Fpath.to_string cachedir ;
+           "--data-dir=" ^ Fpath.to_string datadir ;
+           "--main-binary-filepath=" ^ Fpath.to_string main_binary.filepath ;
+           Fpath.(to_string (datadir // artifact_path main_binary)) ]
+  in
+  Log.debug (fun m -> m "executing hooks with %s" (cmd "hook"));
+  let dir = Fpath.(configdir / "upload-hooks") in
+  match Unix.opendir (Fpath.to_string dir) with
+  | exception Unix.Unix_error _ -> Ok ()
+  | dh ->
+    try
+      let is_executable file =
+        let st = Unix.stat (Fpath.to_string file) in
+        st.Unix.st_perm land 0o111 = 0o111 &&
+        st.Unix.st_kind = Unix.S_REG
+      in
+      let rec go () =
+        let next_file = Unix.readdir dh in
+        let file = Fpath.(dir / next_file) in
+        if is_executable file && Fpath.has_ext ".sh" file then
+          ignore (Sys.command (cmd (Fpath.to_string file) ^ " &"));
+        go ()
+      in
+      go ()
+    with
+    | End_of_file ->
+      Unix.closedir dh;
+      Ok ()
 
 (* saving:
    - for each artifact compute its sha256 checksum -- calling Lwt.pause in
@@ -400,182 +390,129 @@ let prepare_staging staging_dir =
    - input_id depends on a sort order?
    *)
 
-
-let add_build
-    ~datadir
-    ~cachedir
-    ~configdir
-    user_id
+let add_build ~datadir ~configdir user_id
     ((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts)
     (module Db : CONN) =
   let open Builder_db in
-  let job_name = job.Builder.name in
+  let { Builder.name = job_name; platform; script } = job in
   let staging_dir = Fpath.(staging datadir / Uuidm.to_string uuid) in
-  let or_cleanup x =
-    Lwt_result.map_error (fun e ->
+  let or_cleanup r =
+    Result.map_error (fun e ->
         Bos.OS.Dir.delete ~recurse:true staging_dir
         |> Result.iter_error (fun e ->
             Log.err (fun m -> m "Failed to remove staging dir %a: %a"
                         Fpath.pp staging_dir
                         pp_error e));
         e)
-      x
+      r
   in
   let not_interesting p =
     String.equal (Fpath.basename p) "README.md" || String.equal (Fpath.get_ext p) ".build-hashes"
   in
-  begin
-    List.fold_left
-      (fun r (filepath, data) ->
-         r >>= fun acc ->
-         if not_interesting filepath then
-           Lwt_result.return acc
-         else
-           let sha256 = Digestif.SHA256.(to_raw_string (digest_string data))
-           and size = String.length data in
-           Lwt_result.ok (Lwt.pause ()) >|= fun () ->
-           ({ filepath; sha256; size }, data) :: acc)
-      (Lwt_result.return [])
+  let artifacts =
+    List.filter_map (fun (filepath, data) ->
+        if not_interesting filepath then
+          None
+        else
+          let sha256 = Digestif.SHA256.(to_raw_string (digest_string data))
+          and size = String.length data in
+          Miou.yield ();
+          Some ({ filepath; sha256; size }, data))
       raw_artifacts
-  end >>= fun artifacts ->
-  or_cleanup (prepare_staging staging_dir) >>= fun () ->
-  or_cleanup (save_console_and_script staging_dir job_name uuid console job.Builder.script)
-  >>= fun (console, script) ->
-  List.fold_left
-    (fun r ((f, _) as artifact) ->
-       r >>= fun acc ->
-       Db.find Builder_db.Build_artifact.exists f.sha256 >|= fun exists ->
-       if exists then acc else artifact :: acc)
-    (Lwt_result.return [])
-    artifacts >>= fun artifacts_to_save ->
-  or_cleanup (save_artifacts staging_dir artifacts_to_save) >>= fun () ->
-  let artifacts = List.map fst artifacts in
-  let r =
-    Db.start () >>= fun () ->
-    Db.exec Job.try_add job_name >>= fun () ->
-    Db.find_opt Job.get_id_by_name job_name >>= fun job_id ->
-    Lwt.return (Option.to_result ~none:(`Msg "No such job id") job_id) >>= fun job_id ->
-    let section_tag = "section" in
-    Db.exec Tag.try_add section_tag >>= fun () ->
-    Db.find Tag.get_id_by_name section_tag >>= fun section_id ->
-    let synopsis_tag = "synopsis" in
-    Db.exec Tag.try_add synopsis_tag >>= fun () ->
-    Db.find Tag.get_id_by_name synopsis_tag >>= fun synopsis_id ->
-    let descr_tag = "description" in
-    Db.exec Tag.try_add descr_tag >>= fun () ->
-    Db.find Tag.get_id_by_name descr_tag >>= fun descr_id ->
-    let readme_tag = "readme.md" in
-    Db.exec Tag.try_add readme_tag >>= fun () ->
-    Db.find Tag.get_id_by_name readme_tag >>= fun readme_id ->
-    let input_id = compute_input_id artifacts in
-    let platform = job.Builder.platform in
-    Db.exec Build.add { Build.uuid; start; finish; result;
-                        console; script; platform;
-                        main_binary = None; input_id; user_id; job_id } >>= fun () ->
-    Db.find last_insert_rowid () >>= fun id ->
-    let sec_syn = infer_section_and_synopsis raw_artifacts in
-    let add_or_update tag_id tag_value =
-      Db.find_opt Job_tag.get_value (tag_id, job_id) >>= function
-      | None -> Db.exec Job_tag.add (tag_id, tag_value, job_id)
-      | Some _ -> Db.exec Job_tag.update (tag_id, tag_value, job_id)
-    in
-    (match fst sec_syn with
-     | None -> Lwt_result.return ()
-     | Some section_v -> add_or_update section_id section_v) >>= fun () ->
-    (match snd sec_syn with
-     | None, _-> Lwt_result.return ()
-     | Some synopsis_v, _ -> add_or_update synopsis_id synopsis_v) >>= fun () ->
-    (match snd sec_syn with
-     | _, None -> Lwt_result.return ()
-     | _, Some descr_v -> add_or_update descr_id descr_v) >>= fun () ->
-    (let readme =
-       List.find_opt (fun (p, _) -> Fpath.(equal (v "README.md") p)) raw_artifacts
-     in
-     let readme_anywhere =
-       List.find_opt (fun (p, _) -> String.equal "README.md" (Fpath.basename p)) raw_artifacts
-     in
-     match readme, readme_anywhere with
-     | None, None -> Lwt_result.return ()
-     | Some (_, data), _ | None, Some (_, data) -> add_or_update readme_id data) >>= fun () ->
-    (match List.partition (fun p -> Fpath.(is_prefix (v "bin/") p.filepath)) artifacts with
-     | [ main_binary ], other_artifacts ->
-       Db.exec Build_artifact.add (main_binary, id) >>= fun () ->
-       Db.find Builder_db.last_insert_rowid () >>= fun main_binary_id ->
-       Db.exec Build.set_main_binary (id, main_binary_id) >|= fun () ->
-       Some main_binary, other_artifacts
-     | [], _ ->
-       Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
-       Lwt_result.return (None, artifacts)
-     | xs, _ ->
-       Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
-                    Fmt.(list ~sep:(any ",") Fpath.pp)
-                    (List.map (fun a -> a.filepath) xs));
-       Lwt_result.return (None, artifacts)) >>= fun (main_binary, remaining_artifacts_to_add) ->
-    List.fold_left
-      (fun r file ->
-         r >>= fun () ->
-         Db.exec Build_artifact.add (file, id))
-      (Lwt_result.return ())
-      remaining_artifacts_to_add >>= fun () ->
-    commit_files datadir staging_dir job_name uuid (List.map fst artifacts_to_save) >>= fun () ->
-    Db.commit () >|= fun () ->
-    main_binary
   in
-  Lwt_result.bind_lwt_error (or_cleanup r)
-    (fun e ->
-       Db.rollback ()
-       |> Lwt.map (fun r ->
-           Result.iter_error
-             (fun e' -> Log.err (fun m -> m "Failed rollback: %a" Caqti_error.pp e'))
-             r;
-           e)) >>= function
-  | None -> Lwt.return (Ok ())
-  | Some main_binary ->
-    let time =
-      let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
-      Printf.sprintf "%04d%02d%02d%02d%02d%02d" y m d hh mm ss
-    and uuid = Uuidm.to_string uuid
-    and job = job.name
-    and platform = job.platform
-    and sha256 = Ohex.encode main_binary.sha256
+  let* () = or_cleanup (prepare_staging staging_dir) in
+  let* console, script = save_console_and_script staging_dir job_name uuid console script in
+  let* artifacts_to_save =
+    or_cleanup @@
+    List.fold_left (fun acc (f, data) ->
+        let* acc = acc in
+        let* exists = Db.find Build_artifact.exists f.sha256 in
+        if exists then
+          Ok acc
+        else
+          let* () = save_artifact staging_dir f data in
+          Ok (f :: acc))
+      (Ok [])
+      artifacts
+  in
+  let r =
+    let* () = Db.start () in
+    let* () = Db.exec Job.try_add job_name in
+    let* job_id = Db.find_opt Job.get_id_by_name job_name in
+    let* job_id = not_found job_id in
+    let input_id = compute_input_id artifacts in
+    let* () =
+      Db.exec Build.add { Build.uuid; start; finish; result;
+                          console; script; platform;
+                          main_binary = None; input_id; user_id; job_id }
     in
-    let fp_str p = Fpath.(to_string (datadir // p)) in
-    let args =
-      String.concat " "
-        (List.map (fun s -> "\"" ^ String.escaped s ^ "\"")
-           [ "--build-time=" ^ time ; "--sha256=" ^ sha256 ; "--job=" ^ job ;
-             "--uuid=" ^ uuid ; "--platform=" ^ platform ;
-             "--cache-dir=" ^ Fpath.to_string cachedir ;
-             "--data-dir=" ^ Fpath.to_string datadir ;
-             "--main-binary-filepath=" ^ Fpath.to_string main_binary.filepath ;
-             fp_str Fpath.(datadir // artifact_path main_binary) ])
-    in
-    Log.debug (fun m -> m "executing hooks with %s" args);
-    let dir = Fpath.(configdir / "upload-hooks") in
-    (try
-       Lwt.return (Ok (Some (Unix.opendir (Fpath.to_string dir))))
-     with
-       Unix.Unix_error _ -> Lwt.return (Ok None)) >>= function
-    | None -> Lwt.return (Ok ())
-    | Some dh ->
-      try
-        let is_executable file =
-          let st = Unix.stat (Fpath.to_string file) in
-          st.Unix.st_perm land 0o111 = 0o111 &&
-          st.Unix.st_kind = Unix.S_REG
-        in
-        let rec go () =
-          let next_file = Unix.readdir dh in
-          let file = Fpath.(dir / next_file) in
-          if is_executable file && Fpath.has_ext ".sh" file then
-            ignore (Sys.command (Fpath.to_string file ^ " " ^ args ^ " &"));
-          go ()
-        in
-        go ()
+    let* id = Db.find last_insert_rowid () in
+    let sec_syn = infer_section_and_synopsis raw_artifacts in
+    let readme =
+      match List.find_opt (fun ({ filepath; _}, _) ->
+          Fpath.equal filepath (Fpath.v "README.md")) artifacts
       with
-      | End_of_file ->
-        Unix.closedir dh;
-        Lwt.return (Ok ())
+      | Some (_, data) -> Some data
+      | None ->
+        List.find_map (fun ({ filepath; _}, data) ->
+            if String.equal "README.md" (Fpath.basename filepath) then
+              Some data
+            else None)
+          artifacts
+    in
+    let tag name value =
+      let* () = Db.exec Tag.try_add name in
+      let* tag_id = Db.find Tag.get_id_by_name name in
+      let* job_tag_opt = Db.find_opt Job_tag.get_value (tag_id, job_id) in
+      match job_tag_opt with
+      | None ->
+        Db.exec Job_tag.add (tag_id, value, job_id)
+      | Some _ ->
+        Db.exec Job_tag.update (tag_id, value, job_id)
+    in
+    let maybe_tag name opt = Option.fold ~none:(Ok ()) ~some:(tag name) opt in
+    let* () = maybe_tag "readme" readme in
+    let* () = maybe_tag "section" (fst sec_syn) in
+    let* () = maybe_tag "synopsis" (fst (snd sec_syn)) in
+    let* () = maybe_tag "description" (snd (snd sec_syn)) in
+    let* main_binary, remaining_artifacts =
+      match List.partition (fun (p, _data) -> Fpath.(is_prefix (v "bin/")) p.filepath) artifacts with
+      | [ (main_binary, _data) ], other_artifacts ->
+        let* () = Db.exec Build_artifact.add (main_binary, id) in
+        let* main_binary_id = Db.find last_insert_rowid () in
+        let* () = Db.exec Build.set_main_binary (id, main_binary_id) in
+        Ok (Some main_binary, other_artifacts)
+      | [], _ ->
+        Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
+        Ok (None, artifacts)
+      | xs, _ ->
+        Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
+                     Fmt.(list ~sep:(any ",") Fpath.pp)
+                     (List.map (fun (a, _data) -> a.filepath) xs));
+        Ok (None, artifacts)
+    in
+    let* () =
+      List.fold_left (fun acc (file, _data) ->
+          let* () = acc in
+          Db.exec Build_artifact.add (file, id))
+        (Ok ())
+        remaining_artifacts
+    in
+    let* () = commit_files datadir staging_dir job_name uuid artifacts_to_save in
+    let* () = Db.commit () in
+    Ok main_binary
+  in
+  match or_cleanup r with
+  | Error _ as r ->
+    (match Db.rollback () with
+     | Ok () -> ()
+     | Error e ->
+       Log.warn (fun m -> m "Failed to rollback: %a" Caqti_error.pp e));
+    r
+  | Ok None -> Ok ()
+  | Ok Some main_binary ->
+    execute_hooks job_name uuid platform start main_binary ~datadir ~configdir
+
 
 (* NOTE: this function is duplicatedi in bin/builder_db_app.ml *)
 let console_of_string data =
@@ -587,40 +524,137 @@ let console_of_string data =
         (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
         let delta = float_of_string (String.sub line 0 (i - 1)) in
         let delta = Int64.to_int (Duration.of_f delta) in
-        let line = String.sub line i (String.length line - i) in
+        let line = String.sub line (succ i) (String.length line - (succ i)) in
         Some (delta, line)
       | exception Not_found ->
         if line <> "" then
           Log.warn (fun m -> m "Unexpected console line %S" line);
         None)
     lines
+  |> List.rev (* in the exec format the order is reversed *)
 
 let exec_of_build datadir uuid (module Db : CONN) =
   let open Builder_db in
-  Db.find_opt Build.get_by_uuid uuid >>= not_found >>= fun (build_id, build) ->
-  let { Builder_db.Build.start; finish; result;
-        job_id; console; script; platform; _ } =
-    build
-  in
-  Db.find Builder_db.Job.get job_id >>= fun job_name ->
-  read_file datadir script >>= fun script ->
-  let job = { Builder.name = job_name; platform; script } in
-  read_file datadir console >>= fun console ->
+  let* r = Db.find_opt Build.get_by_uuid uuid in
+  let* (build_id, build) = not_found r in
+  let { Build.start; finish; result; job_id; console; script; platform; _ } = build in
+  let* job_name = Db.find Job.get job_id in
+  let* script = read_file datadir script in
+  let* console = read_file datadir console in
+  let job = { Builder.name = job_name; script; platform } in
   let out = console_of_string console in
-  Db.collect_list Builder_db.Build_artifact.get_all_by_build build_id >>= fun artifacts ->
-  readme job_name (module Db) >>= fun readme_opt ->
-  Lwt_list.fold_left_s (fun acc (_id, ({ filepath; _ } as file)) ->
-      match acc with
-      | Error _ as e -> Lwt.return e
-      | Ok acc ->
-        build_artifact_data datadir file >>= fun data ->
-        Lwt.return (Ok ((filepath, data) :: acc)))
-    (Ok []) artifacts >>= fun data ->
-  let data =
-    match readme_opt with
-    | None -> data
-    | Some readme -> (Fpath.v "README.md", readme) :: data
+  let* artifacts = Db.collect_list Build_artifact.get_all_by_build build_id in
+  let* readme_opt = readme job_id (module Db) in
+  let* data =
+    List.fold_left
+      (fun acc (_id, ({ filepath; _ } as file)) ->
+         let* acc = acc in
+         let* data = read_file datadir (artifact_path file) in
+         Ok ((filepath, data) :: acc))
+      (Ok []) artifacts
   in
+  let data = Option.fold ~none:data ~some:(fun readme -> (Fpath.v "README.md", readme) :: data) readme_opt in
   let exec = (job, uuid, out, start, finish, result, data) in
-  let data = Builder.Asn.exec_to_str exec in
-  Lwt.return (Ok data)
+  Ok (Builder.Asn.exec_to_str exec)
+
+
+module Viz = struct
+  let viz_type_to_string = function
+    | `Treemap -> "treemap"
+    | `Dependencies -> "dependencies"
+
+  let viz_dir ~cachedir ~viz_typ ~version =
+    let typ_str = viz_type_to_string viz_typ in
+    Fpath.(cachedir / Fmt.str "%s_%d" typ_str version)
+
+  let viz_path ~cachedir ~viz_typ ~version ~input_hash =
+    Fpath.( viz_dir ~cachedir ~viz_typ ~version / input_hash + "html")
+
+  let choose_versioned_viz_path
+      ~cachedir
+      ~viz_typ
+      ~viz_input_hash
+      ~current_version =
+    let ( >>= ) = Result.bind in
+    let rec aux current_version =
+      let path =
+        viz_path ~cachedir
+          ~viz_typ
+          ~version:current_version
+          ~input_hash:viz_input_hash in
+      Bos.OS.File.exists path >>= fun path_exists ->
+      if path_exists then Ok path else (
+        if current_version = 1 then
+          Error (`Msg (Fmt.str "viz '%s': There exist no version of the requested \
+                                visualization"
+                         (viz_type_to_string viz_typ)))
+        else
+          aux @@ pred current_version
+      )
+    in
+    aux current_version
+
+  let get_viz_version_from_dirs ~cachedir ~viz_typ =
+    let* versioned_dirs = Bos.OS.Dir.contents cachedir in
+    let max_cached_version =
+      let viz_typ_str = viz_type_to_string viz_typ ^ "_" in
+      versioned_dirs
+      |> List.filter_map (fun versioned_dir ->
+          match Bos.OS.Dir.exists versioned_dir with
+          | Error (`Msg err) ->
+            Logs.warn (fun m -> m "%s" err);
+            None
+          | Ok false -> None
+          | Ok true ->
+            let dir_str = Fpath.filename versioned_dir in
+            if not (String.starts_with ~prefix:viz_typ_str dir_str) then
+              None
+            else
+              try
+                String.(sub dir_str
+                          (length viz_typ_str)
+                          (length dir_str - length viz_typ_str))
+                |> int_of_string
+                |> Option.some
+              with Failure _ ->
+                Logs.warn (fun m ->
+                    m "Failed to read visualization-version from directory: '%s'"
+                      (Fpath.to_string versioned_dir));
+                None
+        )
+      |> List.fold_left Int.max (-1)
+    in
+    if max_cached_version = -1 then
+      Result.error @@
+      `Msg (Fmt.str "Couldn't find any visualization-version of %s"
+              (viz_type_to_string viz_typ))
+    else
+      Result.ok max_cached_version
+
+  let hash_viz_input ~uuid typ conn =
+    let open Builder_db in
+    match typ with
+    | `Treemap ->
+      let* (_build_id, build) = build uuid conn in
+      let* main_binary = not_found build.main_binary in
+      let* main_binary = build_artifact_by_id main_binary conn in
+      let* debug_binary =
+        let bin = Fpath.(base main_binary.filepath + "debug") in
+        build_artifact uuid bin conn
+      in
+      Ok (Ohex.encode debug_binary.sha256)
+    | `Dependencies ->
+      let* opam_switch = build_artifact uuid (Fpath.v "opam-switch") conn in
+      Ok (Ohex.encode opam_switch.sha256)
+
+  let try_load_cached_visualization ~datadir ~uuid viz_typ conn =
+    let cachedir = cachedir datadir in
+    let* latest_viz_version = get_viz_version_from_dirs ~cachedir ~viz_typ in
+    let* viz_input_hash = hash_viz_input ~uuid viz_typ conn in
+    choose_versioned_viz_path
+      ~cachedir
+      ~current_version:latest_viz_version
+      ~viz_typ
+      ~viz_input_hash
+
+end
