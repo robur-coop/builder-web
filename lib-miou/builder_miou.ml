@@ -606,13 +606,6 @@ let robots req _server _cfg =
   let* () = Vif.Response.with_string req Views.robots_txt in
   Vif.Response.respond `OK
 
-let auth_test req _server _cfg =
-  authenticated req @@ fun user_id user_info ->
-  let open Vif.Response.Syntax in
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Fmt.kstr (Vif.Response.with_string req) "Authorized as %S (id %Lu).\n" user_info.username (Builder_db.Rep.id_to_int64 user_id) in
-    Vif.Response.respond `Unauthorized
-
 let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
   Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
 
@@ -750,5 +743,4 @@ let[@warning "-33"] routes () =
   (* TODO:
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
   *)
-    ; get Vif.Uri.(rel / "auth-test" /?? any) --> auth_test
   ]
