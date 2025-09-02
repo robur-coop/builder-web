@@ -79,6 +79,8 @@ module Url = struct
   let exec = rel / "job" /% string `Path / "build" /% uuid / "exec" /?? any
   let upload_binary = rel / "job" /% string `Path / "platform" /% string `Path / "upload" /?? any
 
+  let compare_builds = rel / "compare" /% uuid /% uuid /?? nil
+
   let hash = rel / "hash" /?? ("sha256", hex) ** any
 
   let robots = rel / "robots.txt" /?? any
@@ -440,7 +442,7 @@ let job_build_file req _job_name build path server cfg =
         let* () = Vif.Response.empty in
         Vif.Response.respond `Not_modified
       | _ ->
-        let path = Model.build_artifact_path cfg.datadir artifact in
+        let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
         (* XXX: do we need to sanitize the path further?! *)
         (* TODO: error handling for the file?! *)
         let stream = Vif.Stream.Source.file (Fpath.to_string path) in
@@ -503,6 +505,74 @@ let exec req _job_name build server cfg =
     let* () = Vif.Response.with_string req exec in
     Vif.Response.respond `OK
 
+let process_comparison datadir build_left_uuid build_right_uuid conn =
+  let ( let* ) = Result.bind in
+  let data build path = Model.build_artifact_data datadir build (Fpath.v path) conn in
+  let resolve_artifact_size = function
+    | None -> Ok None
+    | Some id ->
+      let* file = Model.build_artifact_by_id id conn in
+      Ok (Some file.size)
+  in
+  let* (_id, build_left) = Model.build build_left_uuid conn in
+  let* (_id, build_right) = Model.build build_right_uuid conn in
+  let* switch_left = data build_left_uuid "opam-switch" in
+  let* build_env_left = data build_left_uuid "build-environment" in
+  let* system_pkgs_left = data build_left_uuid "system-packages" in
+  let* switch_right = data build_right_uuid "opam-switch" in
+  let* build_env_right = data build_right_uuid "build-environment" in
+  let* system_pkgs_right = data build_right_uuid "system-packages" in
+  let* build_left_file_size = resolve_artifact_size build_left.main_binary in
+  let* build_right_file_size = resolve_artifact_size build_right.main_binary in
+  let* job_left = Model.job_name build_left.job_id conn in
+  let* job_right = Model.job_name build_right.job_id conn in
+
+  Ok (job_left, job_right, build_left, build_right, build_left_file_size,
+      build_right_file_size, switch_left, switch_right,
+      build_env_left, build_env_right,
+      system_pkgs_left, system_pkgs_right)
+
+let compare_builds req build_left build_right server cfg =
+  let pool = Vif.Server.device caqti server in
+  let open Vif.Response.Syntax in
+  match Caqti_miou_unix.Pool.use (process_comparison cfg.datadir build_left build_right) pool with
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok (job_left, job_right, build_left, build_right,
+        build_left_file_size, build_right_file_size,
+        switch_left, switch_right,
+        build_env_left, build_env_right,
+        system_pkgs_left, system_pkgs_right) ->
+    let env_diff = Utils.compare_env build_env_left build_env_right
+    and pkg_diff = Utils.compare_pkgs system_pkgs_left system_pkgs_right
+    and switch_left = OpamFile.SwitchExport.read_from_string switch_left
+    and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
+    let opam_diff = Opamdiff.compare switch_left switch_right in
+    if is_accept_json req then
+      let json =
+        Views.compare_builds_json
+          ~job_left ~job_right ~build_left ~build_right
+          ~build_left_file_size ~build_right_file_size
+          ~env_diff ~pkg_diff ~opam_diff
+      in
+      let* () = Vif.Response.add ~field:"content-type" "application/json" in
+      let* () = Vif.Response.with_string req (Yojson.Basic.to_string json) in
+      Vif.Response.respond `OK
+    else
+      let html =
+        Views.compare_builds
+          ~job_left ~job_right
+          ~build_left ~build_right
+          ~env_diff
+          ~pkg_diff
+          ~opam_diff
+      in
+      let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+      let* () = Vif.Response.with_tyxml req html in
+      Vif.Response.respond `OK
 
 let hash req hash server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -672,13 +742,13 @@ let[@warning "-33"] routes () =
   ; get Url.job_build_viz --> job_build_viz
   ; get Url.exec --> exec
   ; get Url.redirect_main_binary --> redirect_main_binary
+  ; get Url.compare_builds --> compare_builds
   ; get Url.hash --> hash
   ; get Url.robots --> robots
   ; post Vif.Type.any Url.upload --> upload
   ; post Vif.Type.any Url.upload_binary --> upload_binary
   (* TODO:
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
-    `Get, "/compare/:build_left/:build_right", (w compare_builds);
   *)
     ; get Vif.Uri.(rel / "auth-test" /?? any) --> auth_test
   ]

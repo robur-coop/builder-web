@@ -82,8 +82,9 @@ let build_artifact build filepath (module Db : CONN) =
 let build_artifact_by_id id (module Db : CONN) =
   Db.find Builder_db.Build_artifact.get id
 
-let build_artifact_path datadir file =
-  Fpath.(datadir // artifact_path file)
+let build_artifact_data datadir build filepath conn =
+  let* artifact = build_artifact build filepath conn in
+  read_file datadir (artifact_path artifact)
 
 let build_artifacts build (module Db : CONN) =
   let+ artifacts = Db.collect_list Builder_db.Build_artifact.get_all_by_build build in
@@ -194,6 +195,9 @@ let readme job_id (module Db : CONN) =
 
 let job_id job_name (module Db : CONN) =
   Db.find_opt Builder_db.Job.get_id_by_name job_name
+
+let job_name job_id (module Db : CONN) =
+  Db.find Builder_db.Job.get job_id
 
 let job_and_readme job (module Db : CONN) =
   let* job_id = job_id job (module Db) in
