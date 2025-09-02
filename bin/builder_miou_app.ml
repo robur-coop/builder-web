@@ -26,27 +26,27 @@ let reporter_with_ts ~dst () =
   in
   { Logs.report }
 
-let setup_log style_renderer level =
+let setup_log style_renderer () =
   Fmt_tty.setup_std_outputs ?style_renderer ();
-  Logs.set_level level;
   Logs_threaded.enable ();
   Logs.set_reporter (reporter_with_ts ~dst:Format.std_formatter ())
 (* END: copy from miragevpn *)
 
-let main () =
+let main () port datadir configdir filter_builds_later_than =
   Miou_unix.run @@ fun () ->
-  let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, 3000)) in
+  (* TODO: host argument *)
+  let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, port)) in
   let cfg = Vif.config sockaddr in
   Caqti_miou.Switch.run @@ fun sw ->
-  let datadir = Fpath.v "_builder" in
-  let configdir = Fpath.v "/etc/builder-web" in
-  let uri = Uri.make ~scheme:"sqlite3" ~path:"_builder/builder.sqlite3"
-    ~query:["create", ["false"]] () in
+  let datadir = Fpath.v datadir and configdir = Fpath.v configdir in
+  let uri =
+    let path = Fpath.(datadir / "builder.sqlite3" |> to_string) in
+    Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] () in
   try
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_miou.caqti ]
       ~middlewares:Vif.Middlewares.[ Builder_miou.auth_middleware ]
       (Builder_miou.routes ())
-      { Builder_miou.sw; uri; datadir; configdir; filter_builds_later_than= 32 }
+      { Builder_miou.sw; uri; datadir; configdir; filter_builds_later_than }
   with Builder_miou.Wrong_version (appid, version) ->
     if appid = Builder_db.application_id
     then Printf.eprintf "Wrong database version: %Lu, expected %Lu"
@@ -56,10 +56,38 @@ let main () =
     exit 2
 open Cmdliner
 
+let port =
+  let doc = "port" in
+  Arg.(value & opt int 3000 & info [ "p"; "port" ] ~doc)
+
+let datadir =
+  let doc = "data directory" in
+  let docv = "DATA_DIR" in
+  let env = Cmdliner.Cmd.Env.info "BUILDER_WEB_DATADIR" in
+  Arg.(
+    value &
+    opt dir Builder_system.default_datadir &
+    info ~env [ "d"; "datadir" ] ~doc ~docv
+  )
+
+let configdir =
+  let doc = "config directory" in
+  let docv = "CONFIG_DIR" in
+  Arg.(
+    value &
+    opt dir Builder_system.default_configdir &
+    info [ "c"; "configdir" ] ~doc ~docv)
+
+let expired_jobs =
+  let doc = "Amount of days after which a job is considered to be inactive if \
+             no successful build has been achieved (use 0 for infinite)" in
+  Arg.(value & opt int 30 & info [ "expired-jobs" ] ~doc)
+
 let () =
-  setup_log None None;
+  let setup_log =
+    Term.(const setup_log $ Fmt_cli.style_renderer () $ Mirage_logs_cli.setup) in
   let cmd =
-    let info = Cmd.info "builder-miou" in
-    Cmd.v info Term.(const main $ Mirage_logs_cli.setup)
+    let info = Cmd.info "builder-miou" ~doc:"Builder web" in
+    Cmd.v info Term.(const main $ setup_log $ port $ datadir $ configdir $ expired_jobs)
   in
   exit (Cmd.eval cmd)
