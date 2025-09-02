@@ -77,6 +77,7 @@ module Url = struct
   let job_build_viz = rel / "job" /% string `Path / "build" /% uuid /% viz /?? any
   let redirect_main_binary = rel / "job" /% string `Path / "build" /% uuid / "main-binary" /?? any
   let exec = rel / "job" /% string `Path / "build" /% uuid / "exec" /?? any
+  let upload_binary = rel / "job" /% string `Path / "platform" /% string `Path / "upload" /?? any
 
   let hash = rel / "hash" /?? ("sha256", hex) ** any
 
@@ -132,23 +133,6 @@ let authenticated req k =
     let* () = Vif.Response.with_string req "Unauthorized!\n" in
     Vif.Response.respond `Unauthorized
   | Some (user_id, user_info) ->
-    k user_id user_info
-
-let authorized req job_name server user_id user_info k =
-  let pool = Vif.Server.device caqti server in
-  let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use (Model.authorized user_id user_info job_name) pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok false ->
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.add ~field:"www-authenticate" "Basic realm=\"builder-web\"" in
-    let* () = Vif.Response.with_string req "Unauthorized!\n" in
-    Vif.Response.respond `Unauthorized
-  | Ok true ->
     k user_id user_info
 
 (* mime lookup with orb knowledge *)
@@ -611,6 +595,68 @@ let upload req server { datadir; configdir; _ } =
       let* () = Vif.Response.empty in
       Vif.Response.respond `Created
 
+let upload_binary req job_name platform server { datadir; configdir; _ } =
+  authenticated req @@ fun user_id user_info ->
+  let pool = Vif.Server.device caqti server in
+  let binary_name =
+    hd_opt (Vif.Queries.get req "binary_name")
+    |> Option.map Fpath.of_string
+    |> Option.value ~default:(Ok Fpath.(v job_name + "bin"))
+    |> Result.map Fpath.normalize
+  in
+  let fn binary_path src conn =
+    let ( let* ) = Result.bind in
+    let* authorized = Model.authorized user_id user_info job_name conn in
+    if authorized then
+      let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+      let* exists = Model.build_exists uuid conn in
+      if exists then
+        Ok `Internal_server_error
+      else
+        let exec =
+          let now = Ptime_clock.now () in
+          ({ Builder.name = job_name ; platform ; script = "# This artifact was manually built\n" }, uuid, [], now, now, Builder.Exited 0,
+           [ binary_path, Vif.Stream.(Stream.into Sink.string (Stream.from src)) ])
+        in
+        let* () = Model.add_build ~datadir ~configdir user_id exec conn in
+        Ok `Created
+    else Ok `Unauthorized
+  in
+  let open Vif.Response.Syntax in
+  match binary_name with
+  | Error `Msg err ->
+    Log.debug (fun m -> m "Client provided bad binary name: %s" err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
+    Vif.Response.respond `Bad_request
+  | Ok binary_name when not (String.equal (Fpath.basename binary_name) (Fpath.to_string binary_name)) ->
+    Log.debug (fun m -> m "Client provided illegal binary name: %a"
+                  (Fmt.quote Fpath.pp) binary_name);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
+    Vif.Response.respond `Bad_request
+  | Ok binary_name ->
+    let binary_path = Fpath.(v "bin" // binary_name) in
+    let src = Vif.Request.source req in
+    match Caqti_miou_unix.Pool.use (fn binary_path src) pool with
+    | Error err ->
+      Log.warn (fun m -> m "Database error: %a" pp_error err);
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Internal server error\n" in
+      Vif.Response.respond `Internal_server_error
+    | Ok `Internal_server_error ->
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Internal server error\n" in
+      Vif.Response.respond `Internal_server_error
+    | Ok `Unauthorized ->
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Unauthorized!\n" in
+      Vif.Response.respond `Unauthorized
+    | Ok `Created ->
+      let* () = Vif.Response.empty in
+      Vif.Response.respond `Created
+
+
 let[@warning "-33"] routes () =
   let open Vif.Route in
   [
@@ -629,10 +675,10 @@ let[@warning "-33"] routes () =
   ; get Url.hash --> hash
   ; get Url.robots --> robots
   ; post Vif.Type.any Url.upload --> upload
+  ; post Vif.Type.any Url.upload_binary --> upload_binary
   (* TODO:
     `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
     `Get, "/compare/:build_left/:build_right", (w compare_builds);
-    `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
   *)
     ; get Vif.Uri.(rel / "auth-test" /?? any) --> auth_test
   ]
