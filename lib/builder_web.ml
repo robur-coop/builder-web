@@ -60,6 +60,8 @@ module Url = struct
     Tyre.regex Re.(rep (seq [xdigit; xdigit]))
     |> Vif.Uri.conv (Ohex.decode ~skip_whitespace:false)
       Ohex.encode
+  (* See https://github.com/robur-coop/vif/issues/7 *)
+  let path = Tyre.regex Re.(rep1 (compl [Re.char '?']))
 
   let root = rel /?? nil
   let all_builds = rel / "all-builds" /?? nil
@@ -70,7 +72,7 @@ module Url = struct
   let job_with_failed = prefix_job / "failed" /?? any
 
   (* XXX: we can't use [prefix_job] below due to types /o\ *)
-  let redirect_latest = prefix_job / "build" / "latest" /?? any
+  let redirect_latest = rel / "job" /% string `Path / "build" / "latest" /% path /?? any
   let job_build = rel / "job" /% string `Path / "build" /% uuid /?? any
   let job_build_file = rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any
   let job_build_static_file = rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any
@@ -313,10 +315,10 @@ let job_with_failed req job_name server _cfg =
       let* () = Vif.Response.with_tyxml req html in
       Vif.Response.respond `OK
 
-let redirect_latest req job_name server _cfg =
+let redirect_latest req job_name path server _cfg =
   let pool = Vif.Server.device caqti server in
   let platform = hd_opt (Vif.Queries.get req "platform") in
-  let artifact = String.empty in
+  let artifact = path in
   let fn conn =
     let ( let* ) = Result.bind in
     let* job_id = Model.job_id job_name conn in
@@ -332,9 +334,10 @@ let redirect_latest req job_name server _cfg =
       Vif.Response.respond `Internal_server_error
   | Ok build ->
     let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
+    Log.err (fun m -> m "Redirect link %S" uri);
     let* () = Vif.Response.add ~field:"Location" uri in
     let* () = Vif.Response.with_string req String.empty in
-    Vif.Response.respond `Moved_permanently
+    Vif.Response.respond `Temporary_redirect
 
 let redirect_main_binary req job_name build server _cfg =
   let pool = Vif.Server.device caqti server in
