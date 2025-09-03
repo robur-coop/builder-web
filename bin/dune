@@ -7,7 +7,7 @@
  (public_name builder-db)
  (name builder_db_app)
  (modules builder_db_app)
- (libraries builder_web builder_db builder_system caqti.blocking uri bos fmt
+ (libraries builder_db builder_system viz caqti.blocking uri bos fmt
    logs logs.cli logs.fmt cmdliner mirage-crypto-rng.unix builder))
 
 (executable

@@ -1,5 +1,5 @@
 (library
  (name builder_web)
- (libraries builder builder_db vif tyxml bos duration ohex caqti-miou
+ (libraries builder builder_db viz vif tyxml bos duration ohex caqti-miou
    caqti-miou.unix opamdiff ptime.clock.os cmarkit tar tar.gz tar-unix owee
    solo5-elftool decompress.de decompress.gz uri digestif magic-mime))
