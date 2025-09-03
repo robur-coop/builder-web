@@ -45,7 +45,7 @@ let main () port datadir configdir filter_builds_later_than =
   try
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
-      (Builder_web.routes ())
+      Builder_web.routes
       { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than }
   with Builder_web.Wrong_version (appid, version) ->
     if appid = Builder_db.application_id

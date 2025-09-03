@@ -73,6 +73,7 @@ module Url = struct
 
   (* XXX: we can't use [prefix_job] below due to types /o\ *)
   let redirect_latest = rel / "job" /% string `Path / "build" / "latest" /% path /?? any
+  let redirect_latest_empty = rel / "job" /% string `Path / "build" / "latest" /?? any
   let job_build = rel / "job" /% string `Path / "build" /% uuid /?? any
   let job_build_file = rel / "job" /% string `Path / "build" /% uuid / "f" /% path /?? any
   let job_build_static_file = rel / "job" /% string `Path / "build" /% uuid /% script_or_console /?? any
@@ -338,6 +339,9 @@ let redirect_latest req job_name path server _cfg =
     let* () = Vif.Response.add ~field:"Location" uri in
     let* () = Vif.Response.with_string req String.empty in
     Vif.Response.respond `Temporary_redirect
+
+let redirect_latest_empty req job_name server cfg =
+  redirect_latest req job_name "" server cfg
 
 let redirect_main_binary req job_name build server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -723,7 +727,7 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
       Vif.Response.respond `Created
 
 
-let[@warning "-33"] routes () =
+let routes =
   let open Vif.Route in
   [
     get Url.root --> builds ~all:false ~filter_builds:true
@@ -732,6 +736,7 @@ let[@warning "-33"] routes () =
   ; get Url.job --> job
   ; get Url.job_with_failed --> job_with_failed
   ; get Url.redirect_latest --> redirect_latest
+  ; get Url.redirect_latest_empty --> redirect_latest_empty
   ; get Url.job_build --> job_build
   ; get Url.job_build_file --> job_build_file
   ; get Url.job_build_static_file --> job_build_static_file
@@ -743,7 +748,4 @@ let[@warning "-33"] routes () =
   ; get Url.robots --> robots
   ; post Vif.Type.any Url.upload --> upload
   ; post Vif.Type.any Url.upload_binary --> upload_binary
-  (* TODO:
-    `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
-  *)
   ]
