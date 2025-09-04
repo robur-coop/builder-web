@@ -72,6 +72,12 @@ module Url = struct
   let job_with_failed = prefix_job / "failed" /?? any
 
   (* XXX: we can't use [prefix_job] below due to types /o\ *)
+  (* XXX: it is important that
+     [Url.(redirect_latest,redirect_latest_empty)] occur before the other
+     endpoints living at /job/:job/build/:build as otherwise the former will
+     get shadowed by their regular expressions!
+
+     The fix would be to write a regular expression that matches exactly uuids. *)
   let redirect_latest = rel / "job" /% string `Path / "build" / "latest" /% path /?? any
   let redirect_latest_empty = rel / "job" /% string `Path / "build" / "latest" /?? any
   let job_build = rel / "job" /% string `Path / "build" /% uuid /?? any
