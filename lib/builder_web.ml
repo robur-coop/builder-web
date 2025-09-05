@@ -1,5 +1,4 @@
-let src = Logs.Src.create "builder.miou"
-
+let src = Logs.Src.create "builder-web" ~doc:"Builder-web"
 module Log = (val Logs.src_log src : Logs.LOG)
 
 exception Wrong_version of int32 * int64
