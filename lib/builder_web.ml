@@ -146,6 +146,21 @@ let authenticated req k =
   | Some (user_id, user_info) ->
     k user_id user_info
 
+let or_model_error req k =
+  let open Vif.Response.Syntax in
+  function
+  | Ok r -> k r
+  | Error `Not_found ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+
 (* mime lookup with orb knowledge *)
 let append_charset = function
   (* mime types from nginx:
@@ -167,23 +182,6 @@ let mime_lookup path =
        else if Fpath.is_prefix Fpath.(v "bin/") path
        then "application/octet-stream"
        else Magic_mime.lookup (Fpath.to_string path))
-let string_of_html =
-  Format.asprintf "%a" (Tyxml.Html.pp ())
-
-let default_log_warn ~status _e =
-  Log.warn (fun m -> m "%a: some error" H2.Status.pp_hum status)
-
-(*
-let if_error server ?(status = `Internal_server_error)
-    ?(log = default_log_warn ~status)
-    ?(message = "") r =
-  match r with
-  | Error e ->
-    log e;
-    Vif.Response.with_string server status message
-  | Ok r -> r
-*)
-
 (* MIME-type(;q=float)? *("," MIME-type (;q=float)?)) *)
 
 let is_accept_json req =
@@ -229,24 +227,19 @@ let builds ?(filter_builds = false) ~all req server cfg =
             Ok (Utils.String_map.add_or_create section v acc) in
     let* jobs = Model.jobs_with_section_synopsis conn in
     List.fold_right fn0 jobs (Ok Utils.String_map.empty) in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Ok jobs when is_accept_json req ->
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | jobs when is_accept_json req ->
     let json = Views.Builds.make_json ~all jobs in
     let str = Yojson.Basic.to_string json in
     let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let* () = Vif.Response.with_string req str in
     Vif.Response.respond `OK
-  | Ok jobs ->
+  | jobs ->
     let html = Views.Builds.make ~all jobs in
-    let str = string_of_html html in
     let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-    let* () = Vif.Response.with_string req str in
+    let* () = Vif.Response.with_tyxml req html in
     Vif.Response.respond `OK
-  | Error err ->
-    let* () = Vif.Response.add ~field:"content-type" "text/plain" in
-    let str = Fmt.str "Database error: %a" pp_error err in
-    let* () = Vif.Response.with_string req str in
-    Vif.Response.respond `Internal_server_error
 
 let failed_builds req server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -258,17 +251,12 @@ let failed_builds req server _cfg =
   in
   let fn conn = Model.failed_builds ~start ~count platform conn in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.with_string req "Internal server error.\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok builds ->
-    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-    let html = Views.failed_builds ~start ~count builds in
-    let* () = Vif.Response.with_tyxml req html in
-    Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun builds ->
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let html = Views.failed_builds ~start ~count builds in
+  let* () = Vif.Response.with_tyxml req html in
+  Vif.Response.respond `OK
 
 let job req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -279,22 +267,18 @@ let job req job_name server _cfg =
     let* builds = Model.builds_grouped_by_output job_id platform conn in
     Ok (readme, builds) in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    let* () = Vif.Response.add ~field:"content-type" "text/plain" in
-    let str = Fmt.str "Database error: %a" pp_error err in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | (readme, builds) when is_accept_json req ->
+    let json = Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds in
+    let str = Yojson.Basic.to_string json in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let* () = Vif.Response.with_string req str in
-    Vif.Response.respond `Internal_server_error
-  | Ok (readme, builds) when is_accept_json req ->
-      let json = Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds in
-      let str = Yojson.Basic.to_string json in
-      let* () = Vif.Response.add ~field:"content-type" "application/json" in
-      let* () = Vif.Response.with_string req str in
-      Vif.Response.respond `OK
-  | Ok (readme, builds) ->
-      let html = Views.Job.make ~failed:false ~job_name ~platform ~readme builds in
-      let* () = Vif.Response.with_tyxml req html in
-      Vif.Response.respond `OK
+    Vif.Response.respond `OK
+  | (readme, builds) ->
+    let html = Views.Job.make ~failed:false ~job_name ~platform ~readme builds in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
 let job_with_failed req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -305,22 +289,18 @@ let job_with_failed req job_name server _cfg =
     let* builds = Model.builds_grouped_by_output_with_failed job_id platform conn in
     Ok (readme, builds) in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-      let* () = Vif.Response.add ~field:"content-type" "text/plain" in
-      let str = Fmt.str "Database error: %a" pp_error err in
-      let* () = Vif.Response.with_string req str in
-      Vif.Response.respond `Internal_server_error
-  | Ok (readme, builds) when is_accept_json req ->
-      let json = Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds in
-      let str = Yojson.Basic.to_string json in
-      let* () = Vif.Response.add ~field:"content-type" "application/json" in
-      let* () = Vif.Response.with_string req str in
-      Vif.Response.respond `OK
-  | Ok (readme, builds) ->
-      let html = Views.Job.make ~failed:true ~job_name ~platform ~readme builds in
-      let* () = Vif.Response.with_tyxml req html in
-      Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | (readme, builds) when is_accept_json req ->
+    let json = Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds in
+    let str = Yojson.Basic.to_string json in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req str in
+    Vif.Response.respond `OK
+  | (readme, builds) ->
+    let html = Views.Job.make ~failed:true ~job_name ~platform ~readme builds in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
 let redirect_latest req job_name path server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -333,18 +313,13 @@ let redirect_latest req job_name path server _cfg =
     let* build = Model.latest_successful_build_uuid job_id platform conn in
     Model.not_found build in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-      let* () = Vif.Response.add ~field:"content-type" "text/plain" in
-      let str = Fmt.str "Database error: %a" pp_error err in
-      let* () = Vif.Response.with_string req str in
-      Vif.Response.respond `Internal_server_error
-  | Ok build ->
-    let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
-    Log.err (fun m -> m "Redirect link %S" uri);
-    let* () = Vif.Response.add ~field:"Location" uri in
-    let* () = Vif.Response.with_string req String.empty in
-    Vif.Response.respond `Temporary_redirect
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun build ->
+  let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
+  Log.err (fun m -> m "Redirect link %S" uri);
+  let* () = Vif.Response.add ~field:"Location" uri in
+  let* () = Vif.Response.with_string req String.empty in
+  Vif.Response.respond `Temporary_redirect
 
 let redirect_latest_empty req job_name server cfg =
   redirect_latest req job_name "" server cfg
@@ -361,25 +336,21 @@ let redirect_main_binary req job_name build server _cfg =
       Ok (Some artifact)
   in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok None ->
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | None ->
     let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
     let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
     let* () = Vif.Response.with_tyxml req html in
     Vif.Response.respond `Not_found
-  | Ok Some artifact ->
+  | Some artifact ->
     let url =
       let open Vif.Uri in
       rel / "job" /% string `Path / "build" /% Url.uuid / "f" /% path /?? any
     in
     let* () = Vif.Response.empty in
     Vif.Response.redirect_to req url
-      job_name build (Fpath.to_string artifact.filepath)
+      job_name build (Fpath.to_string artifact.Builder_db.filepath)
 
 let job_build req job_name build server cfg =
   let pool = Vif.Server.device caqti server in
@@ -403,31 +374,27 @@ let job_build req job_name build server cfg =
     Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
   in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    let solo5_manifest = Option.bind main_binary (Model.solo5_manifest cfg.datadir) in
-    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-    let html =
-      Views.Job_build.make
-        ~job_name
-        ~build
-        ~artifacts
-        ~main_binary
-        ~solo5_manifest
-        ~same_input_same_output
-        ~different_input_same_output
-        ~same_input_different_output
-        ~latest
-        ~next
-        ~previous
-    in
-    let* () = Vif.Response.with_string req (string_of_html html) in
-    Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req
+  @@ fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+  let solo5_manifest = Option.bind main_binary (Model.solo5_manifest cfg.datadir) in
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let html =
+    Views.Job_build.make
+      ~job_name
+      ~build
+      ~artifacts
+      ~main_binary
+      ~solo5_manifest
+      ~same_input_same_output
+      ~different_input_same_output
+      ~same_input_different_output
+      ~latest
+      ~next
+      ~previous
+  in
+  let* () = Vif.Response.with_tyxml req html in
+  Vif.Response.respond `OK
 
 let job_build_file req _job_name build path server cfg =
   let pool = Vif.Server.device caqti server in
@@ -439,30 +406,25 @@ let job_build_file req _job_name build path server cfg =
     let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
     (* FIXME: referer *)
     let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
-    let* () = Vif.Response.with_string req (string_of_html html) in
+    let* () = Vif.Response.with_tyxml req html in
     Vif.Response.respond `Not_found
   | Ok path ->
-    match Caqti_miou_unix.Pool.use (fn path) pool with
-    | Error err ->
-      Log.warn (fun m -> m "Database error: %a" pp_error err);
-      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-      let* () = Vif.Response.with_string req "Internal server error\n" in
-      Vif.Response.respond `Internal_server_error
-    | Ok artifact ->
-      let etag = Base64.encode_string artifact.Builder_db.sha256 in
-      match if_none_match with
-      | Some etag' when etag = etag' ->
-        let* () = Vif.Response.empty in
-        Vif.Response.respond `Not_modified
-      | _ ->
-        let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
-        (* XXX: do we need to sanitize the path further?! *)
-        (* TODO: error handling for the file?! *)
-        let stream = Vif.Stream.Source.file (Fpath.to_string path) in
-        let* () = Vif.Response.add ~field:"content-type" (mime_lookup artifact.Builder_db.filepath) in
-        let* () = Vif.Response.add ~field:"etag" etag in
-        let* () = Vif.Response.with_source req stream in
-        Vif.Response.respond `OK
+    Caqti_miou_unix.Pool.use (fn path) pool
+    |> or_model_error req @@ fun artifact ->
+    let etag = Base64.encode_string artifact.Builder_db.sha256 in
+    match if_none_match with
+    | Some etag' when etag = etag' ->
+      let* () = Vif.Response.empty in
+      Vif.Response.respond `Not_modified
+    | _ ->
+      let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
+      (* XXX: do we need to sanitize the path further?! *)
+      (* TODO: error handling for the file?! *)
+      let stream = Vif.Stream.Source.file (Fpath.to_string path) in
+      let* () = Vif.Response.add ~field:"content-type" (mime_lookup artifact.Builder_db.filepath) in
+      let* () = Vif.Response.add ~field:"etag" etag in
+      let* () = Vif.Response.with_source req stream in
+      Vif.Response.respond `OK
 
 let job_build_static_file req _job_name build (file : [< `Console | `Script ]) server cfg =
   let pool = Vif.Server.device caqti server in
@@ -474,16 +436,11 @@ let job_build_static_file req _job_name build (file : [< `Console | `Script ]) s
       Model.build_script_by_uuid cfg.datadir build conn
   in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok filepath ->
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
-    Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun filepath ->
+  let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+  Vif.Response.respond `OK
 
 let job_build_viz req _job_name build viz server cfg =
   let pool = Vif.Server.device caqti server in
@@ -492,31 +449,21 @@ let job_build_viz req _job_name build viz server cfg =
     Model.Viz.try_load_cached_visualization
       ~datadir:cfg.datadir ~uuid:build viz
   in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok filepath ->
-    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-    let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
-    Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun filepath ->
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+  Vif.Response.respond `OK
 
 let exec req _job_name build server cfg =
   let pool = Vif.Server.device caqti server in
   let fn = Model.exec_of_build cfg.datadir build in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok exec ->
-    let* () = Vif.Response.add ~field:"content-type" "application/octet-stream" in
-    let* () = Vif.Response.with_string req exec in
-    Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun exec ->
+  let* () = Vif.Response.add ~field:"content-type" "application/octet-stream" in
+  let* () = Vif.Response.with_string req exec in
+  Vif.Response.respond `OK
 
 let process_comparison datadir build_left_uuid build_right_uuid conn =
   let ( let* ) = Result.bind in
@@ -548,44 +495,40 @@ let process_comparison datadir build_left_uuid build_right_uuid conn =
 let compare_builds req build_left build_right server cfg =
   let pool = Vif.Server.device caqti server in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use (process_comparison cfg.datadir build_left build_right) pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok (job_left, job_right, build_left, build_right,
-        build_left_file_size, build_right_file_size,
-        switch_left, switch_right,
-        build_env_left, build_env_right,
-        system_pkgs_left, system_pkgs_right) ->
-    let env_diff = Utils.compare_env build_env_left build_env_right
-    and pkg_diff = Utils.compare_pkgs system_pkgs_left system_pkgs_right
-    and switch_left = OpamFile.SwitchExport.read_from_string switch_left
-    and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-    let opam_diff = Opamdiff.compare switch_left switch_right in
-    if is_accept_json req then
-      let json =
-        Views.compare_builds_json
-          ~job_left ~job_right ~build_left ~build_right
-          ~build_left_file_size ~build_right_file_size
-          ~env_diff ~pkg_diff ~opam_diff
-      in
-      let* () = Vif.Response.add ~field:"content-type" "application/json" in
-      let* () = Vif.Response.with_string req (Yojson.Basic.to_string json) in
-      Vif.Response.respond `OK
-    else
-      let html =
-        Views.compare_builds
-          ~job_left ~job_right
-          ~build_left ~build_right
-          ~env_diff
-          ~pkg_diff
-          ~opam_diff
-      in
-      let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-      let* () = Vif.Response.with_tyxml req html in
-      Vif.Response.respond `OK
+  Caqti_miou_unix.Pool.use (process_comparison cfg.datadir build_left build_right) pool
+  |> or_model_error req @@
+  fun (job_left, job_right, build_left, build_right,
+       build_left_file_size, build_right_file_size,
+       switch_left, switch_right,
+       build_env_left, build_env_right,
+       system_pkgs_left, system_pkgs_right) ->
+  let env_diff = Utils.compare_env build_env_left build_env_right
+  and pkg_diff = Utils.compare_pkgs system_pkgs_left system_pkgs_right
+  and switch_left = OpamFile.SwitchExport.read_from_string switch_left
+  and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
+  let opam_diff = Opamdiff.compare switch_left switch_right in
+  if is_accept_json req then
+    let json =
+      Views.compare_builds_json
+        ~job_left ~job_right ~build_left ~build_right
+        ~build_left_file_size ~build_right_file_size
+        ~env_diff ~pkg_diff ~opam_diff
+    in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req (Yojson.Basic.to_string json) in
+    Vif.Response.respond `OK
+  else
+    let html =
+      Views.compare_builds
+        ~job_left ~job_right
+        ~build_left ~build_right
+        ~env_diff
+        ~pkg_diff
+        ~opam_diff
+    in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
 let hash req hash server _cfg =
   let pool = Vif.Server.device caqti server in
@@ -593,25 +536,21 @@ let hash req hash server _cfg =
     Model.build_hash hash conn
   in
   let open Vif.Response.Syntax in
-  match Caqti_miou_unix.Pool.use fn pool with
-  | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
-    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-    let* () = Vif.Response.with_string req "Internal server error\n" in
-    Vif.Response.respond `Internal_server_error
-  | Ok None ->
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | None ->
     let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
     let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
     let* () = Vif.Response.with_tyxml req html in
     Vif.Response.respond `Not_found
-  | Ok Some (job_name, build) ->
+  | Some (job_name, build) ->
     let url =
       let open Vif.Uri in
       rel / "job" /% string `Path / "build" /% Url.uuid /?? any
     in
     let* () = Vif.Response.empty in
     Vif.Response.redirect_to req url
-      job_name build.uuid
+      job_name build.Builder_db.Build.uuid
 
 let robots req _server _cfg =
   let open Vif.Response.Syntax in
@@ -649,17 +588,13 @@ let upload req server { datadir; configdir; _ } =
     Vif.Response.respond `Internal_server_error
   | Ok (({ name = job_name; _ }, uuid, _, _, _, _, _) as exec) ->
     Log.debug (fun m -> m "Received build %a" pp_exec exec);
-    match Caqti_miou_unix.Pool.use (fn job_name uuid exec) pool with
-    | Error err ->
-      Log.warn (fun m -> m "Database error: %a" pp_error err);
-      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-      let* () = Vif.Response.with_string req "Internal server error\n" in
-      Vif.Response.respond `Internal_server_error
-    | Ok `Unauthorized ->
+    Caqti_miou_unix.Pool.use (fn job_name uuid exec) pool
+    |> or_model_error req @@ function
+    | `Unauthorized ->
       let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
       let* () = Vif.Response.with_string req "Unauthorized!\n" in
       Vif.Response.respond `Unauthorized
-    | Ok `Conflict ->
+    | `Conflict ->
       Log.info (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
       let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
       let* () =
@@ -667,7 +602,7 @@ let upload req server { datadir; configdir; _ } =
           pp_exec exec
       in
       Vif.Response.respond `Conflict
-    | Ok `Created ->
+    | `Created ->
       let* () = Vif.Response.empty in
       Vif.Response.respond `Created
 
@@ -714,21 +649,17 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
   | Ok binary_name ->
     let binary_path = Fpath.(v "bin" // binary_name) in
     let src = Vif.Request.source req in
-    match Caqti_miou_unix.Pool.use (fn binary_path src) pool with
-    | Error err ->
-      Log.warn (fun m -> m "Database error: %a" pp_error err);
+    Caqti_miou_unix.Pool.use (fn binary_path src) pool
+    |> or_model_error req @@ function
+    | `Internal_server_error ->
       let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
       let* () = Vif.Response.with_string req "Internal server error\n" in
       Vif.Response.respond `Internal_server_error
-    | Ok `Internal_server_error ->
-      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-      let* () = Vif.Response.with_string req "Internal server error\n" in
-      Vif.Response.respond `Internal_server_error
-    | Ok `Unauthorized ->
+    | `Unauthorized ->
       let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
       let* () = Vif.Response.with_string req "Unauthorized!\n" in
       Vif.Response.respond `Unauthorized
-    | Ok `Created ->
+    | `Created ->
       let* () = Vif.Response.empty in
       Vif.Response.respond `Created
 
