@@ -14,7 +14,9 @@ type error = [ Caqti_error.t | `Not_found | `Msg of string | `File_error of Fpat
 
 let pp_error = Model.pp_error
 
-let hd_opt = function x :: _ -> Some x | [] -> None
+let fix_q = function
+  | [] -> None
+  | comma_delim -> Some (String.concat "," comma_delim)
 
 let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Device.device =
   let finally pool = Caqti_miou_unix.Pool.drain pool in
@@ -242,11 +244,11 @@ let builds ?(filter_builds = false) ~all req server cfg =
 
 let failed_builds req server _cfg =
   let pool = Vif.Server.device caqti server in
-  let platform = hd_opt (Vif.Queries.get req "platform") in
+  let platform = fix_q (Vif.Queries.get req "platform") in
   let start, count =
     let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
-    to_int 0 (hd_opt (Vif.Queries.get req "start")),
-    to_int 20 (hd_opt (Vif.Queries.get req "count"))
+    to_int 0 (fix_q (Vif.Queries.get req "start")),
+    to_int 20 (fix_q (Vif.Queries.get req "count"))
   in
   let fn conn = Model.failed_builds ~start ~count platform conn in
   let open Vif.Response.Syntax in
@@ -259,7 +261,7 @@ let failed_builds req server _cfg =
 
 let job req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
-  let platform = hd_opt (Vif.Queries.get req "platform") in
+  let platform = fix_q (Vif.Queries.get req "platform") in
   let fn conn =
     let ( let* ) = Result.bind in
     let* job_id, readme = Model.job_and_readme job_name conn in
@@ -281,7 +283,7 @@ let job req job_name server _cfg =
 
 let job_with_failed req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
-  let platform = hd_opt (Vif.Queries.get req "platform") in
+  let platform = fix_q (Vif.Queries.get req "platform") in
   let fn conn =
     let ( let* ) = Result.bind in
     let* job_id, readme = Model.job_and_readme job_name conn in
@@ -303,7 +305,7 @@ let job_with_failed req job_name server _cfg =
 
 let redirect_latest req job_name path server _cfg =
   let pool = Vif.Server.device caqti server in
-  let platform = hd_opt (Vif.Queries.get req "platform") in
+  let platform = fix_q (Vif.Queries.get req "platform") in
   let artifact = path in
   let fn conn =
     let ( let* ) = Result.bind in
@@ -609,7 +611,7 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
   authenticated req @@ fun user_id user_info ->
   let pool = Vif.Server.device caqti server in
   let binary_name =
-    hd_opt (Vif.Queries.get req "binary_name")
+    fix_q (Vif.Queries.get req "binary_name")
     |> Option.map Fpath.of_string
     |> Option.value ~default:(Ok Fpath.(v job_name + "bin"))
     |> Result.map Fpath.normalize
