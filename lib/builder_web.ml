@@ -417,13 +417,8 @@ let job_build_file req _job_name build path server cfg =
       Vif.Response.respond `Not_modified
     | _ ->
       let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
-      (* XXX: do we need to sanitize the path further?! *)
-      (* TODO: error handling for the file?! *)
-      let stream = Vif.Stream.Source.file (Fpath.to_string path) in
-      let* () = Vif.Response.add ~field:"content-type" (mime_lookup artifact.Builder_db.filepath) in
-      let* () = Vif.Response.add ~field:"etag" etag in
-      let* () = Vif.Response.with_source req stream in
-      Vif.Response.respond `OK
+      let mime = mime_lookup artifact.Builder_db.filepath in
+      Vif.Response.with_file ~mime ~etag req path
 
 let job_build_static_file req _job_name build (file : [< `Console | `Script ]) server cfg =
   let pool = Vif.Server.device caqti server in
