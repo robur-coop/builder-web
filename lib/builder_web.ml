@@ -36,9 +36,10 @@ let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Dev
             pool
           else
             raise (Wrong_version (appid, version))
-      | Error e | Ok (Error e, _ | _, Error e) ->
-          ignore e;
-          Fmt.failwith "Error getting database version: %s" "TODO"
+      | Error e ->
+          Fmt.failwith "Error connecting to database: %a" pp_error e
+      | Ok (Error e, _ | _, Error e) ->
+          Fmt.failwith "Error getting database version: %a" pp_error e
 
 module Url = struct
   open Vif.Uri
