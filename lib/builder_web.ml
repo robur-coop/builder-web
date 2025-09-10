@@ -61,8 +61,6 @@ module Url = struct
     Tyre.regex Re.(rep (seq [xdigit; xdigit]))
     |> Vif.Uri.conv (Ohex.decode ~skip_whitespace:false)
       Ohex.encode
-  (* See https://github.com/robur-coop/vif/issues/7 *)
-  let path = Tyre.regex Re.(rep1 (compl [Re.char '?']))
 
   let root = rel /?? nil
   let all_builds = rel / "all-builds" /?? nil
