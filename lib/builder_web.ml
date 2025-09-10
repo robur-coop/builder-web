@@ -658,6 +658,15 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
       let* () = Vif.Response.empty in
       Vif.Response.respond `Created
 
+let not_found_handler req target _server _cfg =
+  let r =
+    let open Vif.Response.Syntax in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:target ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  in
+  Some r
 
 let routes =
   let open Vif.Route in
