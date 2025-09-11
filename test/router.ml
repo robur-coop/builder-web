@@ -92,7 +92,6 @@ let link_module_synced =
       `Viz_dependencies;
       `Script;
       `Console;
-      `All_targz;
       `File Fpath.(v "some" / "path");
     ]
   @
