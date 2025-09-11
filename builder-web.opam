@@ -49,7 +49,8 @@ depends: [
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
 ]
-pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#master"]
+#pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#master"]
+pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#6a39adf44abe944c81e9f0510042f1701229607a"]
 
 synopsis: "Web interface for builder"
 description: """
