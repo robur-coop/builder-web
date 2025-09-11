@@ -32,10 +32,10 @@ let setup_log style_renderer () =
   Logs.set_reporter (reporter_with_ts ~dst:Format.std_formatter ())
 (* END: copy from miragevpn *)
 
-let main () port datadir configdir filter_builds_later_than =
+let main () inet_addr port datadir configdir filter_builds_later_than =
   Miou_unix.run @@ fun () ->
   (* TODO: host argument *)
-  let sockaddr = Unix.(ADDR_INET (inet_addr_loopback, port)) in
+  let sockaddr = Unix.(ADDR_INET (inet_addr, port)) in
   let cfg = Vif.config sockaddr in
   Caqti_miou.Switch.run @@ fun sw ->
   let datadir = Fpath.v datadir and configdir = Fpath.v configdir in
@@ -60,6 +60,19 @@ open Cmdliner
 let port =
   let doc = "port" in
   Arg.(value & opt int 3000 & info [ "p"; "port" ] ~doc)
+
+let inet_addr =
+  let doc = "The address to bind the HTTP server." in
+  let parser str =
+    try Ok (Unix.inet_addr_of_string str)
+    with _ -> Error (`Msg (Fmt.str "Invalid inet-addr: %S" str))
+  in
+  let pp = Fmt.of_to_string Unix.string_of_inet_addr in
+  let inet_addr = Arg.conv (parser, pp) in
+  let open Arg in
+  value
+  & opt inet_addr Unix.inet_addr_loopback
+  & info [ "h"; "host" ] ~doc ~docv:"INET_ADDR"
 
 let datadir =
   let doc = "data directory" in
@@ -89,6 +102,6 @@ let () =
     Term.(const setup_log $ Fmt_cli.style_renderer () $ Mirage_logs_cli.setup) in
   let cmd =
     let info = Cmd.info "builder-miou" ~doc:"Builder web" in
-    Cmd.v info Term.(const main $ setup_log $ port $ datadir $ configdir $ expired_jobs)
+    Cmd.v info Term.(const main $ setup_log $ inet_addr $ port $ datadir $ configdir $ expired_jobs)
   in
   exit (Cmd.eval cmd)
