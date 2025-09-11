@@ -7,3 +7,8 @@
  (name markdown_to_html)
  (modules markdown_to_html)
  (libraries builder_web cmarkit alcotest))
+
+(test
+  (name router)
+  (modules router)
+  (libraries url builder_web vif alcotest))
