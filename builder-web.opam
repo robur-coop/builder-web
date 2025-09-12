@@ -40,7 +40,6 @@ depends: [
   "cmarkit" {>= "0.3.0"}
   "cachet" {>= "0.0.2"}
   "solo5-elftool" {>= "0.4.0"}
-  "owee"
   "digestif" {>= "1.2.0"}
   "uuidm" {>= "0.9.9"}
   "yojson"
