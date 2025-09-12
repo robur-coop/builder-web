@@ -9,8 +9,6 @@
  (libraries builder_web cmarkit alcotest))
 
 (test
- (name router)
- (modules router)
- (libraries builder_web fmt dream yojson alcotest)
- (preprocess
-  (pps ppx_deriving.std ppx_deriving_yojson)))
+  (name router)
+  (modules router)
+  (libraries url builder_web vif alcotest))

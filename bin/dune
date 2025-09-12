@@ -4,16 +4,15 @@
  (libraries bos))
 
 (executable
- (public_name builder-web)
- (name builder_web_app)
- (modules builder_web_app)
- (libraries builder_web builder_system dream dream-encoding
-   mirage-crypto-rng.unix cmdliner logs.cli metrics metrics-lwt metrics-influx
-   metrics-rusage ipaddr ipaddr.unix http_status_metrics))
-
-(executable
  (public_name builder-db)
  (name builder_db_app)
  (modules builder_db_app)
- (libraries builder_web builder_db builder_system caqti.blocking uri bos fmt
+ (libraries builder_db builder_system viz caqti.blocking uri bos fmt
    logs logs.cli logs.fmt cmdliner mirage-crypto-rng.unix builder))
+
+(executable
+ (public_name builder-web)
+ (name builder_web_app)
+ (modules builder_web_app)
+ (libraries builder_web builder_db builder_system mirage-crypto-rng-miou-unix
+   fmt logs logs.cli fmt.cli logs.fmt logs.threaded fmt.tty cmdliner mirage-logs.cli caqti-miou.unix))

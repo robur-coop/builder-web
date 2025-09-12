@@ -57,7 +57,6 @@ module Job_build_artifact = struct
     | `Viz_dependencies -> "/vizdependencies"
     | `Script -> "/script"
     | `Console -> "/console"
-    | `All_targz -> "/all.tar.gz"
     | `File f -> "/f/" ^ Fmt.to_to_string fpath_url_pp f
 
   let make_from_string ~job_name ~build ~artifact () =

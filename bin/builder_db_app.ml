@@ -451,7 +451,7 @@ module Verify_cache_dir = struct
       let dir_str = Fpath.to_string d in
       let is_valid =
         viz_types |> List.exists (fun viz_type ->
-            let viz_prefix = Builder_web.Viz_aux.viz_type_to_string viz_type in
+            let viz_prefix = Viz.viz_type_to_string viz_type in
             let prefix = viz_prefix ^ "_" in
             let has_prefix = String.starts_with ~prefix dir_str in
             let has_valid_ending =
@@ -512,7 +512,7 @@ module Verify_cache_dir = struct
     let () = contents |> List.iter (verify_cache_subdir ~cachedir) in
     let+ latest_versioned_subdirs =
       viz_types |> List.fold_left (fun acc viz_type ->
-          let viz_prefix = Builder_web.Viz_aux.viz_type_to_string viz_type in
+          let viz_prefix = Viz.viz_type_to_string viz_type in
           let* acc = acc in
           let+ latest_viz_version = get_latest_viz_version viz_type in
           let path = Fpath.(
@@ -582,13 +582,12 @@ module Verify_cache_dir = struct
     |}
 
   let check_viz_nonempty ~cachedir ~viz_typ ~hash =
-    let module Viz_aux = Builder_web.Viz_aux in
     let* latest_version =
-      Viz_aux.get_viz_version_from_dirs ~cachedir ~viz_typ
+      Viz.get_viz_version_from_dirs ~cachedir ~viz_typ
     in
     let viz_input_hash = Ohex.encode hash in
     let* viz_path =
-      Viz_aux.choose_versioned_viz_path
+      Viz.choose_versioned_viz_path
         ~cachedir
         ~viz_typ
         ~viz_input_hash
@@ -646,8 +645,7 @@ module Verify_cache_dir = struct
     ()
 
   let has_completed ~cachedir ~viz_typ ~version =
-    let module Viz_aux = Builder_web.Viz_aux in
-    let viz_dir = Viz_aux.viz_dir
+    let viz_dir = Viz.viz_dir
         ~cachedir
         ~viz_typ
         ~version
@@ -662,12 +660,11 @@ module Verify_cache_dir = struct
     | `Dependencies -> hash_opam_switch
 
   let verify_completeness ~cachedir ~viz_typ ~version build =
-    let module Viz_aux = Builder_web.Viz_aux in
     match extract_hash ~viz_typ build with
     | None -> ()
     | Some input_hash ->
       let input_hash = Ohex.encode input_hash in
-      let viz_path = Viz_aux.viz_path
+      let viz_path = Viz.viz_path
           ~cachedir
           ~viz_typ
           ~version
@@ -693,7 +690,6 @@ module Verify_cache_dir = struct
     | Error e -> Error (e : msg :> [> msg])
 
   let verify () datadir cachedir =
-    let module Viz_aux = Builder_web.Viz_aux in
     begin
       let* datadir = Fpath.of_string datadir |> open_error_msg in
       let* cachedir = match cachedir with
@@ -712,7 +708,7 @@ module Verify_cache_dir = struct
         |> List.fold_left (fun acc viz_typ ->
             let* acc = acc in
             let* latest_version =
-              Viz_aux.get_viz_version_from_dirs ~cachedir ~viz_typ
+              Viz.get_viz_version_from_dirs ~cachedir ~viz_typ
             in
             let* has_completed = has_completed ~cachedir
                 ~viz_typ ~version:latest_version
@@ -769,13 +765,14 @@ let console_of_string data =
         (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
         let delta = float_of_string (String.sub line 0 (i - 1)) in
         let delta = Int64.to_int (Duration.of_f delta) in
-        let line = String.sub line i (String.length line - i) in
+        let line = String.sub line (succ i) (String.length line - (succ i)) in
         Some (delta, line)
       | exception Not_found ->
         if line <> "" then
           Logs.warn (fun m -> m "Unexpected console line %S" line);
         None)
     lines
+  |> List.rev (* in the exec format the order is reversed *)
 
 let extract_full () datadir dest uuid =
   let dbpath = datadir ^ "/builder.sqlite3" in

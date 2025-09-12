@@ -1,49 +1,111 @@
-let src = Logs.Src.create "builder-web" ~doc:"Builder_web"
+let src = Logs.Src.create "builder-web" ~doc:"Builder-web"
 module Log = (val Logs.src_log src : Logs.LOG)
 
-open Lwt.Syntax
-open Lwt_result.Infix
+module Link = Link
 
-let pp_error ppf = function
-  | #Caqti_error.connect as e -> Caqti_error.pp ppf e
-  | #Model.error as e -> Model.pp_error ppf e
-  | `Wrong_version (application_id, version) ->
-    if application_id = Builder_db.application_id
-    then Format.fprintf ppf "Wrong database version: %Ld, expected %Ld" version Builder_db.current_version
-    else Format.fprintf ppf "Wrong database application id: %ld, expected %ld" application_id Builder_db.application_id
+exception Wrong_version of int32 * int64
 
-let init_datadir datadir =
-  let ( let* ) = Result.bind and ( let+ ) x f = Result.map f x in
-  let* exists = Bos.OS.Dir.exists datadir in
-  let* () =
-    if exists
-    then Ok ()
-    else Error (`Msg "Datadir does not exist")
+type cfg =
+  { sw : Caqti_miou.Switch.t
+  ; uri : Uri.t
+  ; datadir : Fpath.t
+  ; configdir : Fpath.t
+  ; filter_builds_later_than : int }
+
+type error = [ Caqti_error.t | `Not_found | `Msg of string | `File_error of Fpath.t ]
+
+let pp_error = Model.pp_error
+
+let fix_q = function
+  | [] -> None
+  | comma_delim -> Some (String.concat "," comma_delim)
+
+let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Device.device =
+  let finally pool = Caqti_miou_unix.Pool.drain pool in
+  Vif.Device.v ~name:"caqti" ~finally [] @@ fun { sw; uri; _ } ->
+  match Caqti_miou_unix.connect_pool ~sw uri with
+  | Error err ->
+      Logs.err (fun m -> m "%a" Caqti_error.pp err);
+      Fmt.failwith "%a" Caqti_error.pp err
+  | Ok pool ->
+      let fn (module Conn : Caqti_miou.CONNECTION) =
+        let application_id = Conn.find Builder_db.get_application_id () in
+        let version = Conn.find Builder_db.get_version () in
+        Ok (application_id, version) in
+      match Caqti_miou_unix.Pool.use fn pool with
+      | Ok (Ok appid, Ok version) ->
+          if appid = Builder_db.application_id && version = Builder_db.current_version then
+            pool
+          else
+            raise (Wrong_version (appid, version))
+      | Error e ->
+          Fmt.failwith "Error connecting to database: %a" pp_error e
+      | Ok (Error e, _ | _, Error e) ->
+          Fmt.failwith "Error getting database version: %a" pp_error e
+
+let auth_middleware =
+  let fn req _target server (_cfg : cfg) =
+    let pool = Vif.Server.device caqti server in
+    let hdrs = Vif.Request.headers_of_request req in
+    match Vif.Headers.get hdrs "Authorization" with
+    | None ->
+      Log.debug (fun m -> m "No Authorization header");
+      None
+    | Some data ->
+      match String.split_on_char ' ' data with
+      | ["Basic"; user_pass] ->
+        (match Base64.decode user_pass with
+         | Error `Msg msg ->
+           Log.info (fun m -> m "Invalid user / pasword encoding in %S: %S" data msg);
+           None
+         | Ok user_pass -> match String.split_on_char ':' user_pass with
+           | [] | [_] ->
+             Log.info (fun m -> m "Invalid user / pasword encoding in %S" data);
+             None
+           | user :: password ->
+             let pass = String.concat ":" password in
+             match Caqti_miou_unix.Pool.use (Model.user user) pool with
+             | Ok Some (id, user_info) ->
+               if Builder_web_auth.verify_password pass user_info
+               then (Log.debug (fun m -> m "Authenticated as %S" user); Some (id, user_info))
+               else (Log.info (fun m -> m "Invalid password for %S" user); None)
+             | Ok None ->
+               Log.info (fun m -> m "Login attempt for nonexistent user %S" user);
+               None
+             | Error e ->
+               Log.warn (fun m -> m "Error getting user: %a" pp_error e);
+               None)
+      | _ ->
+        Log.info (fun m -> m "Bad Authorization header: %S" data);
+        None
   in
-  let+ _ = Bos.OS.Dir.create ~path:false (Model.staging datadir) in
-  ()
+  Vif.Middlewares.v ~name:"Basic auth" fn
 
-let init dbpath datadir =
-  Result.bind (init_datadir datadir) @@ fun () ->
-  Lwt_main.run (
-    Caqti_lwt_unix.connect
-      (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
-    >>= fun (module Db : Caqti_lwt.CONNECTION) ->
-    Db.find Builder_db.get_application_id () >>= fun application_id ->
-    Db.find Builder_db.get_version () >>= (fun version ->
-        if (application_id, version) = Builder_db.(application_id, current_version)
-        then Lwt_result.return ()
-        else Lwt_result.fail (`Wrong_version (application_id, version)))
-    >>= fun () ->
-    Model.cleanup_staging datadir (module Db))
+let authenticated req k =
+  match Vif.Request.get auth_middleware req with
+  | None ->
+    let open Vif.Response.Syntax in
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.add ~field:"www-authenticate" "Basic realm=\"builder-web\"" in
+    let* () = Vif.Response.with_string req "Unauthorized!\n" in
+    Vif.Response.respond `Unauthorized
+  | Some (user_id, user_info) ->
+    k user_id user_info
 
-let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
-  Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
-
-let safe_seg path =
-  if Fpath.is_seg path && not (Fpath.is_rel_seg path)
-  then Ok (Fpath.v path)
-  else Fmt.kstr (fun s -> Error (`Msg s)) "unsafe path %S" path
+let or_model_error req k =
+  let open Vif.Response.Syntax in
+  function
+  | Ok r -> k r
+  | Error `Not_found ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Error err ->
+    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
 
 (* mime lookup with orb knowledge *)
 let append_charset = function
@@ -66,759 +128,509 @@ let mime_lookup path =
        else if Fpath.is_prefix Fpath.(v "bin/") path
        then "application/octet-stream"
        else Magic_mime.lookup (Fpath.to_string path))
-
-let string_of_html =
-  Format.asprintf "%a" (Tyxml.Html.pp ())
+(* MIME-type(;q=float)? *("," MIME-type (;q=float)?)) *)
 
 let is_accept_json req =
-  match Dream.header req "Accept" with
-  | Some accept when String.starts_with ~prefix:"application/json" accept ->
-    true
-  | _ -> false
+  let types = Vif.Request.accept req in
+  List.exists ((=) "application/json") types
 
-let or_error_response req r =
-  let* r = r in
-  match r with
-  | Ok response -> Lwt.return response
-  | Error (text, status) ->
-    if is_accept_json req then
-      let json_response = Yojson.Basic.to_string (`Assoc [ "error", `String text ]) in
-      Dream.json ~status json_response
+let builds ?(filter_builds = false) ~all req server cfg =
+  let pool = Vif.Server.device caqti server in
+  let than =
+    if not filter_builds then
+      Ptime.epoch
     else
-      Dream.respond ~status text
+      let n = Ptime.Span.v (cfg.filter_builds_later_than, 0L) in
+      let now = Ptime_clock.now () in
+      (* in the old code we use Ptime.Span.sub... *)
+      Ptime.sub_span now n |> Option.value ~default:Ptime.epoch
+  in
+  let open Vif.Response.Syntax in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let fn1 job_id job_name platform = function
+      | Error _ as err -> err
+      | Ok acc ->
+          let* res = Model.build_with_main_binary job_id platform conn in
+          match res with
+          | Some (build, artifact) ->
+            if Ptime.is_later ~than build.finish
+            then Ok ((platform, build, artifact) :: acc)
+            else Ok acc
+          | None ->
+            Log.warn (fun m -> m "Job without builds: %s" job_name);
+            Ok acc in
+    let fn0 (job_id, job_name, section, synopsis) = function
+      | Error _ as err -> err
+      | Ok acc ->
+        let* ps = Model.platforms_of_job job_id conn in
+        let* platform_builds = List.fold_right (fn1 job_id job_name) ps (Ok []) in
+        match platform_builds with
+        | [] -> Ok acc
+        | platform_builds ->
+            let v = (job_name, synopsis, platform_builds) in
+            let section = Option.value ~default:"Uncategorized" section in
+            Ok (Utils.String_map.add_or_create section v acc) in
+    let* jobs = Model.jobs_with_section_synopsis conn in
+    List.fold_right fn0 jobs (Ok Utils.String_map.empty) in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | jobs when is_accept_json req ->
+    let json = Views.Builds.make_json ~all jobs in
+    let str = Yojson.Basic.to_string json in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req str in
+    Vif.Response.respond `OK
+  | jobs ->
+    let html = Views.Builds.make ~all jobs in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
-let default_log_warn ~status e =
-  Log.warn (fun m -> m "%s: %a" (Dream.status_to_string status) pp_error e)
+let failed_builds req server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let platform = fix_q (Vif.Queries.get req "platform") in
+  let start, count =
+    let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
+    to_int 0 (fix_q (Vif.Queries.get req "start")),
+    to_int 20 (fix_q (Vif.Queries.get req "count"))
+  in
+  let fn conn = Model.failed_builds ~start ~count platform conn in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun builds ->
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let html = Views.failed_builds ~start ~count builds in
+  let* () = Vif.Response.with_tyxml req html in
+  Vif.Response.respond `OK
 
-let if_error
-    ?(status = `Internal_Server_Error)
-    ?(log = default_log_warn ~status)
-    message r =
-  let* r = r in
-  match r with
-  | Error `Not_found ->
-    Lwt_result.fail ("Resource not found", `Not_Found)
-  | Error (#Model.error as e) ->
-    log e;
-    Lwt_result.fail (message, status)
-  | Ok _ as r -> Lwt.return r
+let job req job_name server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let platform = fix_q (Vif.Queries.get req "platform") in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id, readme = Model.job_and_readme job_name conn in
+    let* builds = Model.builds_grouped_by_output job_id platform conn in
+    Ok (readme, builds) in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | (readme, builds) when is_accept_json req ->
+    let json = Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds in
+    let str = Yojson.Basic.to_string json in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req str in
+    Vif.Response.respond `OK
+  | (readme, builds) ->
+    let html = Views.Job.make ~failed:false ~job_name ~platform ~readme builds in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
-let not_found_error r =
-  let* r = r in
-  match r with
-  | Error `Not_found ->
-    Lwt_result.fail ("Resource not found", `Not_Found)
-  | Ok _ as r -> Lwt.return r
+let job_with_failed req job_name server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let platform = fix_q (Vif.Queries.get req "platform") in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id, readme = Model.job_and_readme job_name conn in
+    let* builds = Model.builds_grouped_by_output_with_failed job_id platform conn in
+    Ok (readme, builds) in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | (readme, builds) when is_accept_json req ->
+    let json = Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds in
+    let str = Yojson.Basic.to_string json in
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req str in
+    Vif.Response.respond `OK
+  | (readme, builds) ->
+    let html = Views.Job.make ~failed:true ~job_name ~platform ~readme builds in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
 
-let get_uuid s =
-  Lwt.return
-    (if String.length s = 36 then
-       match Uuidm.of_string s with
-       | Some uuid -> Ok uuid
-       | None -> Error ("Bad uuid", `Bad_Request)
-     else Error ("Bad uuid", `Bad_Request))
+let redirect_latest req job_name path server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let platform = fix_q (Vif.Queries.get req "platform") in
+  let artifact = path in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id = Model.job_id job_name conn in
+    let* job_id = Model.not_found job_id in
+    let* build = Model.latest_successful_build_uuid job_id platform conn in
+    Model.not_found build in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun build ->
+  let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
+  Log.err (fun m -> m "Redirect link %S" uri);
+  let* () = Vif.Response.add ~field:"Location" uri in
+  let* () = Vif.Response.with_string req String.empty in
+  Vif.Response.respond `Temporary_redirect
 
+let redirect_latest_empty req job_name server cfg =
+  redirect_latest req job_name "" server cfg
 
-let main_binary_of_uuid uuid db =
-  Model.build uuid db
-  |> if_error "Error getting job build"
-    ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-  >>= fun (_id, build) ->
-  Model.not_found build.Builder_db.Build.main_binary
-  |> not_found_error
-  >>= fun main_binary ->
-  Model.build_artifact_by_id main_binary db
-  |> if_error "Error getting main binary"
+let redirect_main_binary req job_name build server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* _build_id, build = Model.build build conn in
+    match build.Builder_db.Build.main_binary with
+    | None -> Ok None
+    | Some artifact ->
+      let* artifact = Model.build_artifact_by_id artifact conn in
+      Ok (Some artifact)
+  in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | None ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Some artifact ->
+    let url = Url.job_build_file () in
+    let* () = Vif.Response.empty in
+    Vif.Response.redirect_to req url
+      job_name build (Fpath.to_string artifact.Builder_db.filepath)
 
-module Viz_aux = struct
-
-  let viz_type_to_string = function
-    | `Treemap -> "treemap"
-    | `Dependencies -> "dependencies"
-
-  let viz_dir ~cachedir ~viz_typ ~version =
-    let typ_str = viz_type_to_string viz_typ in
-    Fpath.(cachedir / Fmt.str "%s_%d" typ_str version)
-
-  let viz_path ~cachedir ~viz_typ ~version ~input_hash =
-    Fpath.(
-      viz_dir ~cachedir ~viz_typ ~version
-      / input_hash + "html"
-    )
-
-  let choose_versioned_viz_path
-      ~cachedir
-      ~viz_typ
-      ~viz_input_hash
-      ~current_version =
-    let ( >>= ) = Result.bind in
-    let rec aux current_version =
-      let path =
-        viz_path ~cachedir
-          ~viz_typ
-          ~version:current_version
-          ~input_hash:viz_input_hash in
-      Bos.OS.File.exists path >>= fun path_exists ->
-      if path_exists then Ok path else (
-        if current_version = 1 then
-          Error (`Msg (Fmt.str "viz '%s': There exist no version of the requested \
-                                visualization"
-                         (viz_type_to_string viz_typ)))
-        else
-          aux @@ pred current_version
-      )
+let job_build req job_name build server cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* (build_id, build) = Model.build build conn in
+    let* main_binary =
+      match build.Builder_db.Build.main_binary with
+      | None -> Ok None
+      | Some artifact ->
+        let* artifact = Model.build_artifact_by_id artifact conn in
+        Ok (Some artifact)
     in
-    aux current_version
-
-  let get_viz_version_from_dirs ~cachedir ~viz_typ =
-    let ( >>= ) = Result.bind in
-    Bos.OS.Dir.contents cachedir >>= fun versioned_dirs ->
-    let max_cached_version =
-      let viz_typ_str = viz_type_to_string viz_typ ^ "_" in
-      versioned_dirs
-      |> List.filter_map (fun versioned_dir ->
-          match Bos.OS.Dir.exists versioned_dir with
-          | Error (`Msg err) ->
-            Logs.warn (fun m -> m "%s" err);
-            None
-          | Ok false -> None
-          | Ok true ->
-            let dir_str = Fpath.filename versioned_dir in
-            if not (String.starts_with ~prefix:viz_typ_str dir_str) then
-              None
-            else
-              try
-                String.(sub dir_str
-                          (length viz_typ_str)
-                          (length dir_str - length viz_typ_str))
-                |> int_of_string
-                |> Option.some
-              with Failure _ ->
-                Logs.warn (fun m ->
-                    m "Failed to read visualization-version from directory: '%s'"
-                      (Fpath.to_string versioned_dir));
-                None
-        )
-      |> List.fold_left Int.max (-1)
-    in
-    if max_cached_version = -1 then
-      Result.error @@
-      `Msg (Fmt.str "Couldn't find any visualization-version of %s"
-              (viz_type_to_string viz_typ))
-    else
-      Result.ok max_cached_version
-
-  let hash_viz_input ~uuid typ db =
-    let open Builder_db in
-    main_binary_of_uuid uuid db >>= fun main_binary ->
-    Model.build uuid db
-    |> if_error "Error getting build" >>= fun (build_id, _build) ->
-    Model.build_artifacts build_id db
-    |> if_error "Error getting build artifacts" >>= fun artifacts ->
-    match typ with
-    | `Treemap ->
-      let debug_binary =
-        let bin = Fpath.base main_binary.filepath in
-        List.find_opt
-          (fun p -> Fpath.(equal (bin + "debug") (base p.filepath)))
-          artifacts
-      in
-      begin
-        Model.not_found debug_binary
-        |> not_found_error >>= fun debug_binary ->
-        debug_binary.sha256
-        |> Ohex.encode
-        |> Lwt_result.return
-      end
-    | `Dependencies ->
-      let opam_switch =
-        List.find_opt
-          (fun p -> Fpath.(equal (v "opam-switch") (base p.filepath)))
-          artifacts
-      in
-      Model.not_found opam_switch
-      |> not_found_error >>= fun opam_switch ->
-      opam_switch.sha256
-      |> Ohex.encode
-      |> Lwt_result.return
-
-  let try_load_cached_visualization ~cachedir ~uuid viz_typ db =
-    Lwt.return (get_viz_version_from_dirs ~cachedir ~viz_typ)
-    |> if_error "Error getting visualization version" >>= fun latest_viz_version ->
-    hash_viz_input ~uuid viz_typ db >>= fun viz_input_hash ->
-    (choose_versioned_viz_path
-       ~cachedir
-       ~current_version:latest_viz_version
-       ~viz_typ
-       ~viz_input_hash
-     |> Lwt.return
-     |> if_error "Error finding a version of the requested visualization")
-    >>= fun viz_path ->
-    Lwt_result.catch (fun () ->
-      Lwt_io.with_file ~mode:Lwt_io.Input
-        (Fpath.to_string viz_path)
-        Lwt_io.read
-    )
-    |> Lwt_result.map_error (fun exn -> `Msg (Printexc.to_string exn))
-    |> if_error "Error getting cached visualization"
-
-end
-
-
-let routes ~datadir ~cachedir ~configdir ~expired_jobs =
-  let builds ~all ?(filter_builds_later_than = 0) req =
-    let than =
-      if filter_builds_later_than = 0 then
-        Ptime.epoch
-      else
-        let n = Ptime.Span.v (filter_builds_later_than, 0L) in
-        let now = Ptime_clock.now () in
-        Ptime.Span.sub (Ptime.to_span now) n |> Ptime.of_span |>
-        Option.fold ~none:Ptime.epoch ~some:Fun.id
-    in
-    Dream.sql req Model.jobs_with_section_synopsis
-    |> if_error "Error getting jobs"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
-    >>= fun jobs ->
-    List.fold_right
-      (fun (job_id, job_name, section, synopsis) r ->
-         r >>= fun acc ->
-         Dream.sql req (Model.platforms_of_job job_id) >>= fun ps ->
-         List.fold_right (fun platform r ->
-           r >>= fun acc ->
-           Dream.sql req (Model.build_with_main_binary job_id platform) >>= function
-           | Some (build, artifact) ->
-             if Ptime.is_later ~than build.finish then
-               Lwt_result.return ((platform, build, artifact) :: acc)
-             else
-               Lwt_result.return acc
-           | None ->
-             Log.warn (fun m -> m "Job without builds: %s" job_name);
-             Lwt_result.return acc)
-           ps (Lwt_result.return []) >>= fun platform_builds ->
-         if platform_builds = [] then
-           Lwt_result.return acc
-         else
-           let v = (job_name, synopsis, platform_builds) in
-           let section = Option.value ~default:"Uncategorized" section in
-           Lwt_result.return (Utils.String_map.add_or_create section v acc))
-      jobs
-      (Lwt_result.return Utils.String_map.empty)
-    |> if_error "Error getting jobs"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting jobs: %a" pp_error e))
-    >>= fun jobs ->
-    if is_accept_json req then
-      Views.Builds.make_json ~all jobs |> Yojson.Basic.to_string |> Dream.json |> Lwt_result.ok
-    else
-      Views.Builds.make ~all jobs |> string_of_html |> Dream.html |> Lwt_result.ok
+    let* artifacts = Model.build_artifacts build_id conn in
+    let* same_input_same_output = Model.builds_with_same_input_and_same_main_binary build_id conn in
+    let* different_input_same_output = Model.builds_with_different_input_and_same_main_binary build_id conn in
+    let* same_input_different_output = Model.builds_with_same_input_and_different_main_binary build_id conn in
+    let* latest = Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn in
+    let* next = Model.next_successful_build_different_output build_id conn in
+    let* previous = Model.previous_successful_build_different_output build_id conn in
+    Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
   in
-
-  let job req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
-     Dream.sql req (Model.builds_grouped_by_output job_id platform) >|= fun builds ->
-     (readme, builds))
-    |> if_error "Error getting job"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
-    >>= fun (readme, builds) ->
-    if is_accept_json req then
-      Views.Job.make_json ~failed:false ~job_name ~platform ~readme builds
-      |> Yojson.Basic.to_string
-      |> Dream.json |> Lwt_result.ok
-    else
-      Views.Job.make ~failed:false ~job_name ~platform ~readme builds
-      |> string_of_html |> Dream.html |> Lwt_result.ok
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req
+  @@ fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
+  let solo5_manifest = Option.bind main_binary (Model.solo5_manifest cfg.datadir) in
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let html =
+    Views.Job_build.make
+      ~job_name
+      ~build
+      ~artifacts
+      ~main_binary
+      ~solo5_manifest
+      ~same_input_same_output
+      ~different_input_same_output
+      ~same_input_different_output
+      ~latest
+      ~next
+      ~previous
   in
+  let* () = Vif.Response.with_tyxml req html in
+  Vif.Response.respond `OK
 
-  let job_with_failed req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    (Dream.sql req (Model.job_and_readme job_name) >>= fun (job_id, readme) ->
-     Dream.sql req (Model.builds_grouped_by_output_with_failed job_id platform) >|= fun builds ->
-     (readme, builds))
-    |> if_error "Error getting job"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job: %a" pp_error e))
-    >>= fun (readme, builds) ->
-    if is_accept_json req then
-      Views.Job.make_json ~failed:true ~job_name ~platform ~readme builds
-      |> Yojson.Basic.to_string
-      |> Dream.json |> Lwt_result.ok
-    else
-      Views.Job.make ~failed:true ~job_name ~platform ~readme builds
-      |> string_of_html |> Dream.html |> Lwt_result.ok
-  in
-
-  let redirect_latest req ~job_name ~platform ~artifact =
-    (Dream.sql req (Model.job_id job_name) >>= Model.not_found >>= fun job_id ->
-     Dream.sql req (Model.latest_successful_build_uuid job_id platform))
-    >>= Model.not_found
-    |> if_error "Error getting job" >>= fun build ->
-    Dream.redirect req
-      (Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact ())
-    |> Lwt_result.ok
-  in
-
-  let redirect_latest req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    let artifact =
-      (* FIXME Dream.path deprecated *)
-      let path = begin[@alert "-deprecated"] Dream.path req end in
-      if path = [] then
-        "" (* redirect without trailing slash *)
-      else
-        "/" ^ (List.map Uri.pct_encode path |> String.concat "/")
-    in
-    redirect_latest req ~job_name ~platform ~artifact
-
-  and redirect_latest_no_slash req =
-    let job_name = Dream.param req "job" in
-    let platform = Dream.query req "platform" in
-    redirect_latest req ~job_name ~platform ~artifact:""
-  in
-
-  let redirect_main_binary req =
-    let job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun uuid ->
-    Dream.sql req (main_binary_of_uuid uuid) >>= fun main_binary ->
-    let artifact = `File main_binary.Builder_db.filepath in
-    Link.Job_build_artifact.make ~job_name ~build:uuid ~artifact ()
-    |> Dream.redirect req
-    |> Lwt_result.ok
-  in
-
-  let job_build_viz viz_typ req =
-    let _job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun uuid ->
-    Dream.sql req (Viz_aux.try_load_cached_visualization ~cachedir ~uuid viz_typ)
-    >>= fun svg_html ->
-    Lwt_result.ok (Dream.html svg_html)
-  in
-
-  let job_build req =
-    let job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun uuid ->
-    Dream.sql req (fun conn ->
-        Model.build uuid conn >>= fun (build_id, build) ->
-        (match build.Builder_db.Build.main_binary with
-         | Some main_binary ->
-           Model.build_artifact_by_id main_binary conn |> Lwt_result.map Option.some
-         | None -> Lwt_result.return None) >>= fun main_binary ->
-        Model.build_artifacts build_id conn >>= fun artifacts ->
-        Model.builds_with_same_input_and_same_main_binary build_id conn >>= fun same_input_same_output ->
-        Model.builds_with_different_input_and_same_main_binary build_id conn >>= fun different_input_same_output ->
-        Model.builds_with_same_input_and_different_main_binary build_id conn >>= fun same_input_different_output ->
-        Model.latest_successful_build build.job_id (Some build.Builder_db.Build.platform) conn >>= fun latest ->
-        Model.next_successful_build_different_output build_id conn >>= fun next ->
-        Model.previous_successful_build_different_output build_id conn >|= fun previous ->
-        (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
-      )
-    |> if_error "Error getting job build"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting job build: %a" pp_error e))
-    >>= fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-    let solo5_manifest = Option.bind main_binary (Model.solo5_manifest datadir) in
-    if is_accept_json req then
-      let json_response =
-        `Assoc [
-          "job", `String job_name;
-          "uuid", `String (Uuidm.to_string build.uuid);
-          "platform", `String build.platform;
-          "start_time", `String (Ptime.to_rfc3339 build.start);
-          "finish_time", `String (Ptime.to_rfc3339 build.finish);
-          "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
-        ] |> Yojson.Basic.to_string
-      in
-      Dream.json ~status:`OK json_response |> Lwt_result.ok
-    else
-      Views.Job_build.make
-        ~job_name
-        ~build
-        ~artifacts
-        ~main_binary
-        ~solo5_manifest
-        ~same_input_same_output
-        ~different_input_same_output
-        ~same_input_different_output
-        ~latest ~next ~previous
-      |> string_of_html |> Dream.html |> Lwt_result.ok
-  in
-
-  let job_build_file req =
-    let _job_name = Dream.param req "job"
-    and build = Dream.param req "build"
-    (* FIXME *)
-    and filepath = begin[@alert "-deprecated"] Dream.path req |> String.concat "/" end in
-    let if_none_match = Dream.header req "if-none-match" in
-    (* XXX: We don't check safety of [file]. This should be fine however since
-     * we don't use [file] for the filesystem but is instead used as a key for
-     * lookup in the data table of the 'full' file. *)
-    get_uuid build >>= fun build ->
-    Fpath.of_string filepath |> Lwt_result.lift
-    |> if_error ~status:`Not_Found "File not found" >>= fun filepath ->
-    Dream.sql req (Model.build_artifact build filepath)
-    |> if_error "Error getting build artifact" >>= fun file ->
-    let etag = Base64.encode_string file.Builder_db.sha256 in
+let job_build_file req _job_name build path server cfg =
+  let pool = Vif.Server.device caqti server in
+  let if_none_match = Vif.Headers.get (Vif.Request.headers req) "if-none-match" in
+  let fn path conn = Model.build_artifact build path conn in
+  let open Vif.Response.Syntax in
+  match Fpath.of_string path with
+  | Error `Msg _e ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    (* FIXME: referer *)
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Ok path ->
+    Caqti_miou_unix.Pool.use (fn path) pool
+    |> or_model_error req @@ fun artifact ->
+    let etag = Base64.encode_string artifact.Builder_db.sha256 in
     match if_none_match with
     | Some etag' when etag = etag' ->
-      Dream.empty `Not_Modified |> Lwt_result.ok
+      let* () = Vif.Response.empty in
+      Vif.Response.respond `Not_modified
     | _ ->
-      let headers = [
-        "Content-Type", mime_lookup file.Builder_db.filepath;
-        "ETag", etag;
-      ] in
-      Model.build_artifact_stream_data datadir file
-      |> if_error "Error getting build artifact"
-          ~log:(fun e -> Log.warn (fun m -> m "Error getting build artifact data for file %a: %a"
-                           Fpath.pp file.Builder_db.filepath
-                           pp_error e)) >>= fun fn ->
-      Dream.stream ~headers
-        (fun stream -> fn ~write:(Dream.write stream) ~close:(fun () -> Dream.close stream))
-      |> Lwt_result.ok
-  in
+      let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
+      let mime = mime_lookup artifact.Builder_db.filepath in
+      Vif.Response.with_file ~mime ~etag req path
 
-  let job_build_static_file (file : [< `Console | `Script ]) req =
-    let _job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun build ->
-    (match file with
+let job_build_static_file req _job_name build (file : [< `Console | `Script ]) server cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    match file with
     | `Console ->
-      Dream.sql req (Model.build_console_by_uuid datadir build)
+      Model.build_console_by_uuid cfg.datadir build conn
     | `Script ->
-      Dream.sql req (Model.build_script_by_uuid datadir build))
-    |> if_error "Error getting data"
-      ~log:(fun e -> Log.warn (fun m -> m "Error getting script or console data for build %a: %a"
-                                  Uuidm.pp build pp_error e)) >>= fun data ->
-    let headers = [ "Content-Type", "text/plain; charset=utf-8" ] in
-    Dream.respond ~headers data |> Lwt_result.ok
+      Model.build_script_by_uuid cfg.datadir build conn
   in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun filepath ->
+  let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+  Vif.Response.respond `OK
 
-  let failed_builds req =
-    let platform = Dream.query req "platform" in
-    let to_int default s = Option.(value ~default (bind s int_of_string_opt)) in
-    let start = to_int 0 (Dream.query req "start") in
-    let count = to_int 10 (Dream.query req "count") in
-    Dream.sql req (Model.failed_builds ~start ~count platform)
-    |> if_error "Error getting data"
-       ~log:(fun e -> Log.warn (fun m -> m "Error getting failed builds: %a"
-                                  pp_error e)) >>= fun builds ->
-    Views.failed_builds ~start ~count builds
-    |> string_of_html |> Dream.html |> Lwt_result.ok
+let job_build_viz req _job_name build viz server cfg =
+  let pool = Vif.Server.device caqti server in
+  let open Vif.Response.Syntax in
+  let fn =
+    Model.Viz.try_load_cached_visualization
+      ~datadir:cfg.datadir ~uuid:build viz
   in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun filepath ->
+  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
+  Vif.Response.respond `OK
 
-  let job_build_targz req =
-    let _job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun build ->
-    Dream.sql req (Model.build build)
-    |> if_error "Error getting build" >>= fun (build_id, build) ->
-    Dream.sql req (Model.build_artifacts build_id)
-    |> if_error "Error getting artifacts" >>= fun artifacts ->
-    Ptime.diff build.finish Ptime.epoch |> Ptime.Span.to_int_s
-    |> Option.to_result ~none:(`Msg "bad finish time") |> Result.map Int64.of_int
-    |> Lwt.return |> if_error "Internal server error" >>= fun finish ->
-    Dream.stream ~headers:["Content-Type", "application/tar+gzip"]
-      (fun stream ->
-         let+ r = Dream_tar.targz_response datadir finish artifacts stream in
-         match r with
-         | Ok () -> ()
-         | Error _ ->
-           Log.warn (fun m -> m "error assembling gzipped tar archive");
-           ())
-    |> Lwt_result.ok
-  in
+let exec req _job_name build server cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn = Model.exec_of_build cfg.datadir build in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun exec ->
+  let* () = Vif.Response.add ~field:"content-type" "application/octet-stream" in
+  let* () = Vif.Response.with_string req exec in
+  Vif.Response.respond `OK
 
-  let job_build_full req =
-    let _job_name = Dream.param req "job"
-    and build = Dream.param req "build" in
-    get_uuid build >>= fun uuid ->
-    Dream.sql req (Model.exec_of_build datadir uuid)
-    |> if_error "Error getting build" >>= fun exec ->
-    Dream.respond ~headers:["Content-Type", "application/octet-stream"] exec
-    |> Lwt_result.ok
-  in
-
-  let upload req =
-    let* body = Dream.body req in
-    Builder.Asn.exec_of_str body |> Lwt.return
-    |> if_error ~status:`Bad_Request "Bad request"
-      ~log:(fun e ->
-          Log.warn (fun m -> m "Received bad builder ASN.1");
-          Log.debug (fun m -> m "Bad builder ASN.1: %a" pp_error e))
-    >>= fun ((({ name ; _ } : Builder.script_job), uuid, _, _, _, _, _) as exec) ->
-    Log.debug (fun m -> m "Received build %a" pp_exec exec);
-    Authorization.authorized req name
-    |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->
-    Dream.sql req (Model.build_exists uuid)
-    |> if_error "Internal server error"
-      ~log:(fun e ->
-              Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
-    >>= function
-    | true ->
-      Log.warn (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
-      Dream.respond ~status:`Conflict
-        (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
-      |> Lwt_result.ok
-    | false ->
-      (Lwt.return (Dream.field req Authorization.user_info_field |>
-                   Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
-      |> if_error "Internal server error"
-        ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
-      >>= fun () -> Dream.respond "" |> Lwt_result.ok
-  in
-
-  let hash req =
-    Dream.query req "sha256" |> Option.to_result ~none:(`Msg "Missing sha256 query parameter")
-    |> Lwt.return
-    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash_hex ->
-    begin try Ohex.decode hash_hex |> Lwt_result.return
-      with Invalid_argument e -> Lwt_result.fail (`Msg ("Bad hex: " ^ e))
-    end
-    |> if_error ~status:`Bad_Request "Bad request" >>= fun hash ->
-    Dream.sql req (Model.build_hash hash) >>= Model.not_found
-    |> if_error "Internal server error" >>= fun (job_name, build) ->
-    Dream.redirect req
-      (Link.Job_build.make ~job_name ~build:build.Builder_db.Build.uuid ())
-    |> Lwt_result.ok
-  in
-
-
-  let resolve_artifact_size id_opt conn =
-    match id_opt with
-    | None -> Lwt.return_ok None
+let process_comparison datadir build_left_uuid build_right_uuid conn =
+  let ( let* ) = Result.bind in
+  let data build path = Model.build_artifact_data datadir build (Fpath.v path) conn in
+  let resolve_artifact_size = function
+    | None -> Ok None
     | Some id ->
-      Model.build_artifact_by_id id conn >|= fun file ->
-      Some file.size
-
+      let* file = Model.build_artifact_by_id id conn in
+      Ok (Some file.size)
   in
+  let* (_id, build_left) = Model.build build_left_uuid conn in
+  let* (_id, build_right) = Model.build build_right_uuid conn in
+  let* switch_left = data build_left_uuid "opam-switch" in
+  let* build_env_left = data build_left_uuid "build-environment" in
+  let* system_pkgs_left = data build_left_uuid "system-packages" in
+  let* switch_right = data build_right_uuid "opam-switch" in
+  let* build_env_right = data build_right_uuid "build-environment" in
+  let* system_pkgs_right = data build_right_uuid "system-packages" in
+  let* build_left_file_size = resolve_artifact_size build_left.main_binary in
+  let* build_right_file_size = resolve_artifact_size build_right.main_binary in
+  let* job_left = Model.job_name build_left.job_id conn in
+  let* job_right = Model.job_name build_right.job_id conn in
 
-  let process_comparison req =
-    let build_left = Dream.param req "build_left" in
-    let build_right = Dream.param req "build_right" in
-    get_uuid build_left >>= fun build_left ->
-    get_uuid build_right >>= fun build_right ->
-    Dream.sql req (fun conn ->
-        Model.build build_left conn >>= fun (_id, build_left) ->
-        Model.build build_right conn >>= fun (_id, build_right) ->
-        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "opam-switch") conn >>=
-        Model.build_artifact_data datadir >>= fun switch_left ->
-        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "build-environment") conn >>=
-        Model.build_artifact_data datadir >>= fun build_env_left ->
-        Model.build_artifact build_left.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
-        Model.build_artifact_data datadir >>= fun system_packages_left ->
-        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "opam-switch") conn >>=
-        Model.build_artifact_data datadir >>= fun switch_right ->
-        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "build-environment") conn >>=
-        Model.build_artifact_data datadir >>= fun build_env_right ->
-        Model.build_artifact build_right.Builder_db.Build.uuid (Fpath.v "system-packages") conn >>=
-        Model.build_artifact_data datadir >>= fun system_packages_right ->
-        resolve_artifact_size build_left.Builder_db.Build.main_binary conn >>= fun build_left_file_size ->
-        resolve_artifact_size build_right.Builder_db.Build.main_binary conn >>= fun build_right_file_size ->
-        Model.job_name build_left.job_id conn >>= fun job_left ->
-        Model.job_name build_right.job_id conn >|= fun job_right ->
-        (job_left, job_right, build_left, build_right, build_left_file_size,
-         build_right_file_size, switch_left, build_env_left, system_packages_left,
-         switch_right, build_env_right, system_packages_right))
-    |> if_error "Internal server error"
-    >>= fun (job_left, job_right, build_left, build_right, build_left_file_size,
-              build_right_file_size, switch_left, build_env_left, system_packages_left,
-             switch_right, build_env_right, system_packages_right) ->
-    let env_diff = Utils.compare_env build_env_left build_env_right
-    and pkg_diff = Utils.compare_pkgs system_packages_left system_packages_right
+  Ok (job_left, job_right, build_left, build_right, build_left_file_size,
+      build_right_file_size, switch_left, switch_right,
+      build_env_left, build_env_right,
+      system_pkgs_left, system_pkgs_right)
+
+let compare_builds req build_left build_right server cfg =
+  let pool = Vif.Server.device caqti server in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use (process_comparison cfg.datadir build_left build_right) pool
+  |> or_model_error req @@
+  fun (job_left, job_right, build_left, build_right,
+       build_left_file_size, build_right_file_size,
+       switch_left, switch_right,
+       build_env_left, build_env_right,
+       system_pkgs_left, system_pkgs_right) ->
+  let env_diff = Utils.compare_env build_env_left build_env_right
+  and pkg_diff = Utils.compare_pkgs system_pkgs_left system_pkgs_right
+  and switch_left = OpamFile.SwitchExport.read_from_string switch_left
+  and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
+  let opam_diff = Opamdiff.compare switch_left switch_right in
+  if is_accept_json req then
+    let json =
+      Views.compare_builds_json
+        ~job_left ~job_right ~build_left ~build_right
+        ~build_left_file_size ~build_right_file_size
+        ~env_diff ~pkg_diff ~opam_diff
     in
-    let switch_left = OpamFile.SwitchExport.read_from_string switch_left
-    and switch_right = OpamFile.SwitchExport.read_from_string switch_right in
-    let opam_diff = Opamdiff.compare switch_left switch_right in
-    (job_left, job_right, build_left, build_right, build_left_file_size, build_right_file_size, env_diff, pkg_diff, opam_diff)
-    |> Lwt.return_ok
-
-  in
-
-  let compare_builds req =
-    process_comparison req >>= fun
-      (job_left, job_right, build_left, build_right, build_left_file_size, build_right_file_size, env_diff, pkg_diff, opam_diff) ->
-    if is_accept_json req then
-      let file_size_json = Option.fold ~none:`Null ~some:(fun size -> `Int size) in
-      let json_response =
-        `Assoc [
-          "left", `Assoc [
-            "job", `String job_left;
-            "uuid", `String (Uuidm.to_string build_left.uuid);
-            "platform", `String build_left.platform;
-            "start_time", `String (Ptime.to_rfc3339 build_left.start);
-            "finish_time", `String (Ptime.to_rfc3339 build_left.finish);
-            "main_binary", `Bool (Option.is_some build_left_file_size);
-            "main_binary_size", file_size_json build_left_file_size;
-          ];
-          "right", `Assoc [
-            "job", `String job_right;
-            "uuid", `String (Uuidm.to_string build_right.uuid);
-            "platform", `String build_right.platform;
-            "start_time", `String (Ptime.to_rfc3339 build_right.start);
-            "finish_time", `String (Ptime.to_rfc3339 build_right.finish);
-            "main_binary", `Bool (Option.is_some build_right_file_size);
-            "main_binary_size", file_size_json build_right_file_size;
-          ];
-          "env_diff", Utils.diff_map_to_json env_diff;
-          "package_diff", Utils.diff_map_to_json pkg_diff;
-          "opam_diff", Opamdiff.compare_to_json opam_diff
-        ] |> Yojson.Basic.to_string
-      in
-      Dream.json ~status:`OK json_response |> Lwt_result.ok
-    else
+    let* () = Vif.Response.add ~field:"content-type" "application/json" in
+    let* () = Vif.Response.with_string req (Yojson.Basic.to_string json) in
+    Vif.Response.respond `OK
+  else
+    let html =
       Views.compare_builds
         ~job_left ~job_right
         ~build_left ~build_right
         ~env_diff
         ~pkg_diff
         ~opam_diff
-      |> string_of_html |> Dream.html |> Lwt_result.ok
-  in
-
-  let upload_binary req =
-    let job = Dream.param req "job" in
-    let platform = Dream.param req "platform" in
-    let binary_name =
-      Dream.query req "binary_name"
-      |> Option.map Fpath.of_string
-      |> Option.value ~default:(Ok Fpath.(v job + "bin"))
     in
-    if_error "Bad request" ~status:`Bad_Request (Lwt.return binary_name) >>=
-    fun binary_name ->
-    let* body = Dream.body req in
-    Authorization.authorized req job
-    |> if_error ~status:`Forbidden "Forbidden" >>= fun () ->
-    let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
-    Dream.sql req (Model.build_exists uuid)
-    |> if_error "Internal server error"
-      ~log:(fun e ->
-              Log.warn (fun m -> m "Error saving binary %S: %a" job pp_error e))
-    >>= function
-    | true ->
-      Log.warn (fun m -> m "Build %S with same uuid exists: %a" job Uuidm.pp uuid);
-      Dream.respond ~status:`Conflict
-        (Fmt.str "Build with same uuid exists: %a\n" Uuidm.pp uuid)
-      |> Lwt_result.ok
-    | false ->
-      let exec =
-        let now = Ptime_clock.now () in
-        ({ Builder.name = job ; platform ; script = "" }, uuid, [], now, now, Builder.Exited 0,
-         [ (Fpath.(v "bin" // binary_name), body) ])
-      in
-      (Lwt.return (Dream.field req Authorization.user_info_field |>
-                   Option.to_result ~none:(`Msg "no authenticated user")) >>= fun (user_id, _) ->
-       Dream.sql req (Model.add_build ~datadir ~cachedir ~configdir user_id exec))
-      |> if_error "Internal server error"
-        ~log:(fun e -> Log.warn (fun m -> m "Error saving build %a: %a" pp_exec exec pp_error e))
-      >>= fun () -> Dream.respond "" |> Lwt_result.ok
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `OK
+
+let hash req hash server _cfg =
+  let pool = Vif.Server.device caqti server in
+  let fn conn =
+    Model.build_hash hash conn
   in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ function
+  | None ->
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:(Vif.Request.target req) ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  | Some (job_name, build) ->
+    let url =
+      let open Vif.Uri in
+      rel / "job" /% string `Path / "build" /% Url.uuid /?? any
+    in
+    let* () = Vif.Response.empty in
+    Vif.Response.redirect_to req url
+      job_name build.Builder_db.Build.uuid
 
-  let robots _req =
-    let headers = [ "Content-Type", "text/plain; charset=utf-8" ] in
-    Dream.respond ~headers Views.robots_txt
-  in
+let robots req _server _cfg =
+  let open Vif.Response.Syntax in
+  let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+  let* () = Vif.Response.with_string req Views.robots_txt in
+  Vif.Response.respond `OK
 
-  let w f req = or_error_response req (f req) in
+let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
+  Format.fprintf ppf "%s(%a)" job.Builder.name Uuidm.pp uuid
 
-  [
-    `Get, "/", (w (builds ~all:false ~filter_builds_later_than:expired_jobs));
-    `Get, "/job/:job", (w job);
-    `Get, "/job/:job/failed", (w job_with_failed);
-    `Get, "/job/:job/build/latest/**", (w redirect_latest);
-    `Get, "/job/:job/build/latest", (w redirect_latest_no_slash);
-    `Get, "/job/:job/build/:build", (w job_build);
-    `Get, "/job/:job/build/:build/f/**", (w job_build_file);
-    `Get, "/job/:job/build/:build/main-binary", (w redirect_main_binary);
-    `Get, "/job/:job/build/:build/viztreemap", (w @@ job_build_viz `Treemap);
-    `Get, "/job/:job/build/:build/vizdependencies", (w @@ job_build_viz `Dependencies);
-    `Get, "/job/:job/build/:build/script", (w (job_build_static_file `Script));
-    `Get, "/job/:job/build/:build/console", (w (job_build_static_file `Console));
-    `Get, "/job/:job/build/:build/all.tar.gz", (w job_build_targz);
-    `Get, "/job/:job/build/:build/exec", (w job_build_full);
-    `Get, "/failed-builds", (w failed_builds);
-    `Get, "/all-builds", (w (builds ~all:true));
-    `Get, "/hash", (w hash);
-    `Get, "/compare/:build_left/:build_right", (w compare_builds);
-    `Get, "/robots.txt", robots;
-    `Post, "/upload", (Authorization.authenticate (w upload));
-    `Post, "/job/:job/platform/:platform/upload", (Authorization.authenticate (w upload_binary));
-  ]
-
-let to_dream_route = function
-  | `Get, path, handler -> Dream.get path handler
-  | `Post, path, handler -> Dream.post path handler
-
-let to_dream_routes l = List.map to_dream_route l
-
-let routeprefix_ignorelist_when_removing_trailing_slash = [
-  "/job/:job/build/:build/f";
-  "/job/:job/build/latest";
-]
-
-module Middleware = struct
-
-  let remove_trailing_url_slash : Dream.middleware =
-    fun handler req ->
-      let path = Dream.target req |> Utils.Path.of_url in
-      let is_ignored =
-        routeprefix_ignorelist_when_removing_trailing_slash
-        |> List.exists (Utils.Path.matches_dreamroute ~path)
-      in
-      if not (List.mem (Dream.method_ req) [`GET; `HEAD]) || is_ignored then
-        handler req
-      else match List.rev path with
-        | "" :: [] (* / *) -> handler req
-        | "" :: path (* /.../ *) ->
-          let path = List.rev path in
-          let queries = Dream.all_queries req in
-          let url = Utils.Path.to_url ~path ~queries in
-          (*> Note: See https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Location*)
-          Dream.redirect ~status:`Moved_Permanently req url
-        | _ (* /... *) -> handler req
-
-end
-
-let is_iframe_page ~req =
-  match Option.bind req (fun r -> Dream.header r "Sec-Fetch-Dest") with
-  | Some "iframe" -> true
-  | _ -> false
-
-let error_template error _debug_info suggested_response =
-  let target =
-    match error.Dream.request with
-    | None -> "?"
-    | Some req -> Dream.target req in
-  let referer =
-    Option.bind error.Dream.request (fun req -> Dream.header req "referer")
-  in
-  match Dream.status suggested_response with
-  | `Not_Found ->
-    let html =
-      if is_iframe_page ~req:error.Dream.request then
-        Views.viz_not_found
+let upload req server { datadir; configdir; _ } =
+  authenticated req @@ fun user_id user_info ->
+  let src = Vif.Request.source req in
+  let data = Vif.Stream.(Stream.into Sink.string (Stream.from src)) in
+  let pool = Vif.Server.device caqti server in
+  let fn job_name build exec conn =
+    let ( let* ) = Result.bind in
+    let* authorized = Model.authorized user_id user_info job_name conn in
+    if authorized then
+      let* exists = Model.build_exists build conn in
+      if exists then
+        Ok `Conflict
       else
-        Views.page_not_found ~target ~referer
-    in
-    Dream.set_header suggested_response "Content-Type" Dream.text_html;
-    Dream.set_body suggested_response @@ string_of_html html;
-    (* NOTE: this does the same job as the dream-encoding middleware;
-       the middleware is not triggered in error templates *)
-    let preferred_algorithm =
-      Option.bind error.request
-        Dream_encoding.preferred_content_encoding
-    in
-    begin match preferred_algorithm with
-      | Some algorithm ->
-        let+ body = Dream.body suggested_response in
-        Dream_encoding.with_encoded_body body ~algorithm suggested_response
-      | None ->
-        Lwt.return suggested_response
-    end
-  | _ ->
-    Lwt.return suggested_response
+        let* () = Model.add_build ~datadir ~configdir user_id exec conn in
+        Ok `Created
+    else Ok `Unauthorized
+  in
+  let open Vif.Response.Syntax in
+  match Builder.Asn.exec_of_str data with
+  | Error e ->
+    Log.warn (fun m -> m "Received bad builder ASN.1 from %S" user_info.username);
+    Log.debug (fun m -> m "Bad builder ASN.1: %a" pp_error e);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Internal server error\n" in
+    Vif.Response.respond `Internal_server_error
+  | Ok (({ name = job_name; _ }, uuid, _, _, _, _, _) as exec) ->
+    Log.debug (fun m -> m "Received build %a" pp_exec exec);
+    Caqti_miou_unix.Pool.use (fn job_name uuid exec) pool
+    |> or_model_error req @@ function
+    | `Unauthorized ->
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Unauthorized!\n" in
+      Vif.Response.respond `Unauthorized
+    | `Conflict ->
+      Log.info (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () =
+        Fmt.kstr (Vif.Response.with_string req) "Build with same uuid exists: %a\n"
+          pp_exec exec
+      in
+      Vif.Response.respond `Conflict
+    | `Created ->
+      let* () = Vif.Response.empty in
+      Vif.Response.respond `Created
 
-module Link = Link
+let upload_binary req job_name platform server { datadir; configdir; _ } =
+  authenticated req @@ fun user_id user_info ->
+  let pool = Vif.Server.device caqti server in
+  let binary_name =
+    fix_q (Vif.Queries.get req "binary_name")
+    |> Option.map Fpath.of_string
+    |> Option.value ~default:(Ok Fpath.(v job_name + "bin"))
+    |> Result.map Fpath.normalize
+  in
+  let fn binary_path src conn =
+    let ( let* ) = Result.bind in
+    let* authorized = Model.authorized user_id user_info job_name conn in
+    if authorized then
+      let uuid = Uuidm.v4_gen (Random.State.make_self_init ()) () in
+      let* exists = Model.build_exists uuid conn in
+      if exists then
+        Ok `Internal_server_error
+      else
+        let exec =
+          let now = Ptime_clock.now () in
+          ({ Builder.name = job_name ; platform ; script = "# This artifact was manually built\n" }, uuid, [], now, now, Builder.Exited 0,
+           [ binary_path, Vif.Stream.(Stream.into Sink.string (Stream.from src)) ])
+        in
+        let* () = Model.add_build ~datadir ~configdir user_id exec conn in
+        Ok `Created
+    else Ok `Unauthorized
+  in
+  let open Vif.Response.Syntax in
+  match binary_name with
+  | Error `Msg err ->
+    Log.debug (fun m -> m "Client provided bad binary name: %s" err);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
+    Vif.Response.respond `Bad_request
+  | Ok binary_name when not (String.equal (Fpath.basename binary_name) (Fpath.to_string binary_name)) ->
+    Log.debug (fun m -> m "Client provided illegal binary name: %a"
+                  (Fmt.quote Fpath.pp) binary_name);
+    let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+    let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
+    Vif.Response.respond `Bad_request
+  | Ok binary_name ->
+    let binary_path = Fpath.(v "bin" // binary_name) in
+    let src = Vif.Request.source req in
+    Caqti_miou_unix.Pool.use (fn binary_path src) pool
+    |> or_model_error req @@ function
+    | `Internal_server_error ->
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Internal server error\n" in
+      Vif.Response.respond `Internal_server_error
+    | `Unauthorized ->
+      let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
+      let* () = Vif.Response.with_string req "Unauthorized!\n" in
+      Vif.Response.respond `Unauthorized
+    | `Created ->
+      let* () = Vif.Response.empty in
+      Vif.Response.respond `Created
+
+let not_found_handler req target _server _cfg =
+  let r =
+    let open Vif.Response.Syntax in
+    let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
+    let html = Views.page_not_found ~target:target ~referer:None in
+    let* () = Vif.Response.with_tyxml req html in
+    Vif.Response.respond `Not_found
+  in
+  Some r
+
+let routes =
+  let open Vif.Route in
+  [
+    (* XXX: this must stay in sync with test/router.ml *)
+    get (Url.root ()) --> builds ~all:false ~filter_builds:true
+  ; get (Url.all_builds ()) --> builds ~all:true ~filter_builds:false
+  ; get (Url.failed_builds ()) --> failed_builds
+  ; get (Url.job ()) --> job
+  ; get (Url.job_with_failed ()) --> job_with_failed
+  ; get (Url.redirect_latest ()) --> redirect_latest
+  ; get (Url.redirect_latest_empty ()) --> redirect_latest_empty
+  ; get (Url.job_build ()) --> job_build
+  ; get (Url.job_build_file ()) --> job_build_file
+  ; get (Url.job_build_static_file ()) --> job_build_static_file
+  ; get (Url.job_build_viz ()) --> job_build_viz
+  ; get (Url.exec ()) --> exec
+  ; get (Url.redirect_main_binary ()) --> redirect_main_binary
+  ; get (Url.compare_builds ()) --> compare_builds
+  ; get (Url.hash ()) --> hash
+  ; get (Url.robots ()) --> robots
+  ; post Vif.Type.any (Url.upload ()) --> upload
+  ; post Vif.Type.any (Url.upload_binary ()) --> upload_binary
+  ]
