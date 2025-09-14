@@ -175,7 +175,7 @@ type opam_diff = {
 let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
   Format.fprintf ppf "%a%s"
     pp_opampackage pkg
-    (if effectively_equal then "" else " (effectively equal)")
+    (if effectively_equal then " (effectively equal)") else ""
 
 let detailed_opam_diff pkg l r =
   let opaml = OpamFile.OPAM.write_to_string l in
