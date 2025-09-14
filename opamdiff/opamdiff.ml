@@ -200,12 +200,14 @@ let detailed_opam_diff pkg l r =
            Out_channel.close oc;
            Bos.OS.File.with_tmp_oc "opamr_%s"
              (fun pr oc () ->
+                OpamFile.OPAM.write_to_channel oc r;
                 Out_channel.close oc;
-                let format_from = OpamFile.make (OpamFilename.raw (Fpath.to_string pl)) in
+                (* the with_preserved_format doesn't work with multicore *)
+                (* let format_from = OpamFile.make (OpamFilename.raw (Fpath.to_string pl)) in
                 let out = OpamFile.make (OpamFilename.raw (Fpath.to_string pr)) in
                 (* Let's minimize the difference between pl and pr by taking pl
                    as template for pl. *)
-                OpamFile.OPAM.write_with_preserved_format ~format_from out r;
+                   OpamFile.OPAM.write_with_preserved_format ~format_from out r; *)
                 let cmd =
                   Bos.Cmd.(v "diff" % "-u" % "--label" % label_l % "--label" % label_r %
                            p pl % p pr)
