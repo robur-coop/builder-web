@@ -39,8 +39,8 @@ install -U "$basedir/packaging/batch-viz.sh" "$confdir/batch-viz.sh.sample"
 install -U "$basedir/packaging/visualizations.sh" "$confdir/upload-hooks/visualizations.sh.sample"
 
 # example repo scripts
-install -U "$basedir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh"
-install -U "$basedir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh"
+install -U "$basedir/packaging/dpkg-repo.sh" "$sharedir/dpkg-repo.sh.sample"
+install -U "$basedir/packaging/FreeBSD-repo.sh" "$sharedir/FreeBSD-repo.sh.sample"
 
 # create +MANIFEST
 flatsize=$(find "$rootdir" -type f -exec stat -f %z {} + |
