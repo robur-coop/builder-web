@@ -34,6 +34,9 @@ let read_file datadir filepath =
     fd, Unix.fstat fd
   with
   | fd, { Unix.st_size; _ } ->
+    Fun.protect
+      ~finally:(fun () -> try Unix.close fd with Unix_error _ -> ())
+    @@ fun () ->
     let buf = Bytes.create st_size in
     let rec loop last_yield off =
       let last_yield =
@@ -64,7 +67,9 @@ let save path data =
         let l = Unix.write_substring fd data off (String.length data - off) in
         loop (off + l)
     in
-    loop 0
+    Fun.protect
+      ~finally:(fun () -> Unix.close fd)
+      (fun () -> loop 0)
   with Unix.Unix_error _ -> Error (`File_error path)
 
 let save_artifact staging artifact data =
