@@ -362,6 +362,7 @@ let execute_hooks ~datadir ~configdir job_name uuid platform start main_binary =
       let rec go () =
         let next_file = Unix.readdir dh in
         let file = Fpath.(dir / next_file) in
+        (* It's important we don't execute .sh.sample files due to FreeBSD packaging *)
         if is_executable file && Fpath.has_ext ".sh" file then
           ignore (Sys.command (cmd (Fpath.to_string file) ^ " &"));
         go ()
