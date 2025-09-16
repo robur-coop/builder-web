@@ -262,7 +262,6 @@ let redirect_latest req job_name path server _cfg =
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ fun build ->
   let uri = Link.Job_build_artifact.make_from_string ~job_name ~build ~artifact () in
-  Log.err (fun m -> m "Redirect link %S" uri);
   let* () = Vif.Response.add ~field:"Location" uri in
   let* () = Vif.Response.with_string req String.empty in
   Vif.Response.respond `Temporary_redirect

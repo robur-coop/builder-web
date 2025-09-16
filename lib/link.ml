@@ -52,15 +52,15 @@ end
 module Job_build_artifact = struct
 
   let encode_artifact = function
-    | `Main_binary -> "/main-binary"
-    | `Viz_treemap -> "/viztreemap"
-    | `Viz_dependencies -> "/vizdependencies"
-    | `Script -> "/script"
-    | `Console -> "/console"
-    | `File f -> "/f/" ^ Fmt.to_to_string fpath_url_pp f
+    | `Main_binary -> "main-binary"
+    | `Viz_treemap -> "viztreemap"
+    | `Viz_dependencies -> "vizdependencies"
+    | `Script -> "script"
+    | `Console -> "console"
+    | `File f -> "f/" ^ Fmt.to_to_string fpath_url_pp f
 
   let make_from_string ~job_name ~build ~artifact () =
-    Fmt.str "/job/%a/build/%a%s"
+    Fmt.str "/job/%a/build/%a/%s"
       pctencode job_name
       Uuidm.pp build
       artifact
