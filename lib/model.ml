@@ -35,7 +35,7 @@ let read_file datadir filepath =
   with
   | fd, { Unix.st_size; _ } ->
     Fun.protect
-      ~finally:(fun () -> try Unix.close fd with Unix_error _ -> ())
+      ~finally:(fun () -> try Unix.close fd with Unix.Unix_error _ -> ())
     @@ fun () ->
     let buf = Bytes.create st_size in
     let rec loop last_yield off =
