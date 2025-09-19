@@ -372,25 +372,19 @@ let job_build_static_file req _job_name build (file : [< `Console | `Script ]) s
     | `Script ->
       Model.build_script_by_uuid cfg.datadir build conn
   in
-  let open Vif.Response.Syntax in
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ fun filepath ->
-  let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
-  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
-  Vif.Response.respond `OK
+  Vif.Response.with_file req filepath ~mime:"text/plain; charset=utf-8"
 
 let job_build_viz req _job_name build viz server cfg =
   let pool = Vif.Server.device caqti server in
-  let open Vif.Response.Syntax in
   let fn =
     Model.Viz.try_load_cached_visualization
       ~datadir:cfg.datadir ~uuid:build viz
   in
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ fun filepath ->
-  let* () = Vif.Response.add ~field:"content-type" "text/html; charset=utf-8" in
-  let* () = Vif.Response.with_source req (Vif.Stream.Source.file (Fpath.to_string filepath)) in
-  Vif.Response.respond `OK
+  Vif.Response.with_file req filepath ~mime:"text/plain; charset=utf-8"
 
 let exec req _job_name build server cfg =
   let pool = Vif.Server.device caqti server in
