@@ -267,7 +267,21 @@ let redirect_latest req job_name path server _cfg =
   Vif.Response.respond `Temporary_redirect
 
 let redirect_latest_empty req job_name server cfg =
-  redirect_latest req job_name "" server cfg
+  let pool = Vif.Server.device caqti server in
+  let platform = fix_q (Vif.Queries.get req "platform") in
+  let fn conn =
+    let ( let* ) = Result.bind in
+    let* job_id = Model.job_id job_name conn in
+    let* job_id = Model.not_found job_id in
+    let* build = Model.latest_successful_build_uuid job_id platform conn in
+    Model.not_found build in
+  let open Vif.Response.Syntax in
+  Caqti_miou_unix.Pool.use fn pool
+  |> or_model_error req @@ fun build ->
+  let uri = Link.Job_build.make ~job_name ~build () in
+  let* () = Vif.Response.add ~field:"Location" uri in
+  let* () = Vif.Response.with_string req String.empty in
+  Vif.Response.respond `Temporary_redirect
 
 let redirect_main_binary req job_name build server _cfg =
   let pool = Vif.Server.device caqti server in

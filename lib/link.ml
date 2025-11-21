@@ -6,7 +6,7 @@ let fpath_url_pp ppf f =
 module Queries_aux = struct
 
   let flatten = Option.value ~default:[]
-  
+
   let add_raw url_str queries =
     let uri = Uri.of_string url_str in
     let uri = Uri.add_query_params uri queries in
@@ -14,7 +14,7 @@ module Queries_aux = struct
 
   let add ~encode_query queries url_str =
     queries |> flatten |> List.map encode_query |> add_raw url_str
-  
+
 end
 
 let pctencode fmt str = Format.fprintf fmt "%s" (Uri.pct_encode str)
@@ -37,7 +37,7 @@ module Job = struct
   let make_failed ?queries ~job_name () =
     Fmt.str "/job/%a/failed" pctencode job_name
     |> Queries_aux.add ~encode_query queries
-  
+
 end
 
 module Job_build = struct
@@ -64,7 +64,7 @@ module Job_build_artifact = struct
       pctencode job_name
       Uuidm.pp build
       artifact
-  
+
   let make ~job_name ~build ~artifact () =
     let artifact = encode_artifact artifact in
     make_from_string ~job_name ~build ~artifact ()
@@ -77,7 +77,7 @@ module Compare_builds = struct
     Fmt.str "/compare/%a/%a"
       Uuidm.pp left
       Uuidm.pp right
-  
+
 end
 
 module Failed_builds = struct
