@@ -266,7 +266,7 @@ let redirect_latest req job_name path server _cfg =
   let* () = Vif.Response.with_string req String.empty in
   Vif.Response.respond `Temporary_redirect
 
-let redirect_latest_empty req job_name server cfg =
+let redirect_latest_empty req job_name server _cfg =
   let pool = Vif.Server.device caqti server in
   let platform = fix_q (Vif.Queries.get req "platform") in
   let fn conn =
@@ -509,7 +509,7 @@ let pp_exec ppf ((job : Builder.script_job), uuid, _, _, _, _, _) =
 let upload req server { datadir; configdir; _ } =
   authenticated req @@ fun user_id user_info ->
   let src = Vif.Request.source req in
-  let data = Vif.Stream.(Stream.into Sink.string (Stream.from src)) in
+  let data = Flux.(Stream.into Sink.string (Stream.from src)) in
   let pool = Vif.Server.device caqti server in
   let fn job_name build exec conn =
     let ( let* ) = Result.bind in
@@ -572,7 +572,7 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
         let exec =
           let now = Ptime_clock.now () in
           ({ Builder.name = job_name ; platform ; script = "# This artifact was manually built\n" }, uuid, [], now, now, Builder.Exited 0,
-           [ binary_path, Vif.Stream.(Stream.into Sink.string (Stream.from src)) ])
+           [ binary_path, Flux.(Stream.into Sink.string (Stream.from src)) ])
         in
         let* () = Model.add_build ~datadir ~configdir user_id exec conn in
         Ok `Created
