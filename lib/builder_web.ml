@@ -413,7 +413,7 @@ let job_build_viz req _job_name build viz server cfg =
   in
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ fun filepath ->
-  Vif.Response.with_file req filepath ~mime:"text/plain; charset=utf-8"
+  Vif.Response.with_file req filepath ~mime:"text/html; charset=utf-8"
 
 let exec req _job_name build server cfg =
   let pool = Vif.Server.device caqti server in
