@@ -1,4 +1,4 @@
-type route = Route : [`GET|`POST] * ('f, unit) Vif.Uri.t * 'f -> route
+type route = Route : [`GET|`POST] * ('e, 'f, unit) Vif.Uri.t * 'f -> route
 
 let route meth path =
   let fin = ()
