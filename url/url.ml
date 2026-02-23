@@ -11,13 +11,13 @@ let uuid =
     (Uuidm.to_string ~upper:false)
     (Vif.Uri.string `Path)
 let script_or_console =
-  Tyre.(str "script" <|> str "console")
-  |> Tyre.conv (function `Left () -> `Script | `Right () -> `Console)
-    (function `Script -> `Left () | `Console -> `Right ())
+  Tyre.(str "script" <||> str "console")
+  |> Tyre.conv (function Either.Left () -> `Script | Either.Right () -> `Console)
+    (function `Script -> Either.Left () | `Console -> Either.Right ())
 let viz =
-  Tyre.(str "viztreemap" <|> str "vizdependencies")
-  |> Tyre.conv (function `Left () -> `Treemap | `Right () -> `Dependencies)
-    (function `Treemap -> `Left () | `Dependencies -> `Right ())
+  Tyre.(str "viztreemap" <||> str "vizdependencies")
+  |> Tyre.conv (function Either.Left () -> `Treemap | Either.Right () -> `Dependencies)
+    (function `Treemap -> Either.Left () | `Dependencies -> Either.Right ())
 let hex =
   Tyre.regex Re.(rep (seq [xdigit; xdigit]))
   |> Vif.Uri.conv (Ohex.decode ~skip_whitespace:false)
