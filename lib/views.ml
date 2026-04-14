@@ -900,6 +900,45 @@ and the rest of the unaccounted data.\
       ~title:(Fmt.str "Job %s %a" job_name pp_ptime build.start)
       body
 
+  let make_solo5_manifest_json (mft : Solo5_elftool.mft) =
+    let entry (e : Solo5_elftool.mft_entry) =
+      let typ, name = match e with
+        | Solo5_elftool.Dev_net_basic name -> "NET_BASIC", name
+        | Solo5_elftool.Dev_block_basic name -> "BLOCK_BASIC", name
+      in
+      `Assoc [
+        "name", `String name;
+        "type", `String typ;
+      ]
+    in
+    `Assoc [
+      "type", `String "solo5.manifest";
+      "version", `Int mft.version;
+      "devices", `List (List.map entry mft.entries);
+    ]
+
+  let make_json
+      ~job_name
+      ~(build:Builder_db.Build.t)
+      ~artifacts:_
+      ~main_binary:_
+      ~solo5_manifest
+      ~same_input_same_output:_
+      ~different_input_same_output:_
+      ~same_input_different_output:_
+      ~latest:_ ~next:_ ~previous:_
+    =
+    `Assoc ([
+        "job", `String job_name;
+        "uuid", `String (Uuidm.to_string build.Builder_db.Build.uuid);
+        "platform", `String build.platform;
+        "start_time", `String (Ptime.to_rfc3339 build.start);
+        "finish_time", `String (Ptime.to_rfc3339 build.finish);
+        "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
+      ] @
+      Option.to_list
+        (Option.map (fun mft -> "solo5_manifest", make_solo5_manifest_json mft)
+           solo5_manifest))
 end
 
 let key_values xs =

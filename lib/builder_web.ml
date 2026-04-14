@@ -337,14 +337,19 @@ let job_build req job_name build server cfg =
   if is_accept_json req then
     let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let json =
-      `Assoc [
-        "job", `String job_name;
-        "uuid", `String (Uuidm.to_string build.Builder_db.Build.uuid);
-        "platform", `String build.platform;
-        "start_time", `String (Ptime.to_rfc3339 build.start);
-        "finish_time", `String (Ptime.to_rfc3339 build.finish);
-        "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
-      ] |> Yojson.Basic.to_string
+      Views.Job_build.make_json
+        ~job_name
+        ~build
+        ~artifacts
+        ~main_binary
+        ~solo5_manifest
+        ~same_input_same_output
+        ~different_input_same_output
+        ~same_input_different_output
+        ~latest
+        ~next
+        ~previous
+      |> Yojson.Basic.to_string
     in
     let* () = Vif.Response.with_string req json in
     Vif.Response.respond `OK
