@@ -1,5 +1,7 @@
 open Caqti_request.Infix
 
+let dbpath datadir = datadir ^ "/builder.sqlite3"
+
 let ( let* ) = Result.bind
 let ( let+ ) x f = Result.map f x
 
@@ -28,9 +30,10 @@ let connect uri =
   let* () = Db.exec defer_foreign_keys () in
   Ok (module Db : Caqti_blocking.CONNECTION)
 
-let do_migrate dbpath =
+let do_migrate datadir =
   let* (module Db : Caqti_blocking.CONNECTION) =
-    connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ())
+    let path = dbpath datadir in
+    connect (Uri.make ~scheme:"sqlite3" ~path ())
   in
   List.fold_left
     (fun r migrate ->
@@ -40,8 +43,8 @@ let do_migrate dbpath =
     (Ok ())
     Builder_db.migrate
 
-let migrate () dbpath =
-  or_die 1 (do_migrate dbpath)
+let migrate () datadir =
+  or_die 1 (do_migrate datadir)
 
 let artifacts_dir datadir = Fpath.(datadir / "_artifacts")
 let artifact_path sha256 =
@@ -53,11 +56,12 @@ let artifact_path sha256 =
   let prefix = String.sub sha256 0 2 in
   Fpath.(v "_artifacts" / prefix / sha256)
 
-let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
+let user_mod action datadir scrypt_n scrypt_r scrypt_p username unrestricted =
   let scrypt_params = Builder_web_auth.scrypt_params ?scrypt_n ?scrypt_r ?scrypt_p () in
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     print_string "Password: ";
     flush stdout;
@@ -73,14 +77,15 @@ let user_mod action dbpath scrypt_n scrypt_r scrypt_p username unrestricted =
   in
   or_die 1 r
 
-let user_add () dbpath = user_mod `Add dbpath
+let user_add () datadir = user_mod `Add datadir
 
-let user_update () dbpath = user_mod `Update dbpath
+let user_update () datadir = user_mod `Update datadir
 
-let user_list () dbpath =
+let user_list () datadir =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     Db.iter_s Builder_db.User.get_all
       (fun username -> Ok (print_endline username))
@@ -88,20 +93,22 @@ let user_list () dbpath =
   in
   or_die 1 r
 
-let user_remove () dbpath username =
+let user_remove () datadir username =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* () = Db.exec Builder_db.Access_list.remove_all_by_username username in
     Db.exec Builder_db.User.remove_user username
   in
   or_die 1 r
 
-let user_disable () dbpath username =
+let user_disable () datadir username =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* () = Db.exec Builder_db.Access_list.remove_all_by_username username in
     let* user = Db.find_opt Builder_db.User.get_user username in
@@ -114,10 +121,11 @@ let user_disable () dbpath username =
   in
   or_die 1 r
 
-let access_add () dbpath username jobname =
+let access_add () datadir username jobname =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* (user_id, _) =
       Result.bind (Db.find_opt Builder_db.User.get_user username)
@@ -131,10 +139,11 @@ let access_add () dbpath username jobname =
    in
    or_die 1 r
 
-let access_remove () dbpath username jobname =
+let access_remove () datadir username jobname =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* (user_id, _) =
       Result.bind (Db.find_opt Builder_db.User.get_user username)
@@ -169,10 +178,10 @@ let delete_build datadir (module Db : Caqti_blocking.CONNECTION) jobname id uuid
   Db.exec Builder_db.Build.remove id
 
 let job_remove () datadir jobname =
-  let dbpath = datadir ^ "/builder.sqlite3" in
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* job_id_opt = Db.find_opt Builder_db.Job.get_id_by_name jobname in
     match job_id_opt with
@@ -259,10 +268,10 @@ let vacuum datadir (module Db : Caqti_blocking.CONNECTION) platform_opt job_id p
     builds
 
 let vacuum () datadir platform_opt jobnames predicate =
-  let dbpath = datadir ^ "/builder.sqlite3" in
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* jobs =
       match jobnames with
@@ -307,10 +316,11 @@ let main_artifact_hash =
     WHERE b.input_id = ? AND a.id = b.main_binary AND b.job = j.id
   |}
 
-let verify_input_id () dbpath =
+let verify_input_id () datadir =
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* input_ids = Db.collect_list input_ids () in
     List.fold_left (fun acc input_id ->
@@ -366,11 +376,11 @@ let verify_data_dir () datadir =
   let files_in_filesystem = or_die 1 (files_in_dir (Fpath.v datadir)) in
   Logs.info (fun m -> m "files in filesystem: %d" (FpathSet.cardinal files_in_filesystem));
   let files_tracked = ref (FpathSet.singleton (Fpath.v "builder.sqlite3")) in
-  let dbpath = datadir ^ "/builder.sqlite3" in
-  Logs.info (fun m -> m "connecting to %s" dbpath);
+  Logs.info (fun m -> m "connecting to %s" (dbpath datadir));
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* num_build_artifacts = Db.find num_build_artifacts () in
     Logs.info (fun m -> m "total: %d artifacts" num_build_artifacts);
@@ -775,10 +785,10 @@ let console_of_string data =
   |> List.rev (* in the exec format the order is reversed *)
 
 let extract_full () datadir dest uuid =
-  let dbpath = datadir ^ "/builder.sqlite3" in
   let r =
     let* (module Db : Caqti_blocking.CONNECTION) =
-      connect (Uri.make ~scheme:"sqlite3" ~path:dbpath ~query:["create", ["false"]] ())
+      let path = dbpath datadir in
+      connect (Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] ())
     in
     let* uuid = Uuidm.of_string uuid |> Option.to_result ~none:(`Msg "bad uuid") in
     let* (build_id, build) =
@@ -817,18 +827,6 @@ let help man_format cmds = function
     if List.mem cmd cmds
     then `Help (man_format, Some cmd)
     else `Error (true, "Unknown command: " ^ cmd)
-
-let dbpath =
-  let doc = "sqlite3 database path." in
-  Cmdliner.Arg.(value &
-                opt non_dir_file (Builder_system.default_datadir ^ "/builder.sqlite3") &
-                info ~doc ["dbpath"])
-
-let dbpath_new =
-  let doc = "sqlite3 database path." in
-  Cmdliner.Arg.(value &
-                opt string (Builder_system.default_datadir ^ "/builder.sqlite3") &
-                info ~doc ["dbpath"])
 
 let datadir =
   let doc = "Data directory." in
@@ -919,14 +917,14 @@ open Cmdliner
 
 let migrate_cmd =
   let doc = "create database and add tables" in
-  let term = Term.(const migrate $ setup_log $ dbpath_new) in
+  let term = Term.(const migrate $ setup_log $ datadir) in
   let info = Cmd.info ~doc "migrate" in
   Cmd.v info term
 
 let user_add_cmd =
   let doc = "add a user" in
   let term = Term.(
-      const user_add $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p
+      const user_add $ setup_log $ datadir $ scrypt_n $ scrypt_r $ scrypt_p
       $ username $ unrestricted) in
   let info = Cmd.info ~doc "user-add" in
   Cmd.v info term
@@ -934,38 +932,38 @@ let user_add_cmd =
 let user_update_cmd =
   let doc = "update a user password" in
   let term = Term.(
-      const user_update $ setup_log $ dbpath $ scrypt_n $ scrypt_r $ scrypt_p
+      const user_update $ setup_log $ datadir $ scrypt_n $ scrypt_r $ scrypt_p
       $ username $ unrestricted) in
   let info = Cmd.info ~doc "user-update" in
   Cmd.v info term
 
 let user_remove_cmd =
   let doc = "remove a user" in
-  let term = Term.(const user_remove $ setup_log $ dbpath $ username) in
+  let term = Term.(const user_remove $ setup_log $ datadir $ username) in
   let info = Cmd.info ~doc "user-remove" in
   Cmd.v info term
 
 let user_disable_cmd =
   let doc = "disable a user" in
-  let term = Term.(const user_disable $ setup_log $ dbpath $ username) in
+  let term = Term.(const user_disable $ setup_log $ datadir $ username) in
   let info = Cmd.info ~doc "user-disable" in
   Cmd.v info term
 
 let user_list_cmd =
   let doc = "list all users" in
-  let term = Term.(const user_list $ setup_log $ dbpath) in
+  let term = Term.(const user_list $ setup_log $ datadir) in
   let info = Cmd.info ~doc "user-list" in
   Cmd.v info term
 
 let access_add_cmd =
   let doc = "grant access to user and job" in
-  let term = Term.(const access_add $ setup_log $ dbpath $ username $ job) in
+  let term = Term.(const access_add $ setup_log $ datadir $ username $ job) in
   let info = Cmd.info ~doc "access-add" in
   Cmd.v info term
 
 let access_remove_cmd =
   let doc = "remove access to user and job" in
-  let term = Term.(const access_remove $ setup_log $ dbpath $ username $ job) in
+  let term = Term.(const access_remove $ setup_log $ datadir $ username $ job) in
   let info = Cmd.info ~doc "access-remove" in
   Cmd.v info term
 
@@ -1081,7 +1079,7 @@ let extract_full_cmd =
 let verify_input_id_cmd =
   let doc = "verify that the main binary hash of all builds with the same \
              input are equal" in
-  let term = Term.(const verify_input_id $ setup_log $ dbpath) in
+  let term = Term.(const verify_input_id $ setup_log $ datadir) in
   let info = Cmd.info ~doc "verify-input-id" in
   Cmd.v info term
 
