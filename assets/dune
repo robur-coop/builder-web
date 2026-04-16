@@ -1,0 +1,13 @@
+(library
+  (name builder_web_assets)
+  (modules builder_web_assets))
+
+(rule
+  (targets builder_web_assets.ml)
+  (deps (package mcrunch) robur-logo.png robur-logo-black-writing.png)
+  (action
+    (with-stdout-to
+      builder_web_assets.ml
+      (run mcrunch --string
+           --file robur_logo:robur-logo.png 
+           --file robur_logo_black_writing:robur-logo-black-writing.png))))

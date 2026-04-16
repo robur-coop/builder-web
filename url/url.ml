@@ -49,3 +49,7 @@ let hash () = rel / "hash" /?? ("sha256", hex) ** any
 let robots () = rel / "robots.txt" /?? any
 
 let upload () = rel / "upload" /?? nil
+
+let img_robur_logo () = rel / "img" / "robur-logo.png" /?? nil
+
+let img_robur_logo_black_writing () = rel / "img" / "robur-logo-black-writing.png" /?? nil

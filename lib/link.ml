@@ -86,3 +86,6 @@ module Failed_builds = struct
     Fmt.str "/failed-builds?count=%d&start=%d" count start
 
 end
+
+let robur_logo = Url.img_robur_logo () |> Vif.Uri.eval
+let robur_logo_black_writing = Url.img_robur_logo_black_writing () |> Vif.Uri.eval

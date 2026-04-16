@@ -47,9 +47,13 @@ depends: [
   "alcotest" {>= "1.2.0" & with-test}
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
+  "mcrunch"
 ]
 #pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#master"]
-pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#d3f313f045c30a6b09826a05920a24cf71492449"]
+pin-depends: [
+  ["vif.dev" "git+https://git.robur.coop/robur/vif.git#d3f313f045c30a6b09826a05920a24cf71492449"]
+  ["mcrunch.dev" "git+https://git.robur.coop/robur/mcrunch.git#682ed63c03e3be5664f96c469a260e1d9e9df011"]
+]
 
 synopsis: "Web interface for builder"
 description: """
