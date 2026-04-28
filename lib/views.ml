@@ -100,7 +100,7 @@ let layout
         H.style ~a:H.[a_mime_type "text/css"] static_css])
     (H.body ~a:[H.a_class ["bg-gray-50 dark:bg-black-molly w-full text-gray-800 dark:text-gray-50 mx-auto p-10 md:grid md:grid-cols-4"]] [
         H.div ~a:[H.a_class ["text-center md:col-span-1 hidden md:block"]; H.a_style ""] [
-          H.img ~a:[H.a_id "robur-logo"] ~src:"https://i.ibb.co/Y4YsvcDb/robur-logo.png" ~alt:"Robur Logo" ()
+          H.img ~a:[H.a_id "robur-logo"] ~src:Link.robur_logo ~alt:"Robur Logo" ()
         ];
         H.div ~a:[H.a_class ["mx-auto w-full md:col-span-3 px-4"]] [
           H.div ~a:[H.a_class ["md:flex justify-between items-center"]] [
@@ -142,7 +142,7 @@ let layout
 
 
         H.script
-        (H.txt "
+        (txtf "
           document.addEventListener('DOMContentLoaded', function () {
             const themeToggle = document.getElementById('theme-toggle');
             const html = document.documentElement;
@@ -152,8 +152,8 @@ let layout
               const isDark = html.classList.contains('dark');
               themeToggle.innerText = isDark ? '☀️' : '🌑';
               logo.src = isDark
-                ? 'https://i.ibb.co/Y4YsvcDb/robur-logo.png'  // Dark mode logo
-                : 'https://i.ibb.co/r2DRDdTt/robur-logo-black-writing.png'; // Light mode logo
+                ? '%s'  // Dark mode logo
+                : '%s'; // Light mode logo
             }
 
             function toggleTheme() {
@@ -173,7 +173,7 @@ let layout
             // Attach event listener (in case onclick fails)
             themeToggle.addEventListener('click', toggleTheme);
           });
-      ")])
+      " Link.robur_logo Link.robur_logo_black_writing)])
 
 let toggleable ?(hidden=true) ~id ~description content =
   let checked = if hidden then [] else H.[a_checked ()] in
