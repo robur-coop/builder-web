@@ -1,13 +1,13 @@
 (library
-  (name builder_web_assets)
-  (modules builder_web_assets))
+  (name builder_web_assets))
 
 (rule
-  (targets builder_web_assets.ml)
+  (targets assets.ml etag.ml)
   (deps (package mcrunch) robur-logo.png robur-logo-black-writing.png)
   (action
     (with-stdout-to
-      builder_web_assets.ml
+      assets.ml
       (run mcrunch --string
+           --checksums sha256:etag.ml
            --file robur_logo:robur-logo.png 
            --file robur_logo_black_writing:robur-logo-black-writing.png))))

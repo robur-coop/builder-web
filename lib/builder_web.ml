@@ -638,11 +638,8 @@ let not_found_handler req target _server _cfg =
   in
   Some r
 
-let png_asset asset =
-  let etag =
-    Digestif.SHA256.digest_string asset
-    |> Digestif.SHA256.to_hex
-  in
+let png_asset asset etag =
+  let etag = Ohex.encode etag in
   fun req _ _ ->
     let hdrs = Vif.Request.headers req in
     let open Vif.Response.Syntax in
@@ -658,6 +655,7 @@ let png_asset asset =
 
 let routes =
   let open Vif.Route in
+  let module Assets = Builder_web_assets in
   [
     (* XXX: this must stay in sync with test/router.ml *)
     get (Url.root ()) --> builds ~all:false ~filter_builds:true
@@ -679,6 +677,9 @@ let routes =
   ; post Vif.Type.any (Url.upload ()) --> upload
   ; post Vif.Type.any (Url.upload_binary ()) --> upload_binary
 
-  ; get (Url.img_robur_logo ()) --> png_asset Builder_web_assets.robur_logo
-  ; get (Url.img_robur_logo_black_writing ()) --> png_asset Builder_web_assets.robur_logo_black_writing
+  ; get (Url.img_robur_logo ()) -->
+    png_asset Assets.robur_logo Assets.Etag.robur_logo
+  ; get (Url.img_robur_logo_black_writing ()) -->
+    png_asset Assets.robur_logo_black_writing
+      Assets.Etag.robur_logo_black_writing
   ]
