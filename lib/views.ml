@@ -422,16 +422,23 @@ module Builds = struct
 
 
   let make_json ~all:_ section_job_map =
+    let job (job_name, synopsis, _platform_builds) =
+      `Assoc [
+        "name", `String job_name;
+        "synopsis", Option.fold synopsis
+          ~some:(fun syn -> `String syn) ~none:`Null;
+      ]
+    in
     let all_jobs =
       Utils.String_map.fold
         (fun _section jobs acc ->
-           List.map (fun (job_name, _, _) -> `String job_name) jobs @ acc)
+           List.map job jobs @ acc)
         section_job_map []
     in
     let by_section =
       Utils.String_map.fold
         (fun section jobs acc ->
-           (section, `List (List.map (fun (job_name, _, _) -> `String job_name) jobs)) :: acc)
+           (section, `List (List.map job jobs)) :: acc)
         section_job_map []
     in
     `Assoc [
