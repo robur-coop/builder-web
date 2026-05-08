@@ -178,15 +178,7 @@ let pp_opam_diff ppf { pkg ; effectively_equal ; _ } =
     (if effectively_equal then " (effectively equal)" else "")
 
 let detailed_opam_diff pkg l r =
-  let effectively_equal =
-    let no_build_install_url p =
-      OpamFile.OPAM.with_url_opt None
-        (OpamFile.OPAM.with_install []
-           (OpamFile.OPAM.with_build [] p))
-    in
-    OpamFile.OPAM.effectively_equal
-      (no_build_install_url l) (no_build_install_url r)
-  in
+  let effectively_equal = OpamFile.OPAM.effectively_equal l r in
   let diff =
     let label_l =
       Printf.sprintf "left/%s/opam" (OpamPackage.name_to_string pkg)
