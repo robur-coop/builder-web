@@ -18,7 +18,7 @@ depends: [
   "ocaml" {>= "4.13.0"}
   "dune" {>= "2.7.0"}
   "builder" {>= "0.4.0"}
-  "vif"
+  "vif" {>= "0.0.1~beta3"}
   "bos"
   "ohex" {>= "0.2.0"}
   "caqti" {>= "2.1.2"}
@@ -48,10 +48,6 @@ depends: [
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
   "mcrunch" {>= "0.0.2"}
-]
-#pin-depends: ["vif.dev" "git+https://git.robur.coop/robur/vif.git#master"]
-pin-depends: [
-  ["vif.dev" "git+https://git.robur.coop/robur/vif.git#0a34f5c718ed8cd8ab82f7c576b16877426708c0"]
 ]
 
 synopsis: "Web interface for builder"
