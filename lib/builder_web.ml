@@ -176,7 +176,7 @@ let builds ?(filter_builds = false) ~all req server cfg =
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ function
   | jobs when is_accept_json req ->
-    let json = Views.Builds.make_json ~all jobs in
+    let json = Views.Builds.make_json ~manifest:(Model.solo5_manifest cfg.datadir) ~all jobs in
     let str = Yojson.Basic.to_string json in
     let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let* () = Vif.Response.with_string req str in

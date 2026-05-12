@@ -421,12 +421,34 @@ module Builds = struct
         @ make_all_or_active all)
 
 
-  let make_json ~all:_ section_job_map =
-    let job (job_name, synopsis, _platform_builds) =
+  let make_json ~manifest ~all:_ section_job_map =
+    let job (job_name, synopsis, platform_builds) =
+      let targets = List.map (fun (_, _, artifact) ->
+        let network, block =
+          match manifest artifact with
+          | None -> [], []
+          | Some mft ->
+              List.fold_left (fun (n, b) e ->
+                match e with
+                | Solo5_elftool.Dev_net_basic name -> (name :: n, b)
+                | Solo5_elftool.Dev_block_basic name -> (n, name :: b)
+              ) ([], []) mft.Solo5_elftool.entries
+        in
+        let target =
+          let ext = Fpath.get_ext artifact.Builder_db.filepath in
+          if ext = "" then "unknown" else String.sub ext 1 (String.length ext - 1)
+        in
+        `Assoc [
+          "target", `String target;
+          "network_devices", `List (List.map (fun n -> `String n) network);
+          "block_devices", `List (List.map (fun b -> `String b) block);
+        ]
+      ) platform_builds in
       `Assoc [
         "name", `String job_name;
         "synopsis", Option.fold synopsis
           ~some:(fun syn -> `String syn) ~none:`Null;
+        "targets", `List targets
       ]
     in
     let all_jobs =
