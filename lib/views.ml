@@ -13,6 +13,31 @@ let string_of_solo5_abi_target =
   | Solo5_elftool.Genode -> "genode"
   | Solo5_elftool.Xen -> "xen"
 
+let make_solo5_manifest_json (mft : Solo5_elftool.mft) =
+  let entry (e : Solo5_elftool.mft_entry) =
+    let typ, name = match e with
+      | Solo5_elftool.Dev_net_basic name -> "NET_BASIC", name
+      | Solo5_elftool.Dev_block_basic name -> "BLOCK_BASIC", name
+    in
+    `Assoc [
+      "name", `String name;
+      "type", `String typ;
+    ]
+  in
+  `Assoc [
+    "type", `String "solo5.manifest";
+    "version", `Int mft.version;
+    "devices", `List (List.map entry mft.entries);
+  ]
+let make_solo5_abi_json { Solo5_elftool.target; version } =
+  let target = string_of_solo5_abi_target target in
+  `Assoc [
+    "type", `String "solo5.abi";
+    "target", `String target;
+    (* NOTE(reynir): Ideally, we use [Int32.unsigned_to_int] *)
+    "version", `Int (Int32.to_int version);
+  ]
+
 let txtf fmt = Fmt.kstr H.txt fmt
 let a_titlef fmt = Fmt.kstr H.a_title fmt
 
@@ -432,30 +457,24 @@ module Builds = struct
 
 
   let make_json ~all:_ section_job_map =
-    let job (job_name, synopsis, _platform_builds, manifest) =
-      let manifest =
-        Option.map (fun (mft, abi) ->
-            let network, block =
-              List.fold_left (fun (n, b) e ->
-                  match e with
-                  | Solo5_elftool.Dev_net_basic name -> (name :: n, b)
-                  | Solo5_elftool.Dev_block_basic name -> (n, name :: b)
-                ) ([], []) mft.Solo5_elftool.entries
-            in
-            let target = string_of_solo5_abi_target abi.Solo5_elftool.target in
-            `Assoc [
-              "target", `String target;
-              "network_devices", `List (List.map (fun n -> `String n) network);
-              "block_devices", `List (List.map (fun b -> `String b) block);
-              ])
-          manifest
+    let job (job_name, synopsis, _platform_builds, latest) =
+      let latest =
+        latest
+        |>Option.map @@ fun (build, mft, abi) ->
+        let mft = make_solo5_manifest_json mft in
+        let abi = make_solo5_abi_json abi in
+        `Assoc [
+          "uuid", `String (Uuidm.to_string build.Builder_db.Build.uuid);
+          "solo5_manifest", mft;
+          "solo5_abi", abi;
+        ]
       in
       `Assoc ([
-        "name", `String job_name;
-        "synopsis", Option.fold synopsis
-          ~some:(fun syn -> `String syn) ~none:`Null;
-      ] @
-          Option.to_list (Option.map (fun mft -> "manifest", mft) manifest)
+          "name", `String job_name;
+          "synopsis", Option.fold synopsis
+            ~some:(fun syn -> `String syn) ~none:`Null;
+        ] @
+          Option.to_list (Option.map (fun mft -> "latest", mft) latest)
         )
     in
     let all_jobs =
@@ -936,31 +955,6 @@ and the rest of the unaccounted data.\
       ~nav:(`Build (job_name, build))
       ~title:(Fmt.str "Job %s %a" job_name pp_ptime build.start)
       body
-
-  let make_solo5_manifest_json (mft : Solo5_elftool.mft) =
-    let entry (e : Solo5_elftool.mft_entry) =
-      let typ, name = match e with
-        | Solo5_elftool.Dev_net_basic name -> "NET_BASIC", name
-        | Solo5_elftool.Dev_block_basic name -> "BLOCK_BASIC", name
-      in
-      `Assoc [
-        "name", `String name;
-        "type", `String typ;
-      ]
-    in
-    `Assoc [
-      "type", `String "solo5.manifest";
-      "version", `Int mft.version;
-      "devices", `List (List.map entry mft.entries);
-    ]
-  let make_solo5_abi_json { Solo5_elftool.target; version } =
-    let target = string_of_solo5_abi_target target in
-    `Assoc [
-      "type", `String "solo5.abi";
-      "target", `String target;
-      (* NOTE(reynir): Ideally, we use [Int32.unsigned_to_int] *)
-      "version", `Int (Int32.to_int version);
-    ]
 
   let make_json
       ~job_name

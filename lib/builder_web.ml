@@ -168,8 +168,9 @@ let builds ?(filter_builds = false) ~all req server cfg =
         let* latest = Model.build_with_main_binary job_id None conn in
         let manifest =
           Option.bind latest
-            (fun (_id, latest_main_binary) ->
-               Model.solo5_manifest cfg.datadir latest_main_binary)
+            (fun (build, latest_main_binary) ->
+               Option.map (fun (mft, abi) -> build, mft, abi)
+                 (Model.solo5_manifest cfg.datadir latest_main_binary))
         in
         match platform_builds with
         | [] -> Ok acc
