@@ -4,7 +4,7 @@ val user : string -> Caqti_miou.connection ->
   (([`user] Builder_db.id * Builder_web_auth.scrypt Builder_web_auth.user_info) option,
    [> Caqti_error.call_or_retrieve ]) result
 
-val build_with_main_binary : [`job] Builder_db.id -> string -> Caqti_miou.connection ->
+val build_with_main_binary : [`job] Builder_db.id -> string option -> Caqti_miou.connection ->
   ((Builder_db.Build.t * Builder_db.file) option,
    [> Caqti_error.call_or_retrieve ]) result
 
@@ -76,7 +76,7 @@ val previous_successful_build_different_output : [`build] Builder_db.id ->
   (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result
 
 val solo5_manifest : Fpath.t -> Builder_db.file ->
-  Solo5_elftool.mft option
+  (Solo5_elftool.mft * Solo5_elftool.abi) option
 
 val build_artifact : Uuidm.t -> Fpath.t -> Caqti_miou.connection ->
   (Builder_db.file, [> Caqti_error.call_or_retrieve | `Not_found ]) result

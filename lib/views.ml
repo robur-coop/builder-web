@@ -4,6 +4,15 @@ let pp_ptime ppf ptime =
   let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time ptime in
   Fmt.pf ppf "%04d-%02d-%02d %02d:%02d:%02dZ" y m d hh mm ss
 
+let string_of_solo5_abi_target =
+  function
+  | Solo5_elftool.Hvt -> "hvt"
+  | Solo5_elftool.Spt -> "spt"
+  | Solo5_elftool.Virtio -> "virtio"
+  | Solo5_elftool.Muen -> "muen"
+  | Solo5_elftool.Genode -> "genode"
+  | Solo5_elftool.Xen -> "xen"
+
 let txtf fmt = Fmt.kstr H.txt fmt
 let a_titlef fmt = Fmt.kstr H.a_title fmt
 
@@ -366,7 +375,8 @@ module Builds = struct
       let make_jobs jobs =
         H.div
               ~a:[H.a_class ["min-w-full"]]
-        (List.map (fun (job_name, synopsis, platform_builds) ->
+        (List.map (fun (job_name, synopsis, platform_builds, _solo5_manifest) ->
+              (* TODO(reynir): use solo5 manifest *)
               H.div ~a:[H.a_class ["md:grid md:grid-cols-4 divide-y dark:divide-gray-200 divide-gray-600"]]
                 [
                   H.div
@@ -421,35 +431,32 @@ module Builds = struct
         @ make_all_or_active all)
 
 
-  let make_json ~manifest ~all:_ section_job_map =
-    let job (job_name, synopsis, platform_builds) =
-      let targets = List.map (fun (_, _, artifact) ->
-        let network, block =
-          match manifest artifact with
-          | None -> [], []
-          | Some mft ->
+  let make_json ~all:_ section_job_map =
+    let job (job_name, synopsis, _platform_builds, manifest) =
+      let manifest =
+        Option.map (fun (mft, abi) ->
+            let network, block =
               List.fold_left (fun (n, b) e ->
-                match e with
-                | Solo5_elftool.Dev_net_basic name -> (name :: n, b)
-                | Solo5_elftool.Dev_block_basic name -> (n, name :: b)
-              ) ([], []) mft.Solo5_elftool.entries
-        in
-        let target =
-          let ext = Fpath.get_ext artifact.Builder_db.filepath in
-          if ext = "" then "unknown" else String.sub ext 1 (String.length ext - 1)
-        in
-        `Assoc [
-          "target", `String target;
-          "network_devices", `List (List.map (fun n -> `String n) network);
-          "block_devices", `List (List.map (fun b -> `String b) block);
-        ]
-      ) platform_builds in
-      `Assoc [
+                  match e with
+                  | Solo5_elftool.Dev_net_basic name -> (name :: n, b)
+                  | Solo5_elftool.Dev_block_basic name -> (n, name :: b)
+                ) ([], []) mft.Solo5_elftool.entries
+            in
+            let target = string_of_solo5_abi_target abi.Solo5_elftool.target in
+            `Assoc [
+              "target", `String target;
+              "network_devices", `List (List.map (fun n -> `String n) network);
+              "block_devices", `List (List.map (fun b -> `String b) block);
+              ])
+          manifest
+      in
+      `Assoc ([
         "name", `String job_name;
         "synopsis", Option.fold synopsis
           ~some:(fun syn -> `String syn) ~none:`Null;
-        "targets", `List targets
-      ]
+      ] @
+          Option.to_list (Option.map (fun mft -> "manifest", mft) manifest)
+        )
     in
     let all_jobs =
       Utils.String_map.fold
@@ -626,7 +633,8 @@ module Job_build = struct
             H.code ~a:[H.a_class ["wrap"]] [H.txt "SHA256:"; H.txt sha256_hex];
           ] @
             match main_binary, solo5_manifest with
-            | Some main_binary, Some solo5_manifest when main_binary = file ->
+            | Some main_binary, Some (solo5_manifest, _abi) when main_binary = file ->
+              (* TODO: display solo5 ABI *)
               (H.br () :: solo5_devices solo5_manifest)
             | _ -> []);
       ]
@@ -945,6 +953,14 @@ and the rest of the unaccounted data.\
       "version", `Int mft.version;
       "devices", `List (List.map entry mft.entries);
     ]
+  let make_solo5_abi_json { Solo5_elftool.target; version } =
+    let target = string_of_solo5_abi_target target in
+    `Assoc [
+      "type", `String "solo5.abi";
+      "target", `String target;
+      (* NOTE(reynir): Ideally, we use [Int32.unsigned_to_int] *)
+      "version", `Int (Int32.to_int version);
+    ]
 
   let make_json
       ~job_name
@@ -965,9 +981,12 @@ and the rest of the unaccounted data.\
         "finish_time", `String (Ptime.to_rfc3339 build.finish);
         "main_binary", (match build.main_binary with Some _ -> `Bool true | None ->  `Bool false)
       ] @
-      Option.to_list
-        (Option.map (fun mft -> "solo5_manifest", make_solo5_manifest_json mft)
-           solo5_manifest))
+      List.flatten
+        (Option.to_list
+           (Option.map (fun (mft, abi) ->
+                [ "solo5_manifest", make_solo5_manifest_json mft;
+                  "solo5_abi", make_solo5_abi_json abi ])
+              solo5_manifest)))
 end
 
 let key_values xs =
