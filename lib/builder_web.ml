@@ -151,7 +151,7 @@ let builds ?(filter_builds = false) ~all req server cfg =
     let fn1 job_id job_name platform = function
       | Error _ as err -> err
       | Ok acc ->
-          let* res = Model.build_with_main_binary job_id platform conn in
+          let* res = Model.build_with_main_binary job_id (Some platform) conn in
           match res with
           | Some (build, artifact) ->
             if Ptime.is_later ~than build.finish
@@ -165,10 +165,17 @@ let builds ?(filter_builds = false) ~all req server cfg =
       | Ok acc ->
         let* ps = Model.platforms_of_job job_id conn in
         let* platform_builds = List.fold_right (fn1 job_id job_name) ps (Ok []) in
+        let* latest = Model.build_with_main_binary job_id None conn in
+        let manifest =
+          Option.bind latest
+            (fun (build, latest_main_binary) ->
+               Option.map (fun (mft, abi) -> build, mft, abi)
+                 (Model.solo5_manifest cfg.datadir latest_main_binary))
+        in
         match platform_builds with
         | [] -> Ok acc
         | platform_builds ->
-            let v = (job_name, synopsis, platform_builds) in
+            let v = (job_name, synopsis, platform_builds, manifest) in
             let section = Option.value ~default:"Uncategorized" section in
             Ok (Utils.String_map.add_or_create section v acc) in
     let* jobs = Model.jobs_with_section_synopsis conn in

@@ -217,7 +217,7 @@ let test_build_get_latest (module Db : CONN) =
   add_second_build (module Db) >>= fun () ->
   (* Test *)
   Db.find_opt Builder_db.Job.get_id_by_name job_name >>= fail_if_none >>= fun job_id ->
-  Db.find_opt Builder_db.Build.get_latest_successful_with_binary (job_id, platform)
+  Db.find_opt Builder_db.Build.get_latest_successful_with_binary (job_id, Some platform)
   >>| get_opt "no latest build" >>| fun (_id, meta, main_binary') ->
   Alcotest.(check Testable.file) "same main binary" main_binary2 main_binary';
   Alcotest.(check Testable.uuid) "same uuid" meta.uuid uuid'

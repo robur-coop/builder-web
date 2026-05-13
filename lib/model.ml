@@ -111,12 +111,12 @@ let solo5_manifest datadir file =
     in
     Cachet.make ~pagesize:8 ~map ()
   in
-  match Solo5_elftool.query_manifest cachet with
-  | Error `Msg s ->
-    Log.debug (fun m -> m "Failed to query manifest for %a: %s"
+  match Solo5_elftool.query_manifest cachet, Solo5_elftool.query_abi cachet with
+  | Error `Msg s, _ | _, Error `Msg s ->
+    Log.debug (fun m -> m "Failed to query solo5 manifest/ABI for %a: %s"
                   Fpath.pp (artifact_path file) s);
     None
-  | Ok r -> Some r
+  | Ok mft, Ok abi -> Some (mft, abi)
 
 let jobs_with_section_synopsis (module Db : CONN) =
   Db.collect_list Builder_db.Job.get_all_with_section_synopsis ()
