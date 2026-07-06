@@ -48,6 +48,7 @@ depends: [
   "ppx_deriving" {with-test}
   "ppx_deriving_yojson" {with-test}
   "mcrunch" {>= "0.0.2"}
+  "memtrace"
 ]
 
 synopsis: "Web interface for builder"
