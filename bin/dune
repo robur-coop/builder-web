@@ -14,5 +14,5 @@
  (public_name builder-web)
  (name builder_web_app)
  (modules builder_web_app)
- (libraries builder_web builder_db builder_system mirage-crypto-rng-miou-unix
+ (libraries builder_web builder_db builder_system mirage-crypto-rng-miou-unix memtrace
    fmt logs logs.cli fmt.cli logs.fmt logs.threaded fmt.tty cmdliner mirage-logs.cli caqti-miou.unix))

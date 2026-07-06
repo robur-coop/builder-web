@@ -33,6 +33,7 @@ let setup_log style_renderer () =
 (* END: copy from miragevpn *)
 
 let main () inet_addr port datadir configdir filter_builds_later_than =
+  Memtrace.trace_if_requested ();
   Miou_unix.run @@ fun () ->
   (* TODO: host argument *)
   let sockaddr = Unix.(ADDR_INET (inet_addr, port)) in
