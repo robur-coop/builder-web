@@ -32,6 +32,8 @@ let setup_log style_renderer () =
   Logs.set_reporter (reporter_with_ts ~dst:Format.std_formatter ())
 (* END: copy from miragevpn *)
 
+let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
+
 let main () inet_addr port datadir configdir filter_builds_later_than =
   Memtrace.trace_if_requested ();
   Miou_unix.run @@ fun () ->
