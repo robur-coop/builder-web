@@ -21,7 +21,7 @@ depends: [
   "vif" {>= "0.0.1~beta3"}
   "bos"
   "ohex" {>= "0.2.0"}
-  "caqti" {>= "2.1.2"}
+  "caqti" {>= "2.1.2" & < "3.0.0"}
   "caqti-miou"
   "caqti-driver-sqlite3"
   "mirage-crypto-rng" {>= "1.2.0"}
