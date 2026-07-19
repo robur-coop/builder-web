@@ -34,9 +34,45 @@ let setup_log style_renderer () =
 
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
-let main () inet_addr port datadir configdir filter_builds_later_than =
+let main () inet_addr port datadir configdir filter_builds_later_than influx =
   Memtrace.trace_if_requested ();
   Miou_unix.run @@ fun () ->
+  let prm0 =
+    match influx with
+    | None -> Miou.async (Fun.const ())
+    | Some _ip ->
+      Miou.async @@ fun () ->
+      let tags = [ "vm", "builder-web" ] in
+      let pid = Unix.getpid () in
+      let _rusage_src = Tally_rusage.src pid in
+      let _vif_src =
+        (* need the server at hand here *)
+        let measure () =
+          match Vif.server () with
+          | None -> []
+          | Some s ->
+            let m = Vif.Server.metrics s in
+            [
+              "1xx", Vif.Metrics.informational m;
+              "2xx", Vif.Metrics.successful m;
+              "3xx", Vif.Metrics.redirection m;
+              "4xx", Vif.Metrics.client_error m;
+              "5xx", Vif.Metrics.server_error m;
+            ]
+        in
+        Tally.v "http_response" measure
+      in
+      let rec work () =
+        Tally.measure ~tags;
+        let f name ~tags fields =
+          print_endline (Tally__Influx.encode_line_protocol name ~tags fields)
+        in
+        Tally.iter_measurements f;
+        Miou_unix.sleep 10.;
+        work ()
+      in
+      work ()
+  in
   (* TODO: host argument *)
   let sockaddr = Unix.(ADDR_INET (inet_addr, port)) in
   let cfg = Vif.config sockaddr in
@@ -49,6 +85,7 @@ let main () inet_addr port datadir configdir filter_builds_later_than =
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
       ~handlers:[Builder_web.not_found_handler]
+      ~more_tasks:[prm0]
       Builder_web.routes
       { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than }
   with Builder_web.Wrong_version (appid, version) ->
@@ -100,11 +137,23 @@ let expired_jobs =
              no successful build has been achieved (use 0 for infinite)" in
   Arg.(value & opt int 30 & info [ "expired-jobs" ] ~doc)
 
+let influx =
+  let doc = "The address to send influx statistics to." in
+  let parser str =
+    try Ok (Unix.inet_addr_of_string str)
+    with _ -> Error (`Msg (Fmt.str "Invalid inet-addr: %S" str))
+  in
+  let pp = Fmt.of_to_string Unix.string_of_inet_addr in
+  let inet_addr = Arg.conv (parser, pp) in
+  let open Arg in
+  value & opt (some inet_addr) None
+  & info [ "influx" ] ~doc ~docv:"INET_ADDR"
+
 let () =
   let setup_log =
     Term.(const setup_log $ Fmt_cli.style_renderer () $ Mirage_logs_cli.setup) in
   let cmd =
     let info = Cmd.info "builder-miou" ~doc:"Builder web" in
-    Cmd.v info Term.(const main $ setup_log $ inet_addr $ port $ datadir $ configdir $ expired_jobs)
+    Cmd.v info Term.(const main $ setup_log $ inet_addr $ port $ datadir $ configdir $ expired_jobs $ influx)
   in
   exit (Cmd.eval cmd)
