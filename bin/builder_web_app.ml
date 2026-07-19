@@ -44,7 +44,7 @@ let main () inet_addr port datadir configdir filter_builds_later_than influx =
       Miou.async @@ fun () ->
       let tags = [ "vm", "builder-web" ] in
       let pid = Unix.getpid () in
-      let _rusage_src = Tally_rusage.src pid in
+      let _rusage_src = Tally_rusage.v pid in
       let _vif_src =
         (* need the server at hand here *)
         let measure () =
@@ -63,11 +63,9 @@ let main () inet_addr port datadir configdir filter_builds_later_than influx =
         Tally.v "http_response" measure
       in
       let rec work () =
-        Tally.measure ~tags;
-        let f name ~tags fields =
-          print_endline (Tally__Influx.encode_line_protocol name ~tags fields)
-        in
-        Tally.iter_measurements f;
+        List.iter (fun (name, fields) ->
+            print_endline (Tally.encode_influx name ~tags fields))
+          (Tally.measure ());
         Miou_unix.sleep 10.;
         work ()
       in
