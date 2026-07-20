@@ -10,7 +10,8 @@ type cfg =
   ; uri : Uri.t
   ; datadir : Fpath.t
   ; configdir : Fpath.t
-  ; filter_builds_later_than : int }
+  ; filter_builds_later_than : int
+  ; influx : Unix.inet_addr option }
 
 type error = [ Caqti_error.t | `Not_found | `Msg of string | `File_error of Fpath.t ]
 

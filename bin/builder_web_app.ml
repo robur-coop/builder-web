@@ -34,43 +34,42 @@ let setup_log style_renderer () =
 
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
+let tally =
+  let finally = Miou.cancel in
+  Vif.Device.v ~name:"tally" ~finally [] @@ fun (s, { Builder_web.influx; _ }) ->
+  Miou.async @@ fun () ->
+  match influx with
+  | None -> ()
+  | Some _ip ->
+    let tags = [ "vm", "builder-web" ] in
+    let pid = Unix.getpid () in
+    let _rusage_src = Tally_rusage.v pid in
+    let _vif_src =
+      (* need the server at hand here *)
+      let measure () =
+        let m = Vif.Server.metrics s in
+        [
+          "1xx", Vif.Metrics.informational m;
+          "2xx", Vif.Metrics.successful m;
+          "3xx", Vif.Metrics.redirection m;
+          "4xx", Vif.Metrics.client_error m;
+          "5xx", Vif.Metrics.server_error m;
+        ]
+      in
+      Tally.v "http_response" measure
+    in
+    let rec go () =
+      List.iter (fun (name, fields) ->
+          print_endline (Tally.encode_influx name ~tags fields))
+        (Tally.measure ());
+      Miou_unix.sleep 10.;
+      go ()
+    in
+    go ()
+
 let main () inet_addr port datadir configdir filter_builds_later_than influx =
   Memtrace.trace_if_requested ();
   Miou_unix.run @@ fun () ->
-  let prm0 =
-    match influx with
-    | None -> Miou.async (Fun.const ())
-    | Some _ip ->
-      Miou.async @@ fun () ->
-      let tags = [ "vm", "builder-web" ] in
-      let pid = Unix.getpid () in
-      let _rusage_src = Tally_rusage.v pid in
-      let _vif_src =
-        (* need the server at hand here *)
-        let measure () =
-          match Vif.server () with
-          | None -> []
-          | Some s ->
-            let m = Vif.Server.metrics s in
-            [
-              "1xx", Vif.Metrics.informational m;
-              "2xx", Vif.Metrics.successful m;
-              "3xx", Vif.Metrics.redirection m;
-              "4xx", Vif.Metrics.client_error m;
-              "5xx", Vif.Metrics.server_error m;
-            ]
-        in
-        Tally.v "http_response" measure
-      in
-      let rec work () =
-        List.iter (fun (name, fields) ->
-            print_endline (Tally.encode_influx name ~tags fields))
-          (Tally.measure ());
-        Miou_unix.sleep 10.;
-        work ()
-      in
-      work ()
-  in
   (* TODO: host argument *)
   let sockaddr = Unix.(ADDR_INET (inet_addr, port)) in
   let cfg = Vif.config sockaddr in
@@ -83,9 +82,8 @@ let main () inet_addr port datadir configdir filter_builds_later_than influx =
     Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
       ~handlers:[Builder_web.not_found_handler]
-      ~more_tasks:[prm0]
       Builder_web.routes
-      { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than }
+      { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than; influx }
   with Builder_web.Wrong_version (appid, version) ->
     if appid = Builder_db.application_id
     then Printf.eprintf "Wrong database version: %Lu, expected %Lu"
