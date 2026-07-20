@@ -79,7 +79,7 @@ let main () inet_addr port datadir configdir filter_builds_later_than influx =
     let path = Fpath.(datadir / "builder.sqlite3" |> to_string) in
     Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] () in
   try
-    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti ]
+    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti; tally ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
       ~handlers:[Builder_web.not_found_handler]
       Builder_web.routes
