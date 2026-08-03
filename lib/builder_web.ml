@@ -20,9 +20,9 @@ let fix_q = function
   | [] -> None
   | comma_delim -> Some (String.concat "," comma_delim)
 
-let caqti : (cfg, (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Device.device =
+let caqti : ((Vif.Server.t * cfg), (Caqti_miou.connection, error) Caqti_miou_unix.Pool.t) Vif.Device.device =
   let finally pool = Caqti_miou_unix.Pool.drain pool in
-  Vif.Device.v ~name:"caqti" ~finally [] @@ fun { sw; uri; _ } ->
+  Vif.Device.v ~name:"caqti" ~finally [] @@ fun (_server, { sw; uri; _ }) ->
   match Caqti_miou_unix.connect_pool ~sw uri with
   | Error err ->
       Logs.err (fun m -> m "%a" Caqti_error.pp err);
