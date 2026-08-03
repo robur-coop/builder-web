@@ -763,6 +763,10 @@ module Job_build = struct
       ~same_input_different_output
       ~latest ~next ~previous
     =
+    let successful = match build.result with
+      | Exited 0 -> true
+      | _ -> false
+    in
     [
       H.h2 ~a:[H.a_id "build";] [txtf "Build %a" pp_ptime build.start];
       H.div ~a:[H.a_class []] [
@@ -814,17 +818,20 @@ module Job_build = struct
       ~artifacts
       ~main_binary
       ~solo5_manifest
-    @ make_reproductions
-      ~job_name
-      ~build
-      ~same_input_same_output
-      ~different_input_same_output
-    @ make_not_reproducible ~build ~same_input_different_output
-    @ make_comparisons_same_platform
-      ~build
-      ~previous
-      ~latest
-      ~next
+    @ (if successful then
+         make_reproductions
+           ~job_name
+           ~build
+           ~same_input_same_output
+           ~different_input_same_output
+         @ make_not_reproducible ~build ~same_input_different_output
+         @ make_comparisons_same_platform
+           ~build
+           ~previous
+           ~latest
+           ~next
+       else
+         [])
 
   let viz_style_deps = "
       border: 0;
