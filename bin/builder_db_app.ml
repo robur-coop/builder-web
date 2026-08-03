@@ -26,7 +26,10 @@ let build_artifacts_to_orphan =
             WHERE a2.sha256 = a.sha256 AND a2.build <> a.build) = 0 |}
 
 let connect uri =
-  let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect ~tweaks_version:(1,8) uri in
+  let config =
+    Caqti_connect_config.(default |> set tweaks_version (1,8))
+  in
+  let* (module Db : Caqti_blocking.CONNECTION) = Caqti_blocking.connect ~config uri in
   let* () = Db.exec defer_foreign_keys () in
   Ok (module Db : Caqti_blocking.CONNECTION)
 
