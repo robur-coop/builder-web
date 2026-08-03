@@ -320,7 +320,7 @@ module Builds = struct
             p ~a:[a_class ["text-lg my-4"]] [
               txt "The unikernels are statically linked executables where the execution target is ";
               txt "independent of the build platform - so even if they're compiled on a FreeBSD ";
-              txt "system they can be run on a Linux, DragenFly BSD or OpenBSD host. Many are executed using a ";
+              txt "system they can be run on a Linux, DragonFly BSD or OpenBSD host. Many are executed using a ";
               a ~a:[a_href "https://github.com/solo5/solo5"; a_class ["link"]]
                 [txt "solo5"];
               txt " tender."
