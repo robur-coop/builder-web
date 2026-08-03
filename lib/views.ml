@@ -71,7 +71,7 @@ let make_breadcrumbs nav =
     H.nav [
       H.ul (
         List.map (fun (desc, href) ->
-            H.li [H.a ~a:H.[a_href href] [desc]]
+            H.li [H.a ~a:H.[a_href href; a_class ["link"]] [desc]]
           ) kvs
       )]
   in
@@ -266,7 +266,7 @@ let page_not_found ~target ~referer =
     | Some prev_url -> [
         H.p [
           H.txt "Go back to ";
-          H.a ~a:H.[ a_href prev_url ] [ H.txt prev_url ];
+          H.a ~a:H.[ a_href prev_url ; a_class ["link"] ] [ H.txt prev_url ];
         ];
       ]
   )
@@ -320,7 +320,7 @@ module Builds = struct
             p ~a:[a_class ["text-lg my-4"]] [
               txt "The unikernels are statically linked executables where the execution target is ";
               txt "independent of the build platform - so even if they're compiled on a FreeBSD ";
-              txt "system they can be run on a Linux or OpenBSD host. Many are executed using a ";
+              txt "system they can be run on a Linux, DragenFly BSD or OpenBSD host. Many are executed using a ";
               a ~a:[a_href "https://github.com/solo5/solo5"; a_class ["link"]]
                 [txt "solo5"];
               txt " tender."
@@ -360,7 +360,7 @@ module Builds = struct
             h2
             [txt "Execution Environments"];
             ul ~a:[a_class ["list-disc list-inside text-lg space-y-2"]] [
-              li [span ~a:[a_class ["text-primary-500"]] [txt ".hvt: "; txt "hardware virtualized - requires solo5-hvt ("; a ~a:[a_href "https://www.linux-kvm.org/page/Main_Page"; a_class ["link"]] [txt "Linux KVM"]; txt ", "; a ~a:[a_href "https://wiki.freebsd.org/bhyve"; a_class ["link"]] [txt "FreeBSD BHyve"]; txt ", or "; a ~a:[a_href "https://man.openbsd.org/vmm"; a_class ["link"]] [txt "OpenBSD VMM"]; txt ")"]];
+              li [span ~a:[a_class ["text-primary-500"]] [txt ".hvt: "; txt "hardware virtualized - requires solo5-hvt ("; a ~a:[a_href "https://www.linux-kvm.org/page/Main_Page"; a_class ["link"]] [txt "Linux KVM"]; txt ", "; a ~a:[a_href "https://wiki.freebsd.org/bhyve"; a_class ["link"]] [txt "FreeBSD BHyve"]; txt ", "; a ~a:[a_href "https://man.openbsd.org/vmm"; a_class ["link"]] [txt "OpenBSD VMM"]; txt ", or "; a ~a:[a_href "https://www.dragonflybsd.org/docs/docs/howtos/nvmm/"; a_class ["link"]] [txt "DragonFly BSD NVMM"]; txt ")"]];
               (* li [span ~a:[a_class ["text-primary-500"]] [txt ".spt: "]; txt "sandboxed process - requires solo5-spt (Linux with seccomp)"]; *)
               li [span ~a:[a_class ["text-primary-500"]] [txt ".xen: "]; txt "Xen PVH virtual machine (on a Xen or QubesOS host)"];
               (* li [span ~a:[a_class ["text-primary-500"]] [txt ".virtio: "]; txt "any virtio environment (qemu, GCE, KVM, BHyve)"]; *)
@@ -673,7 +673,7 @@ module Job_build = struct
       List.map (fun (build:Builder_db.Build.t) ->
           H.li [
             txtf "on %s, same input, " build.platform;
-            H.a ~a:H.[a_href @@ Link.Job_build.make ~job_name ~build:build.uuid ()]
+            H.a ~a:H.[a_href @@ Link.Job_build.make ~job_name ~build:build.uuid (); a_class ["link"]]
               [txtf "%a" pp_ptime build.start]
           ])
         same_input_same_output
@@ -685,7 +685,7 @@ module Job_build = struct
             H.a ~a:H.[
                 a_href @@ Link.Compare_builds.make
                   ~left:build'.uuid
-                  ~right:build.uuid ()]
+                  ~right:build.uuid (); a_class ["link"] ]
               [txtf "%a" pp_ptime build'.start]
           ])
         different_input_same_output
@@ -717,7 +717,8 @@ module Job_build = struct
                 H.a ~a:H.[
                     a_href @@ Link.Compare_builds.make
                       ~left:build'.uuid
-                      ~right:build.uuid ()]
+                      ~right:build.uuid ();
+                    a_class ["link-red"]]
                   [txtf "%a" pp_ptime build'.start]
               ])
             same_input_different_output)
@@ -1140,7 +1141,7 @@ let failed_builds ~start ~count builds =
     H.li [
       check_icon build.Builder_db.Build.result;
       txtf " %s %a " job_name pp_platform (Some build.platform);
-      H.a ~a:H.[ a_href @@ Link.Job_build.make ~job_name ~build:build.uuid () ]
+      H.a ~a:H.[ a_href @@ Link.Job_build.make ~job_name ~build:build.uuid (); a_class ["link"] ]
         [txtf "%a" pp_ptime build.start];
       txtf " %a" Builder.pp_execution_result build.result;
     ]
@@ -1159,7 +1160,7 @@ let failed_builds ~start ~count builds =
          H.p [ txtf "View the next %d failed builds " count;
                H.a ~a:H.[
                    a_href @@ Link.Failed_builds.make
-                     ~count ~start:(start + count) () ]
+                     ~count ~start:(start + count) (); a_class ["link"] ]
                  [ H.txt "here"];
                H.txt ".";
              ]
