@@ -34,9 +34,9 @@ let setup_log style_renderer () =
 
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
-let tally =
+let tally influx =
   let finally = Miou.cancel in
-  Vif.Device.v ~name:"tally" ~finally [] @@ fun (s, { Builder_web.influx; _ }) ->
+  Vif.Device.v ~name:"tally" ~finally [] @@ fun (s, _) ->
   Miou.async @@ fun () ->
   match influx with
   | None -> ()
@@ -111,11 +111,11 @@ let main () inet_addr port datadir configdir filter_builds_later_than influx =
     let path = Fpath.(datadir / "builder.sqlite3" |> to_string) in
     Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] () in
   try
-    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti; tally ]
+    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti; tally influx ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
       ~handlers:[Builder_web.not_found_handler]
       Builder_web.routes
-      { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than; influx }
+      { Builder_web.sw; uri; datadir; configdir; filter_builds_later_than }
   with Builder_web.Wrong_version (appid, version) ->
     if appid = Builder_db.application_id
     then Printf.eprintf "Wrong database version: %Lu, expected %Lu"
