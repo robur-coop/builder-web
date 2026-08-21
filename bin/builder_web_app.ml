@@ -73,11 +73,12 @@ let tally =
            Miou_unix.connect flow (Unix.ADDR_INET (ip, 8094));
            (* TODO lifetime/ownership? *)
            go ~flow ()
-         with (* we should somehow backoff *)
+         with (* we should backoff exponentially *)
          | Out_of_memory | Stack_overflow as exn -> raise exn
          | exn ->
            Logs.warn (fun m -> m "failed to connect to influx %s:8094: %s"
                          (Unix.string_of_inet_addr ip) (Printexc.to_string exn));
+           Miou_unix.sleep 5.;
            go ())
       | Some flow ->
         let stats = Tally.measure () in
