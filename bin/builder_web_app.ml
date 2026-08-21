@@ -40,30 +40,53 @@ let tally =
   Miou.async @@ fun () ->
   match influx with
   | None -> ()
-  | Some _ip ->
-    let tags = [ "vm", "builder-web" ] in
+  | Some ip ->
+    let tag = "vm", "builder-web" in
     let pid = Unix.getpid () in
     let _rusage_src = Tally_rusage.v pid in
     let _vif_src =
       (* need the server at hand here *)
       let measure () =
         let m = Vif.Server.metrics s in
-        [
-          "1xx", Vif.Metrics.informational m;
-          "2xx", Vif.Metrics.successful m;
-          "3xx", Vif.Metrics.redirection m;
-          "4xx", Vif.Metrics.client_error m;
-          "5xx", Vif.Metrics.server_error m;
+        [ [],
+          [
+            "1xx", Vif.Metrics.informational m;
+            "2xx", Vif.Metrics.successful m;
+            "3xx", Vif.Metrics.redirection m;
+            "4xx", Vif.Metrics.client_error m;
+            "5xx", Vif.Metrics.server_error m;
+          ]
         ]
       in
       Tally.v "http_response" measure
     in
-    let rec go () =
-      List.iter (fun (name, fields) ->
-          print_endline (Tally.encode_influx name ~tags fields))
-        (Tally.measure ());
-      Miou_unix.sleep 10.;
-      go ()
+    let rec go ?flow () =
+      match flow with
+      | None ->
+        let flow =
+          if Unix.is_inet6_addr ip then
+            Miou_unix.tcpv6 ()
+          else
+            Miou_unix.tcpv4 ()
+        in
+        (try
+           Miou_unix.connect flow (Unix.ADDR_INET (ip, 8094));
+           go ~flow ()
+         with (* we should somehow backoff *)
+           _ -> go ())
+      | Some flow ->
+        let stats = Tally.measure () in
+        let data =
+          List.map (fun (name, tags, fields) ->
+              Tally.encode_influx name ~tags:(tag :: tags) fields)
+            stats |> String.concat ""
+        in
+        let flow =
+          try Miou_unix.write flow data; Some flow with
+          _ -> None
+        in
+        Miou_unix.sleep 10.;
+        go ?flow ()
     in
     go ()
 
