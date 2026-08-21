@@ -34,7 +34,72 @@ let setup_log style_renderer () =
 
 let () = Sys.set_signal Sys.sigpipe Sys.Signal_ignore
 
-let main () inet_addr port datadir configdir filter_builds_later_than =
+let tally influx =
+  let finally = Miou.cancel in
+  Vif.Device.v ~name:"tally" ~finally [] @@ fun (s, _) ->
+  Miou.async @@ fun () ->
+  match influx with
+  | None -> ()
+  | Some ip ->
+    let tag = "vm", "builder-web" in
+    let pid = Unix.getpid () in
+    let _rusage_src = Tally_rusage.v pid in
+    let _vif_src =
+      (* need the server at hand here *)
+      let measure () =
+        let m = Vif.Server.metrics s in
+        [ [],
+          [
+            "1xx", Vif.Metrics.informational m;
+            "2xx", Vif.Metrics.successful m;
+            "3xx", Vif.Metrics.redirection m;
+            "4xx", Vif.Metrics.client_error m;
+            "5xx", Vif.Metrics.server_error m;
+          ]
+        ]
+      in
+      Tally.v "http_response" measure
+    in
+    let rec go ?flow () =
+      match flow with
+      | None ->
+        let flow =
+          if Unix.is_inet6_addr ip then
+            Miou_unix.tcpv6 ()
+          else
+            Miou_unix.tcpv4 ()
+        in
+        (* TODO lifetime/ownership? *)
+        (match Miou_unix.connect flow (Unix.ADDR_INET (ip, 8094)) with
+         | exception (Out_of_memory | Stack_overflow as exn) -> raise exn
+         | exception exn ->
+           Logs.warn (fun m -> m "failed to connect to influx %s:8094: %s"
+                         (Unix.string_of_inet_addr ip) (Printexc.to_string exn));
+           (* TODO exponential backoff *)
+           Miou_unix.sleep 5.;
+           go ()
+         | () -> go ~flow ())
+      | Some flow ->
+        let stats = Tally.measure () in
+        let data =
+          List.map (fun (name, tags, fields) ->
+              Tally.encode_influx name ~tags:(tag :: tags) fields)
+            stats |> String.concat ""
+        in
+        let flow =
+          try Miou_unix.write flow data; Some flow with
+          | Out_of_memory | Stack_overflow as exn -> raise exn
+          | exn ->
+            Logs.warn (fun m -> m "failed to write to influx %s:8094: %s"
+                          (Unix.string_of_inet_addr ip) (Printexc.to_string exn));
+            None
+        in
+        Miou_unix.sleep 10.;
+        go ?flow ()
+    in
+    go ()
+
+let main () inet_addr port datadir configdir filter_builds_later_than influx =
   Memtrace.trace_if_requested ();
   Miou_unix.run @@ fun () ->
   (* TODO: host argument *)
@@ -46,7 +111,7 @@ let main () inet_addr port datadir configdir filter_builds_later_than =
     let path = Fpath.(datadir / "builder.sqlite3" |> to_string) in
     Uri.make ~scheme:"sqlite3" ~path ~query:["create", ["false"]] () in
   try
-    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti ]
+    Vif.run ~cfg ~devices:Vif.Devices.[ Builder_web.caqti; tally influx ]
       ~middlewares:Vif.Middlewares.[ Builder_web.auth_middleware ]
       ~handlers:[Builder_web.not_found_handler]
       Builder_web.routes
@@ -100,11 +165,23 @@ let expired_jobs =
              no successful build has been achieved (use 0 for infinite)" in
   Arg.(value & opt int 30 & info [ "expired-jobs" ] ~doc)
 
+let influx =
+  let doc = "The address to send influx statistics to." in
+  let parser str =
+    try Ok (Unix.inet_addr_of_string str)
+    with _ -> Error (`Msg (Fmt.str "Invalid inet-addr: %S" str))
+  in
+  let pp = Fmt.of_to_string Unix.string_of_inet_addr in
+  let inet_addr = Arg.conv (parser, pp) in
+  let open Arg in
+  value & opt (some inet_addr) None
+  & info [ "influx" ] ~doc ~docv:"INET_ADDR"
+
 let () =
   let setup_log =
     Term.(const setup_log $ Fmt_cli.style_renderer () $ Mirage_logs_cli.setup) in
   let cmd =
     let info = Cmd.info "builder-miou" ~doc:"Builder web" in
-    Cmd.v info Term.(const main $ setup_log $ inet_addr $ port $ datadir $ configdir $ expired_jobs)
+    Cmd.v info Term.(const main $ setup_log $ inet_addr $ port $ datadir $ configdir $ expired_jobs $ influx)
   in
   exit (Cmd.eval cmd)
