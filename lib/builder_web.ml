@@ -381,7 +381,6 @@ let job_build req job_name build server cfg =
 
 let job_build_file req _job_name build path server cfg =
   let pool = Vif.Server.device caqti server in
-  let if_none_match = Vif.Headers.get (Vif.Request.headers req) "if-none-match" in
   let fn path conn = Model.build_artifact build path conn in
   let open Vif.Response.Syntax in
   match Fpath.of_string path with
@@ -394,15 +393,10 @@ let job_build_file req _job_name build path server cfg =
   | Ok path ->
     Caqti_miou_unix.Pool.use (fn path) pool
     |> or_model_error req @@ fun artifact ->
-    let etag = Base64.encode_string artifact.Builder_db.sha256 in
-    match if_none_match with
-    | Some etag' when etag = etag' ->
-      let* () = Vif.Response.empty in
-      Vif.Response.respond `Not_modified
-    | _ ->
-      let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
-      let mime = mime_lookup artifact.Builder_db.filepath in
-      Vif.Response.with_file ~mime ~etag req path
+    let etag = Fmt.str {|"%s"|} (Base64.encode_string artifact.Builder_db.sha256) in
+    let path = Fpath.append cfg.datadir (Model.artifact_path artifact) in
+    let mime = mime_lookup artifact.Builder_db.filepath in
+    Vif.Response.with_file ~mime ~etag req path
 
 let job_build_static_file req _job_name build (file : [< `Console | `Script ]) server cfg =
   let pool = Vif.Server.device caqti server in
@@ -646,7 +640,7 @@ let not_found_handler req target _server _cfg =
   Some r
 
 let png_asset asset etag =
-  let etag = Ohex.encode etag in
+  let etag = Fmt.str {|"%s"|} (Ohex.encode etag) in
   fun req _ _ ->
     let hdrs = Vif.Request.headers req in
     let open Vif.Response.Syntax in
