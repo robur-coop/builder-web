@@ -275,7 +275,9 @@ let infer_section_and_synopsis artifacts =
         let name = OpamPackage.Name.of_string name in
         let fn acc (n', _) = acc || OpamPackage.Name.equal n' name in
         OpamFormula.fold_left fn false (OpamFile.OPAM.depends opam) in
-    let is_unikernel = has_extension "x-mirage-opam-lock-location" in
+    let is_unikernel =
+      has_extension "x-mirage-opam-lock-location"
+      || has_extension "x-mkernel-pre-build" in
     let root_pkg_name = OpamPackage.Name.to_string root_pkg in
     if is_unikernel || Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
       let metrics_influx =
