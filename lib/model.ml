@@ -265,13 +265,17 @@ let infer_section_and_synopsis artifacts =
   in
   let infer_section switch root =
     let root_pkg = root.OpamPackage.name in
-    let is_unikernel =
-      (* since mirage 4.2.0, the x-mirage-opam-lock-location is emitted *)
-      Option.value ~default:false
-        (Option.map (fun opam ->
-             Option.is_some (OpamFile.OPAM.extended opam "x-mirage-opam-lock-location" Fun.id))
-            (OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays))
-    in
+    let overlays = OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays in
+    let has_extension name = match overlays with
+      | None -> false
+      | Some opam -> Option.is_some (OpamFile.OPAM.extended opam name Fun.id) in
+    let depends_on name = match overlays with
+      | None -> false
+      | Some opam ->
+        let name = OpamPackage.Name.of_string name in
+        let fn acc (n', _) = acc || OpamPackage.Name.equal n' name in
+        OpamFormula.fold_left fn false (OpamFile.OPAM.depends opam) in
+    let is_unikernel = has_extension "x-mirage-opam-lock-location" in
     let root_pkg_name = OpamPackage.Name.to_string root_pkg in
     if is_unikernel || Astring.String.is_prefix ~affix:"mirage-unikernel-" root_pkg_name then
       let metrics_influx =
@@ -279,16 +283,7 @@ let infer_section_and_synopsis artifacts =
         OpamPackage.Set.exists (fun p -> OpamPackage.Name.equal p.OpamPackage.name influx)
           switch.OpamFile.SwitchExport.selections.OpamTypes.sel_installed
       in
-      let mirage_monitoring =
-        let monitoring = OpamPackage.Name.of_string "mirage-monitoring" in
-        match OpamPackage.Name.Map.find_opt root_pkg switch.OpamFile.SwitchExport.overlays with
-        | None -> false
-        | Some opam ->
-          let depends = OpamFile.OPAM.depends opam in
-          OpamFormula.fold_left (fun acc (n', _) ->
-              acc || OpamPackage.Name.equal n' monitoring)
-            false depends
-      in
+      let mirage_monitoring = depends_on "mirage-monitoring" in
       if metrics_influx || mirage_monitoring then
         "Unikernels (with metrics reported to Influx)"
       else
