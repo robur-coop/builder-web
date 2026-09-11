@@ -25,7 +25,7 @@ let caqti : ((Vif.Server.t * cfg), (Caqti_miou.connection, error) Caqti_miou_uni
   Vif.Device.v ~name:"caqti" ~finally [] @@ fun (_server, { sw; uri; _ }) ->
   match Caqti_miou_unix.connect_pool ~sw uri with
   | Error err ->
-      Logs.err (fun m -> m "%a" Caqti_error.pp err);
+      Log.err (fun m -> m "%a" Caqti_error.pp err);
       Fmt.failwith "%a" Caqti_error.pp err
   | Ok pool ->
       let fn (module Conn : Caqti_miou.CONNECTION) =
@@ -102,7 +102,7 @@ let or_model_error req k =
     let* () = Vif.Response.with_tyxml req html in
     Vif.Response.respond `Not_found
   | Error err ->
-    Log.warn (fun m -> m "Database error: %a" pp_error err);
+    Log.warn (fun m -> m "Database error: %a" pp_error err ~tags:(Vif.Request.tags req));
     let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
     let* () = Vif.Response.with_string req "Internal server error\n" in
     Vif.Response.respond `Internal_server_error
@@ -158,7 +158,8 @@ let builds ?(filter_builds = false) ~all req server cfg =
             then Ok ((platform, build, artifact) :: acc)
             else Ok acc
           | None ->
-            Log.warn (fun m -> m "Job without builds: %s" job_name);
+            Log.warn (fun m -> m "Job without builds: %s" job_name
+                         ~tags:(Vif.Request.tags req));
             Ok acc in
     let fn0 (job_id, job_name, section, synopsis) = function
       | Error _ as err -> err
@@ -545,15 +546,16 @@ let upload req server { datadir; configdir; _ } =
     else Ok `Unauthorized
   in
   let open Vif.Response.Syntax in
+  let tags = Vif.Request.tags req in
   match Builder.Asn.exec_of_str data with
   | Error e ->
-    Log.warn (fun m -> m "Received bad builder ASN.1 from %S" user_info.username);
-    Log.debug (fun m -> m "Bad builder ASN.1: %a" pp_error e);
+    Log.warn (fun m -> m "Received bad builder ASN.1 from %S" user_info.username ~tags);
+    Log.debug (fun m -> m "Bad builder ASN.1: %a" pp_error e ~tags);
     let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
     let* () = Vif.Response.with_string req "Internal server error\n" in
     Vif.Response.respond `Internal_server_error
   | Ok (({ name = job_name; _ }, uuid, _, _, _, _, _) as exec) ->
-    Log.debug (fun m -> m "Received build %a" pp_exec exec);
+    Log.debug (fun m -> m "Received build %a" pp_exec exec ~tags);
     Caqti_miou_unix.Pool.use (fn job_name uuid exec) pool
     |> or_model_error req @@ function
     | `Unauthorized ->
@@ -561,7 +563,7 @@ let upload req server { datadir; configdir; _ } =
       let* () = Vif.Response.with_string req "Unauthorized!\n" in
       Vif.Response.respond `Unauthorized
     | `Conflict ->
-      Log.info (fun m -> m "Build with same uuid exists: %a" pp_exec exec);
+      Log.info (fun m -> m "Build with same uuid exists: %a" pp_exec exec ~tags);
       let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
       let* () =
         Fmt.kstr (Vif.Response.with_string req) "Build with same uuid exists: %a\n"
@@ -599,16 +601,17 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
         Ok `Created
     else Ok `Unauthorized
   in
+  let tags = Vif.Request.tags req in
   let open Vif.Response.Syntax in
   match binary_name with
   | Error `Msg err ->
-    Log.debug (fun m -> m "Client provided bad binary name: %s" err);
+    Log.debug (fun m -> m "Client provided bad binary name: %s" err ~tags);
     let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
     let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
     Vif.Response.respond `Bad_request
   | Ok binary_name when not (String.equal (Fpath.basename binary_name) (Fpath.to_string binary_name)) ->
     Log.debug (fun m -> m "Client provided illegal binary name: %a"
-                  (Fmt.quote Fpath.pp) binary_name);
+                  (Fmt.quote Fpath.pp) binary_name ~tags);
     let* () = Vif.Response.add ~field:"content-type" "text/plain; charset=utf-8" in
     let* () = Vif.Response.with_string req "Bad binary name provided.\n" in
     Vif.Response.respond `Bad_request
