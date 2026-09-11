@@ -95,7 +95,7 @@ let build_artifacts build (module Db : CONN) =
   let+ artifacts = Db.collect_list Builder_db.Build_artifact.get_all_by_build build in
   List.map snd artifacts
 
-let solo5_manifest datadir file =
+let solo5_manifest ?tags datadir file =
   let cachet =
     let path = Fpath.(to_string (datadir // artifact_path file)) in
     let fd = Unix.openfile path [Unix.O_RDONLY] 0 in
@@ -114,7 +114,7 @@ let solo5_manifest datadir file =
   match Solo5_elftool.query_manifest cachet, Solo5_elftool.query_abi cachet with
   | Error `Msg s, _ | _, Error `Msg s ->
     Log.debug (fun m -> m "Failed to query solo5 manifest/ABI for %a: %s"
-                  Fpath.pp (artifact_path file) s);
+                  Fpath.pp (artifact_path file) s ?tags);
     None
   | Ok mft, Ok abi -> Some (mft, abi)
 
@@ -338,7 +338,7 @@ let prepare_staging staging_dir =
   then Error (`Msg "build directory already exists")
   else Ok ()
 
-let execute_hooks ~datadir ~configdir job_name uuid platform start main_binary =
+let execute_hooks ?tags ~datadir ~configdir job_name uuid platform start main_binary =
   let cachedir = cachedir datadir in
   let time =
     let (y, m, d), ((hh, mm, ss), _) = Ptime.to_date_time start in
@@ -355,7 +355,7 @@ let execute_hooks ~datadir ~configdir job_name uuid platform start main_binary =
            "--main-binary-filepath=" ^ Fpath.to_string main_binary.filepath ;
            Fpath.(to_string (datadir // artifact_path main_binary)) ]
   in
-  Log.debug (fun m -> m "executing hooks with %s" (cmd "hook"));
+  Log.debug (fun m -> m "executing hooks with %s" (cmd "hook") ?tags);
   let dir = Fpath.(configdir / "upload-hooks") in
   match Unix.opendir (Fpath.to_string dir) with
   | exception Unix.Unix_error _ -> Ok ()
@@ -398,7 +398,7 @@ let execute_hooks ~datadir ~configdir job_name uuid platform start main_binary =
    - input_id depends on a sort order?
    *)
 
-let add_build ~datadir ~configdir user_id
+let add_build ?tags ~datadir ~configdir user_id
     ((job : Builder.script_job), uuid, console, start, finish, result, raw_artifacts)
     (module Db : CONN) =
   let open Builder_db in
@@ -410,7 +410,7 @@ let add_build ~datadir ~configdir user_id
         |> Result.iter_error (fun e ->
             Log.err (fun m -> m "Failed to remove staging dir %a: %a"
                         Fpath.pp staging_dir
-                        pp_error e));
+                        pp_error e ?tags));
         e)
       r
   in
@@ -491,12 +491,12 @@ let add_build ~datadir ~configdir user_id
         let* () = Db.exec Build.set_main_binary (id, main_binary_id) in
         Ok (Some main_binary, other_artifacts)
       | [], _ ->
-        Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid);
+        Log.debug (fun m -> m "Zero binaries for build %a" Uuidm.pp uuid ?tags);
         Ok (None, artifacts)
       | xs, _ ->
         Log.warn (fun m -> m "Multiple binaries for build %a: %a" Uuidm.pp uuid
                      Fmt.(list ~sep:(any ",") Fpath.pp)
-                     (List.map (fun (a, _data) -> a.filepath) xs));
+                     (List.map (fun (a, _data) -> a.filepath) xs) ?tags);
         Ok (None, artifacts)
     in
     let* () =
@@ -515,7 +515,7 @@ let add_build ~datadir ~configdir user_id
     (match Db.rollback () with
      | Ok () -> ()
      | Error e ->
-       Log.warn (fun m -> m "Failed to rollback: %a" Caqti_error.pp e));
+       Log.warn (fun m -> m "Failed to rollback: %a" Caqti_error.pp e ?tags));
     r
   | Ok None -> Ok ()
   | Ok Some main_binary ->
@@ -523,11 +523,13 @@ let add_build ~datadir ~configdir user_id
 
 
 (* NOTE: this function is duplicatedi in bin/builder_db_app.ml *)
-let console_of_string data =
+let console_of_string ?tags data =
   let lines = String.split_on_char '\n' data in
   List.filter_map (fun line ->
       match String.index line ':' with
-      | 0 -> Log.warn (fun m -> m "console line starting with colon %S" line); None
+      | 0 ->
+        Log.warn (fun m -> m "console line starting with colon %S" line ?tags);
+        None
       | i ->
         (* the timestamp is of the form "%fs", e.g. 0.867s; so chop off the 's' *)
         let delta = float_of_string (String.sub line 0 (i - 1)) in
@@ -536,12 +538,12 @@ let console_of_string data =
         Some (delta, line)
       | exception Not_found ->
         if line <> "" then
-          Log.warn (fun m -> m "Unexpected console line %S" line);
+          Log.warn (fun m -> m "Unexpected console line %S" line ?tags);
         None)
     lines
   |> List.rev (* in the exec format the order is reversed *)
 
-let exec_of_build datadir uuid (module Db : CONN) =
+let exec_of_build ?tags datadir uuid (module Db : CONN) =
   let open Builder_db in
   let* r = Db.find_opt Build.get_by_uuid uuid in
   let* (build_id, build) = not_found r in
@@ -550,7 +552,7 @@ let exec_of_build datadir uuid (module Db : CONN) =
   let* script = read_file datadir script in
   let* console = read_file datadir console in
   let job = { Builder.name = job_name; script; platform } in
-  let out = console_of_string console in
+  let out = console_of_string ?tags console in
   let* artifacts = Db.collect_list Build_artifact.get_all_by_build build_id in
   let* readme_opt = readme job_id (module Db) in
   let* data =

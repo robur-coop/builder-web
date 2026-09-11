@@ -75,7 +75,7 @@ val previous_successful_build_different_output : [`build] Builder_db.id ->
   Caqti_miou.connection ->
   (Builder_db.Build.t option, [> Caqti_error.call_or_retrieve ]) result
 
-val solo5_manifest : Fpath.t -> Builder_db.file ->
+val solo5_manifest : ?tags: Logs.Tag.set -> Fpath.t -> Builder_db.file ->
   (Solo5_elftool.mft * Solo5_elftool.abi) option
 
 val build_artifact : Uuidm.t -> Fpath.t -> Caqti_miou.connection ->
@@ -98,7 +98,7 @@ end
 val build_artifact_data : Fpath.t -> Uuidm.t -> Fpath.t -> Caqti_miou.connection ->
   (string, [> Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t ]) result
 
-val exec_of_build : Fpath.t -> Uuidm.t -> Caqti_miou.connection ->
+val exec_of_build : ?tags: Logs.Tag.set -> Fpath.t -> Uuidm.t -> Caqti_miou.connection ->
   (string, [> Caqti_error.call_or_retrieve | `Not_found | `File_error of Fpath.t ]) result
 
 val job_name : [`job] Builder_db.id -> Caqti_miou.connection ->
@@ -114,7 +114,8 @@ val authorized : [`user] Builder_db.id -> Builder_web_auth.scrypt Builder_web_au
 val build_exists : Uuidm.t -> Caqti_miou.connection ->
   (bool, [> Caqti_error.call_or_retrieve ]) result
 
-val add_build : datadir:Fpath.t -> configdir:Fpath.t -> [`user] Builder_db.id ->
+val add_build : ?tags: Logs.Tag.set -> datadir:Fpath.t -> configdir:Fpath.t ->
+  [`user] Builder_db.id ->
   (Builder.script_job * Uuidm.t * (int * string) list * Ptime.t * Ptime.t *
     Builder.execution_result * Builder.data) ->
   Caqti_miou.connection ->
