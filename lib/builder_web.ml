@@ -145,6 +145,7 @@ let builds ?(filter_builds = false) ~all req server cfg =
       (* in the old code we use Ptime.Span.sub... *)
       Ptime.sub_span now n |> Option.value ~default:Ptime.epoch
   in
+  let tags = Vif.Request.tags req in
   let open Vif.Response.Syntax in
   let fn conn =
     let ( let* ) = Result.bind in
@@ -171,7 +172,7 @@ let builds ?(filter_builds = false) ~all req server cfg =
           Option.bind latest
             (fun (build, latest_main_binary) ->
                Option.map (fun (mft, abi) -> build, mft, abi)
-                 (Model.solo5_manifest cfg.datadir latest_main_binary))
+                 (Model.solo5_manifest ~tags cfg.datadir latest_main_binary))
         in
         match platform_builds with
         | [] -> Ok acc
@@ -337,11 +338,12 @@ let job_build req job_name build server cfg =
     let* previous = Model.previous_successful_build_different_output build_id conn in
     Ok (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous)
   in
+  let tags = Vif.Request.tags req in
   let open Vif.Response.Syntax in
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req
   @@ fun (build, main_binary, artifacts, same_input_same_output, different_input_same_output, same_input_different_output, latest, next, previous) ->
-  let solo5_manifest = Option.bind main_binary (Model.solo5_manifest cfg.datadir) in
+  let solo5_manifest = Option.bind main_binary (Model.solo5_manifest ~tags cfg.datadir) in
   if is_accept_json req then
     let* () = Vif.Response.add ~field:"content-type" "application/json" in
     let json =
@@ -424,7 +426,8 @@ let job_build_viz req _job_name build viz server cfg =
 
 let exec req _job_name build server cfg =
   let pool = Vif.Server.device caqti server in
-  let fn = Model.exec_of_build cfg.datadir build in
+  let tags = Vif.Request.tags req in
+  let fn = Model.exec_of_build ~tags cfg.datadir build in
   let open Vif.Response.Syntax in
   Caqti_miou_unix.Pool.use fn pool
   |> or_model_error req @@ fun exec ->
@@ -533,6 +536,7 @@ let upload req server { datadir; configdir; _ } =
   let src = Vif.Request.source req in
   let data = Flux.(Stream.into Sink.string (Stream.from src)) in
   let pool = Vif.Server.device caqti server in
+  let tags = Vif.Request.tags req in
   let fn job_name build exec conn =
     let ( let* ) = Result.bind in
     let* authorized = Model.authorized user_id user_info job_name conn in
@@ -541,12 +545,11 @@ let upload req server { datadir; configdir; _ } =
       if exists then
         Ok `Conflict
       else
-        let* () = Model.add_build ~datadir ~configdir user_id exec conn in
+        let* () = Model.add_build ~tags ~datadir ~configdir user_id exec conn in
         Ok `Created
     else Ok `Unauthorized
   in
   let open Vif.Response.Syntax in
-  let tags = Vif.Request.tags req in
   match Builder.Asn.exec_of_str data with
   | Error e ->
     Log.warn (fun m -> m "Received bad builder ASN.1 from %S" user_info.username ~tags);
@@ -583,6 +586,7 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
     |> Option.value ~default:(Ok Fpath.(v job_name + "bin"))
     |> Result.map Fpath.normalize
   in
+  let tags = Vif.Request.tags req in
   let fn binary_path src conn =
     let ( let* ) = Result.bind in
     let* authorized = Model.authorized user_id user_info job_name conn in
@@ -597,11 +601,10 @@ let upload_binary req job_name platform server { datadir; configdir; _ } =
           ({ Builder.name = job_name ; platform ; script = "# This artifact was manually built\n" }, uuid, [], now, now, Builder.Exited 0,
            [ binary_path, Flux.(Stream.into Sink.string (Stream.from src)) ])
         in
-        let* () = Model.add_build ~datadir ~configdir user_id exec conn in
+        let* () = Model.add_build ~tags ~datadir ~configdir user_id exec conn in
         Ok `Created
     else Ok `Unauthorized
   in
-  let tags = Vif.Request.tags req in
   let open Vif.Response.Syntax in
   match binary_name with
   | Error `Msg err ->
